@@ -14,8 +14,10 @@ import {
   getMealIngredients,
   getMealImages,
   getMealSocial,
+  getAllRecipes,
   getShoppingStores,
   getShoppingData,
+  getShoppingIntelligence,
   getNotesKanban,
   getTextPads,
   getDashboardNotes,
@@ -156,6 +158,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     const mealWeekDays = getWeekDaysList(weekStart);
     const { plan: mealPlan, recurring: mealRecurring } = getMealPlanForWeek(weekStart);
     const shopping = getShoppingData();
+    const shoppingIntel = getShoppingIntelligence(shopping.general || []);
+    const recipes = getAllRecipes();
     const notesKanban = getNotesKanban();
     const gcal = await getGoogleCalendarData();
     const masterPinSet = Boolean(AppSetting.get('master_pin'));
@@ -199,9 +203,11 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         images: getMealImages(),
         social: getMealSocial(),
       },
+      recipes,
       shopping: {
         ...shopping,
         stores: getShoppingStores(),
+        intelligence: shoppingIntel,
       },
       notes_kanban: notesKanban,
       text_pads: getTextPads(),

@@ -12075,3 +12075,303 @@ body.side-nav-body-collapsed { padding-left: 8px; }
 @media (min-width: 600px) and (max-width: 1024px) {
   #kanban .column { flex: 1 1 195px !important; min-width: 190px !important; max-width: 340px; }
 }
+
+/* === Header Compact Tablet & Expand Override === */
+.dashboard-header-sticky .header-content {
+  padding: 0.4rem 1rem !important;
+  gap: 0.5rem 0.8rem !important;
+  max-height: none;
+}
+@media (max-width: 1400px) {
+  .dashboard-header-sticky:not(.header-expanded) .header-nav-actions {
+    display: none !important;
+  }
+  #header-collapse-toggle {
+    display: inline-flex !important;
+  }
+  .dashboard-header-sticky {
+    max-height: 100px;
+  }
+  .dashboard-header-sticky.header-expanded {
+    max-height: none;
+  }
+}
+
+/* === Milestone 4 & 5 Styles: Smart Shopping List, Recipe Modal & Kanban Meals === */
+.shopping-stores-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; width: 100%; box-sizing: border-box; }
+.shopping-store-col { background: var(--cr-subtle-panel); border: 1px solid var(--cr-subtle-panel-border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; min-width: 0; box-sizing: border-box; }
+.shopping-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid rgba(148,163,184,0.12); min-width: 0; }
+.shopping-item-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+.shopping-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92rem; }
+.meal-week-display { display: grid; grid-template-columns: repeat(7, minmax(130px, 1fr)); gap: 10px; overflow-x: auto; width: 100%; padding-bottom: 8px; }
+@media (max-width: 900px) { .meal-week-display { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+.meal-day-card { background: var(--cr-subtle-panel); border: 1px solid var(--cr-subtle-panel-border); border-radius: 14px; padding: 10px 8px; display: flex; flex-direction: column; min-width: 0; }
+.meal-day-card.meal-day-card-today { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+
+/* Kanban Meal Planner Tiles */
+.meal-kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
+  margin-bottom: 8px;
+}
+.meal-kanban-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  position: relative;
+}
+.meal-kanban-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(96, 165, 250, 0.5);
+  transform: translateY(-2px);
+}
+.meal-kanban-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.meal-audience-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+.meal-audience-Everyone {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+.meal-audience-Kids {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.meal-audience-Adults {
+  background: rgba(168, 85, 247, 0.2);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+.meal-kanban-card-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-word;
+}
+.meal-kanban-card-del {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.meal-kanban-card-del:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+.meal-kanban-add-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  margin-top: auto;
+}
+.meal-kanban-add-btn:hover {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+}
+
+/* Shopping Controls & Smart Combobox */
+.shopping-smart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.shopping-combobox-wrap {
+  position: relative;
+  flex: 1 1 240px;
+}
+.shopping-combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+.shopping-combobox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #f1f5f9;
+  font-size: 0.88rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.shopping-combobox-item:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+.shopping-combobox-item-custom {
+  color: #60a5fa;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.08);
+}
+.shopping-combobox-item-custom:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+.shopping-combobox-times {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Modals Overlay & Content */
+.cr-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 16px;
+}
+.cr-modal-dialog {
+  background: #182234;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  max-width: 580px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.cr-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cr-modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cr-modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.cr-modal-close:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+.cr-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cr-modal-footer {
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Recipe instructions viewer */
+.recipe-modal-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.recipe-meta-row {
+  display: flex;
+  gap: 14px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.recipe-instructions-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.recipe-ing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.88rem;
+}
+
+/* Fix shopping meal group width */
+.shopping-meal-groups-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+.shopping-meal-group {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}

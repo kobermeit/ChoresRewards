@@ -143,6 +143,39 @@ export function initDatabase() {
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS shopping_catalog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(120) NOT NULL,
+      normalized_key VARCHAR(120) NOT NULL UNIQUE,
+      default_store VARCHAR(60) DEFAULT 'aldi',
+      times_added INTEGER DEFAULT 1,
+      times_purchased INTEGER DEFAULT 0,
+      last_added_at DATETIME,
+      last_purchased_at DATETIME,
+      avg_interval_days FLOAT
+    );
+
+    CREATE TABLE IF NOT EXISTS shopping_purchase_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      catalog_id INTEGER NOT NULL REFERENCES shopping_catalog(id) ON DELETE CASCADE,
+      purchased_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      store VARCHAR(60),
+      qty VARCHAR(40)
+    );
+
+    CREATE TABLE IF NOT EXISTS recipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meal_key VARCHAR(120) NOT NULL UNIQUE,
+      title VARCHAR(160) NOT NULL,
+      image_url VARCHAR(500),
+      ingredients_json TEXT NOT NULL DEFAULT '[]',
+      instructions TEXT NOT NULL DEFAULT '',
+      servings VARCHAR(40),
+      prep_time VARCHAR(40),
+      notion_id VARCHAR(120),
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Safe migrations for existing databases
@@ -298,9 +331,137 @@ export function initDatabase() {
     if (!AppSetting.get('daily_reset_hour')) {
       AppSetting.set('daily_reset_hour', '0');
     }
+
+    // Seed shopping_catalog with household staples and existing meal ingredients if empty
+    const catCnt = (db.prepare('SELECT COUNT(id) as cnt FROM shopping_catalog').get() as { cnt: number }).cnt;
+    if (catCnt === 0) {
+      const nowIso = new Date().toISOString();
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
+      const fifteenDaysAgo = new Date(Date.now() - 15 * 86400 * 1000).toISOString();
+      const staples: Array<{
+        name: string;
+        store: string;
+        added: number;
+        purchased: number;
+        lastPurchased: string | null;
+        avgDays: number | null;
+      }> = [
+        { name: 'Milk', store: 'aldi', added: 8, purchased: 7, lastPurchased: sevenDaysAgo, avgDays: 5 },
+        { name: 'Bread', store: 'aldi', added: 7, purchased: 6, lastPurchased: sevenDaysAgo, avgDays: 5 },
+        { name: 'Eggs', store: 'aldi', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Paper Towel', store: 'aldi', added: 4, purchased: 4, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+        { name: 'Butter', store: 'aldi', added: 4, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+        { name: 'Cheese', store: 'aldi', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Bananas', store: 'fruit-an-vege-4537', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 6 },
+        { name: 'Apples', store: 'fruit-an-vege-4537', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Toilet Paper', store: 'aldi', added: 3, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+        { name: 'Laundry Powder', store: 'aldi', added: 2, purchased: 2, lastPurchased: fifteenDaysAgo, avgDays: 21 },
+        { name: 'Beef sausages', store: 'aldi', added: 3, purchased: 2, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Potato', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Broccoli', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+        { name: 'Carrot', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+      ];
+      const insCat = db.prepare(`
+        INSERT OR IGNORE INTO shopping_catalog
+        (name, normalized_key, default_store, times_added, times_purchased, last_added_at, last_purchased_at, avg_interval_days)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const s of staples) {
+        insCat.run(
+          s.name,
+          normalizeShoppingKey(s.name),
+          s.store,
+          s.added,
+          s.purchased,
+          nowIso,
+          s.lastPurchased,
+          s.avgDays
+        );
+      }
+    }
+
+    // Seed recipes table from existing meal_ingredients_json and starter meals if empty
+    const recCnt = (db.prepare('SELECT COUNT(id) as cnt FROM recipes').get() as { cnt: number }).cnt;
+    if (recCnt === 0) {
+      const insRec = db.prepare(`
+        INSERT OR IGNORE INTO recipes (meal_key, title, image_url, ingredients_json, instructions, servings, prep_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      insRec.run(
+        'sausage & veg',
+        'Sausage & Veg',
+        null,
+        JSON.stringify([
+          { name: 'Beef sausages', qty: '1 pack', store: 'aldi' },
+          { name: 'Potato', qty: '3', store: 'fruit-an-vege-4537' },
+          { name: 'Broccoli', qty: '1 head', store: 'fruit-an-vege-4537' },
+          { name: 'Carrot', qty: '2', store: 'fruit-an-vege-4537' },
+        ]),
+        '1. Peel and chop potatoes into chunks; boil in salted water for 15 mins until tender, then mash with butter and milk.\n2. Pan-fry or grill the beef sausages over medium heat for 12–15 mins, turning until golden brown and cooked through.\n3. Slice carrots and broccoli florets; steam or microwave for 4–5 mins until tender-crisp.\n4. Serve sausages over warm mash with steamed greens and gravy.',
+        '4',
+        '25 mins'
+      );
+      insRec.run(
+        'lasanga',
+        'Lasagna',
+        null,
+        JSON.stringify([
+          { name: 'Beef mince', qty: '500g', store: 'aldi' },
+          { name: 'Lasagna sheets', qty: '1 box', store: 'aldi' },
+          { name: 'Passata / Pasta sauce', qty: '700g', store: 'aldi' },
+          { name: 'Mozzarella cheese', qty: '250g', store: 'aldi' },
+        ]),
+        '1. Preheat oven to 190°C.\n2. Brown the beef mince with onion and garlic, then stir in passata and simmer for 10 mins.\n3. Layer meat sauce, lasagna sheets, and béchamel/cheese in a baking dish.\n4. Top with mozzarella and bake for 35–40 mins until golden and bubbling.',
+        '6',
+        '50 mins'
+      );
+      insRec.run(
+        'pizza',
+        'Homemade Pizza',
+        null,
+        JSON.stringify([
+          { name: 'Pizza bases', qty: '2', store: 'aldi' },
+          { name: 'Pizza sauce', qty: '1 jar', store: 'aldi' },
+          { name: 'Shredded mozzarella', qty: '200g', store: 'aldi' },
+          { name: 'Ham or Pepperoni', qty: '150g', store: 'aldi' },
+        ]),
+        '1. Preheat oven to 220°C.\n2. Spread pizza sauce evenly over the bases.\n3. Scatter toppings and shredded mozzarella across each pizza.\n4. Bake for 10–12 mins until crust is crisp and cheese is melted.',
+        '4',
+        '20 mins'
+      );
+      insRec.run(
+        'spaghetti bolognese',
+        'Spaghetti Bolognese',
+        null,
+        JSON.stringify([
+          { name: 'Spaghetti', qty: '500g', store: 'aldi' },
+          { name: 'Beef mince', qty: '500g', store: 'aldi' },
+          { name: 'Tomato passata', qty: '700g', store: 'aldi' },
+          { name: 'Parmesan cheese', qty: '100g', store: 'aldi' },
+        ]),
+        '1. Brown beef mince with diced onion, garlic, and Italian herbs.\n2. Pour in passata and simmer gently for 15–20 mins.\n3. Cook spaghetti in salted boiling water until al dente, drain, and serve topped with bolognese and grated parmesan.',
+        '4',
+        '25 mins'
+      );
+    }
   } catch (err) {
     console.error('[startup] Error seeding migrated household data:', err);
   }
+}
+
+export function normalizeShoppingKey(raw: string): string {
+  let s = String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, '');
+  if (s.length > 3 && s.endsWith('oes')) {
+    s = s.slice(0, -2); // potatoes -> potato, tomatoes -> tomato
+  } else if (s.length > 3 && s.endsWith('ies')) {
+    s = s.slice(0, -3) + 'y'; // berries -> berry
+  } else if (s.length > 3 && s.endsWith('s') && !s.endsWith('ss')) {
+    s = s.slice(0, -1); // paper towels -> papertowel, eggs -> egg
+  }
+  return s || 'item';
 }
 
 export const AppSetting = {

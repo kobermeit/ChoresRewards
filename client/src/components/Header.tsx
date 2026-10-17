@@ -184,22 +184,16 @@ export const Header: React.FC = () => {
     }
   };
 
-  const toggleMinimizeHeader = () => {
-    setHeaderMinimized((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('headerMinimized', next ? '1' : '0');
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+  const [headerExpanded, setHeaderExpanded] = useState(false);
+
+  const toggleHeaderExpanded = () => {
+    setHeaderExpanded((prev) => !prev);
   };
 
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
 
   return (
-    <header className={`dashboard-header-sticky${headerMinimized ? ' header-minimized' : ''}`}>
+    <header className={`dashboard-header-sticky${headerExpanded ? ' header-expanded' : ''}`}>
       <div
         className="header-content"
         style={{
@@ -207,9 +201,9 @@ export const Header: React.FC = () => {
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.6rem 1rem',
+          gap: '0.4rem 0.8rem',
           background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
-          padding: headerMinimized ? '0.35rem 1rem' : '0.55rem 1.25rem',
+          padding: '0.4rem 1.1rem',
           borderRadius: '14px 14px 0 0',
           borderBottom: '1px solid var(--cr-surface-border)',
           transition: 'padding 0.2s ease',
@@ -606,8 +600,8 @@ export const Header: React.FC = () => {
 
         <button
           id="header-collapse-toggle"
-          title={headerMinimized ? 'Expand header' : 'Minimize header'}
-          onClick={toggleMinimizeHeader}
+          title={headerExpanded ? 'Collapse menu' : 'Expand full menu'}
+          onClick={toggleHeaderExpanded}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -618,13 +612,12 @@ export const Header: React.FC = () => {
             padding: 0,
             borderRadius: 8,
             border: '1px solid rgba(148,163,184,0.2)',
-            background: 'rgba(255,255,255,0.06)',
-            color: 'var(--cr-text-secondary)',
+            background: headerExpanded ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.06)',
+            color: headerExpanded ? '#93c5fd' : 'var(--cr-text-secondary)',
             cursor: 'pointer',
-            marginLeft: headerMinimized ? 'auto' : 0,
           }}
         >
-          <i className={`fas ${headerMinimized ? 'fa-chevron-down' : 'fa-chevron-up'}`} />
+          <i className={`fas ${headerExpanded ? 'fa-chevron-up' : 'fa-ellipsis'}`} />
         </button>
       </div>
 

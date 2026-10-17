@@ -184,15 +184,21 @@ export const AppProvider: React.FC<{
 
   const scrollToSection = useCallback(
     (sectionId: string) => {
+      const doScroll = () => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          const headerEl = document.querySelector('header');
+          const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 90;
+          const targetY = el.getBoundingClientRect().top + window.scrollY - (headerHeight + 12);
+          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+      };
+
       if (activeView !== 'dashboard') {
         setActiveView('dashboard');
-        setTimeout(() => {
-          const el = document.getElementById(sectionId);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
+        setTimeout(doScroll, 120);
       } else {
-        const el = document.getElementById(sectionId);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        doScroll();
       }
     },
     [activeView]

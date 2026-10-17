@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../api';
-import { MealIngredient, ShoppingStore } from '../types';
+import { MealIngredient, ShoppingStore, RecipeItem, ShoppingCatalogItem } from '../types';
+import { SectionHelpTip } from './HelpTooltipAndView';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -127,7 +128,7 @@ export const MealAndShoppingSection: React.FC = () => {
   // Accordion states matching original index.html
   const [plannerCollapsed, setPlannerCollapsed] = useState(false);
   const [suggestedMealsCollapsed, setSuggestedMealsCollapsed] = useState(true);
-  const [shoppingCollapsed, setShoppingCollapsed] = useState(true);
+  const [shoppingCollapsed, setShoppingCollapsed] = useState(false);
   const [archivedCollapsed, setArchivedCollapsed] = useState(true);
   const [libraryCollapsed, setLibraryCollapsed] = useState(true);
 
@@ -136,6 +137,36 @@ export const MealAndShoppingSection: React.FC = () => {
   const [weekDaysState, setWeekDaysState] = useState<any[]>([]);
   const [weekPlanState, setWeekPlanState] = useState<Record<string, any>>({});
   const [navLoading, setNavLoading] = useState(false);
+
+  // Shopping intelligence states
+  const [shoppingSearch, setShoppingSearch] = useState('');
+  const [shoppingStore, setShoppingStore] = useState('');
+  const [shoppingComboboxOpen, setShoppingComboboxOpen] = useState(false);
+  const [hideChecked, setHideChecked] = useState(false);
+  const [frequentlyModalOpen, setFrequentlyModalOpen] = useState(false);
+  const [suggestedModalOpen, setSuggestedModalOpen] = useState(false);
+  const [recentlyPurchasedOpen, setRecentlyPurchasedOpen] = useState(false);
+  const [selectedFrequentKeys, setSelectedFrequentKeys] = useState<Record<string, boolean>>({});
+  const [selectedSuggestedKeys, setSelectedSuggestedKeys] = useState<Record<string, boolean>>({});
+
+  // Kanban Meal Planner Add/Edit Modal
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planMealTitle, setPlanMealTitle] = useState('');
+  const [planAudience, setPlanAudience] = useState('Everyone');
+  const [planSelectedDays, setPlanSelectedDays] = useState<string[]>([]);
+  const [planEditingCardId, setPlanEditingCardId] = useState<string | null>(null);
+
+  // Recipe View / Edit Modal
+  const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState(false);
+  const [recipeFormTitle, setRecipeFormTitle] = useState('');
+  const [recipeFormPrep, setRecipeFormPrep] = useState('');
+  const [recipeFormServings, setRecipeFormServings] = useState('');
+  const [recipeFormInstructions, setRecipeFormInstructions] = useState('');
+
+  // Notion Sync in Library
+  const [notionSyncing, setNotionSyncing] = useState(false);
+  const comboboxRef = useRef<HTMLDivElement>(null);
 
   // Inline slot picker state
   const [openSlotKey, setOpenSlotKey] = useState<string | null>(null);
@@ -407,14 +438,241 @@ export const MealAndShoppingSection: React.FC = () => {
     await refresh();
   };
 
+  const [planAddShopping, setPlanAddShopping] = useState(true);
+
+  const recipesRecord: Record<string, RecipeItem> = data.recipes || {};
+  const intel = shop?.intelligence || {
+    catalog: [],
+    frequently_added: [],
+    suggested: [],
+    recently_purchased: [],
+  };
+
   const allSuggestionsPool = Array.from(
-    new Set([...suggestions, ...Object.keys(ingredientsMap).map((k) => k.charAt(0).toUpperCase() + k.slice(1))])
+    new Set([
+      ...suggestions,
+      ...Object.keys(ingredientsMap).map((k) => k.charAt(0).toUpperCase() + k.slice(1)),
+      ...Object.values(recipesRecord).map((r) => r.title),
+    ])
   );
+
+  const catalogPool = intel.catalog || [];
+  const filteredCatalog = shoppingSearch.trim()
+    ? catalogPool
+        .filter((item) => item.name.toLowerCase().includes(shoppingSearch.toLowerCase().trim()))
+        .slice(0, 10)
+    : catalogPool.slice(0, 8);
+
+  const handleSyncNotion = async () => {
+    setNotionSyncing(true);
+    try {
+      const res = await apiPost<{ success: boolean; synced: number; error?: string }>('recipes/sync_notion', {});
+      if (res.success) {
+        showToast(`Synced ${res.synced} recipes from Notion!`, { type: 'success' });
+        await refresh();
+      } else {
+        showToast(res.error || 'Notion sync failed', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to sync with Notion', { type: 'error' });
+    } finally {
+      setNotionSyncing(false);
+    }
+  };
+
+  const handleOpenAddMealModal = (defaultDateIso: string) => {
+    setPlanMealTitle('');
+    setPlanAudience('Everyone');
+    setPlanSelectedDays([defaultDateIso]);
+    setPlanEditingCardId(null);
+    setPlanAddShopping(true);
+    setPlanModalOpen(true);
+  };
+
+  const handleSaveMealCard = async () => {
+    const title = planMealTitle.trim();
+    if (!title || planSelectedDays.length === 0) {
+      showToast('Please enter a meal title and select at least one day', { type: 'warning' });
+      return;
+    }
+    try {
+      await apiPost('meal_planner/card', {
+        title,
+        audience: planAudience,
+        days: planSelectedDays,
+        card_id: planEditingCardId || undefined,
+      });
+
+      if (planAddShopping) {
+        const mealKey = title.toLowerCase();
+        const recipeMatch = recipesRecord[mealKey];
+        const ings = recipeMatch?.ingredients?.length ? recipeMatch.ingredients : ingredientsMap[mealKey] || [];
+        if (ings.length > 0) {
+          await apiPost('shopping/batch_add', {
+            items: ings.map((i: any) => ({
+              name: i.name,
+              qty: i.qty || '',
+              store: i.store || stores[0]?.id || 'aldi',
+            })),
+          });
+          showToast(`Planned "${title}" and added ${ings.length} ingredients to shopping list!`);
+        } else {
+          showToast(`Planned "${title}" for ${planSelectedDays.length} day(s)!`);
+        }
+      } else {
+        showToast(`Planned "${title}" for ${planSelectedDays.length} day(s)!`);
+      }
+
+      setPlanModalOpen(false);
+      setPlanMealTitle('');
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to save meal card', { type: 'error' });
+    }
+  };
+
+  const handleDeleteCard = async (dateIso: string, cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await apiPost('meal_planner/card/delete', {
+        date_iso: dateIso,
+        card_id: cardId,
+      });
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete card', { type: 'error' });
+    }
+  };
+
+  const handleOpenRecipeModal = (card: { title: string; meal_key?: string }) => {
+    const key = (card.meal_key || card.title).toLowerCase().trim();
+    const existing = recipesRecord[key] || {
+      meal_key: key,
+      title: card.title,
+      image_url: mealImages[key] || null,
+      ingredients: ingredientsMap[key] || [],
+      instructions: '',
+      servings: '4',
+      prep_time: '25 mins',
+    };
+    setActiveRecipe(existing);
+    setRecipeFormTitle(existing.title);
+    setRecipeFormPrep(existing.prep_time || '');
+    setRecipeFormServings(existing.servings || '');
+    setRecipeFormInstructions(existing.instructions || '');
+    setEditingRecipe(false);
+  };
+
+  const handleSaveRecipeForm = async () => {
+    if (!activeRecipe) return;
+    try {
+      await apiPost('recipes', {
+        title: recipeFormTitle || activeRecipe.title,
+        prep_time: recipeFormPrep,
+        servings: recipeFormServings,
+        instructions: recipeFormInstructions,
+        ingredients: activeRecipe.ingredients || [],
+        image_url: activeRecipe.image_url || undefined,
+      });
+      showToast('Recipe saved!');
+      setEditingRecipe(false);
+      await refresh();
+      if (activeRecipe.meal_key) {
+        setActiveRecipe((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: recipeFormTitle || prev.title,
+                prep_time: recipeFormPrep,
+                servings: recipeFormServings,
+                instructions: recipeFormInstructions,
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to save recipe', { type: 'error' });
+    }
+  };
+
+  const handleAddRecipeIngredientsToShopping = async (recipe: RecipeItem) => {
+    const ings = recipe.ingredients || [];
+    if (ings.length === 0) {
+      showToast('No ingredients listed for this recipe', { type: 'warning' });
+      return;
+    }
+    try {
+      await apiPost('shopping/batch_add', {
+        items: ings.map((i) => ({
+          name: i.name,
+          qty: i.qty || '',
+          store: i.store || stores[0]?.id || 'aldi',
+        })),
+      });
+      showToast(`Added ${ings.length} ingredients from "${recipe.title}" to shopping list!`);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to add ingredients', { type: 'error' });
+    }
+  };
+
+  const handleBatchAddFromKeys = async (keysRecord: Record<string, boolean>, pool: ShoppingCatalogItem[]) => {
+    const selected = pool.filter((item) => keysRecord[item.normalized_key]);
+    if (selected.length === 0) {
+      showToast('No items selected', { type: 'warning' });
+      return;
+    }
+    try {
+      await apiPost('shopping/batch_add', {
+        items: selected.map((s) => ({
+          name: s.name,
+          qty: '',
+          store: s.default_store || stores[0]?.id || 'aldi',
+        })),
+      });
+      showToast(`Added ${selected.length} items to shopping list!`);
+      setSelectedFrequentKeys({});
+      setSelectedSuggestedKeys({});
+      setFrequentlyModalOpen(false);
+      setSuggestedModalOpen(false);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to batch add items', { type: 'error' });
+    }
+  };
+
+  const handleArchiveChecked = async () => {
+    try {
+      const res = await apiPost<{ success: boolean; archived_count: number }>('shopping/archive_checked', {});
+      showToast(`Archived ${res.archived_count || 'checked'} items as purchased! Recorded to history.`);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to archive checked items', { type: 'error' });
+    }
+  };
+
+  const handleSelectComboboxItem = async (itemName: string, preferredStore?: string) => {
+    const trimmed = itemName.trim();
+    if (!trimmed) return;
+    setShoppingSearch('');
+    setShoppingComboboxOpen(false);
+    try {
+      await apiPost('add_general_shopping_item', {
+        name: trimmed,
+        qty: '',
+        store: preferredStore || shoppingStore || stores[0]?.id || 'aldi',
+      });
+      showToast(`Added "${trimmed}" to list`);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to add item', { type: 'error' });
+    }
+  };
 
   return (
     <>
       {/* ===================================================================
-          1. WEEKLY MEAL PLANNER
+          1. WEEKLY MEAL PLANNER (KANBAN DAYS)
          =================================================================== */}
       <section
         className={`meal-planner-section collapsible-section${plannerCollapsed ? ' collapsed' : ''}`}
@@ -425,12 +683,12 @@ export const MealAndShoppingSection: React.FC = () => {
           onClick={() => setPlannerCollapsed((p) => !p)}
         >
           <i className="fas fa-utensils" /> <span>Weekly Meal Planner</span>
+          <SectionHelpTip
+            title="Weekly Meal Planner"
+            text="Plan meals as Kanban columns with multiple tiles per day (e.g. Kids vs Adults). Click any meal tile to open recipe instructions and ingredients, or add them straight to shopping. Select multiple days when cooking big meals to last multiple nights!"
+          />
           <i className="fas fa-chevron-down section-chevron" />
         </h2>
-        <div className="meal-planner-subtitle">
-          Drag meals to swap. Click <i className="fas fa-pencil" style={{ fontSize: '0.8em', opacity: 0.75 }} /> to
-          change a meal.
-        </div>
 
         <div className="meal-week-nav">
           <button
@@ -460,183 +718,115 @@ export const MealAndShoppingSection: React.FC = () => {
           )}
         </div>
 
+        {/* 7-Day Kanban Display */}
         <div id="meal-planner-editable" className="meal-week-display">
           {weekDays.map((day) => {
             const isToday = day.date_iso === data.current_date;
-            const daySlots = plan[day.date_iso] || { breakfast: '', lunch: '', dinner: '' };
-            const weekdayLower = (day.day_full || '').toLowerCase();
+            const rawDayData = plan[day.date_iso];
+            const dayCards: any[] = Array.isArray(rawDayData)
+              ? rawDayData
+              : typeof rawDayData === 'object' && rawDayData !== null
+                ? Object.entries(rawDayData)
+                    .filter(([, v]) => Boolean(v))
+                    .map(([k, v]) => ({
+                      id: `${day.date_iso}_${k}`,
+                      title: String(v),
+                      audience: 'Everyone',
+                      meal_key: String(v).toLowerCase(),
+                    }))
+                : [];
 
             return (
               <div
                 key={day.date_iso}
                 className={`meal-day-card${isToday ? ' meal-day-card-today' : ''}`}
                 data-day={day.date_iso}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async () => {
+                  if (draggedSlot) {
+                    try {
+                      await apiPost('meal_planner/card/move', {
+                        card_id: draggedSlot.mealKey,
+                        from_date_iso: draggedSlot.dateIso,
+                        to_date_iso: day.date_iso,
+                      });
+                      setDraggedSlot(null);
+                      await refresh();
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }}
               >
                 <div className="meal-day-header">
                   <strong>{day.day_full}</strong>
                   <span>{day.date_label}</span>
                 </div>
-                <div className="meal-day-items">
-                  {MEAL_KEYS.map((mealKey) => {
-                    const cellValue = (daySlots[mealKey] || '').trim();
-                    const recEnabled = Boolean(recurringMap[weekdayLower]?.[mealKey]?.enabled);
-                    const slotKey = `${day.date_iso}::${mealKey}`;
-                    const isPickerOpen = openSlotKey === slotKey;
-                    const customImg = cellValue ? mealImages[cellValue.toLowerCase()] || mealImages[cellValue] : '';
 
-                    return (
-                      <div
-                        key={mealKey}
-                        className="meal-slot"
-                        data-day={day.date_iso}
-                        data-meal={mealKey}
-                        data-weekday={weekdayLower}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (draggedSlot) {
-                            handleSwapSlots(draggedSlot.dateIso, draggedSlot.mealKey, day.date_iso, mealKey);
-                            setDraggedSlot(null);
-                          }
-                        }}
-                      >
+                <div className="meal-kanban-cards">
+                  {dayCards.length === 0 ? (
+                    <div className="meal-day-empty" style={{ textAlign: 'center', opacity: 0.5, fontSize: '0.8rem' }}>
+                      No meals planned
+                    </div>
+                  ) : (
+                    dayCards.map((card) => {
+                      const recipeObj = recipesRecord[card.meal_key] || recipesRecord[card.title.toLowerCase()];
+                      const customImg = recipeObj?.image_url || mealImages[card.meal_key];
+
+                      return (
                         <div
-                          className={`meal-slot-row${isPickerOpen ? ' meal-slot-picker-open' : ''}`}
+                          key={card.id}
+                          className="meal-kanban-card"
                           draggable
-                          onDragStart={() => setDraggedSlot({ dateIso: day.date_iso, mealKey })}
+                          onDragStart={() => setDraggedSlot({ dateIso: day.date_iso, mealKey: card.id as any })}
                           onDragEnd={() => setDraggedSlot(null)}
-                          onClick={() => handleOpenPicker(day.date_iso, mealKey, weekdayLower)}
+                          onClick={() => handleOpenRecipeModal(card)}
+                          title="Click to view recipe & ingredients"
                         >
-                          <span className="meal-slot-icon">
+                          <div className="meal-kanban-card-header">
+                            <span className={`meal-audience-pill meal-audience-${card.audience || 'Everyone'}`}>
+                              {card.audience || 'Everyone'}
+                            </span>
+                            <button
+                              type="button"
+                              className="meal-kanban-card-del"
+                              title="Delete meal"
+                              onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <div className="meal-kanban-card-title">
                             {customImg ? (
                               <img
                                 src={resolveAssetUrl(customImg)}
                                 alt=""
-                                style={{
-                                  width: 26,
-                                  height: 26,
-                                  objectFit: 'cover',
-                                  borderRadius: 4,
-                                  verticalAlign: 'middle',
-                                }}
+                                style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4 }}
                               />
-                            ) : cellValue ? (
-                              getMealEmoji(cellValue)
                             ) : (
-                              '🍽️'
+                              <span>{getMealEmoji(card.title)}</span>
                             )}
-                          </span>
-                          <span
-                            className={`meal-display-value${!cellValue ? ' meal-display-empty' : ''}`}
-                            data-day={day.date_iso}
-                            data-meal={mealKey}
-                          >
-                            {cellValue || '—'}
-                          </span>
-                          <div className="meal-slot-tools">
-                            <span
-                              className={`meal-recurring-badge${!recEnabled || !cellValue ? ' hidden' : ''}`}
-                              title="Repeats weekly"
-                            >
-                              <i className="fas fa-repeat" />
-                            </span>
-                            <i className="fas fa-grip-lines meal-drag-cue" title="Drag to swap" />
-                            <button
-                              type="button"
-                              className="meal-edit-btn"
-                              title="Change meal"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenPicker(day.date_iso, mealKey, weekdayLower);
-                              }}
-                            >
-                              <i className="fas fa-pencil" />
-                            </button>
+                            <span>{card.title}</span>
                           </div>
                         </div>
-
-                        {isPickerOpen && (
-                          <div className="meal-inline-picker">
-                            <div className="meal-picker-header">
-                              <label className="meal-picker-recurring-wrap" title="Repeat weekly">
-                                <i className="fas fa-repeat" />
-                                <input
-                                  type="checkbox"
-                                  className="meal-picker-recurring"
-                                  checked={pickerRecurring}
-                                  onChange={(e) => setPickerRecurring(e.target.checked)}
-                                />
-                                <span>Weekly</span>
-                              </label>
-                            </div>
-                            <input
-                              type="text"
-                              className="meal-picker-input"
-                              placeholder="Search meals, or type anything…"
-                              value={pickerValue}
-                              maxLength={120}
-                              autoFocus
-                              onChange={(e) => setPickerValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleCommitPicker(day.date_iso, mealKey);
-                                }
-                                if (e.key === 'Escape') {
-                                  setOpenSlotKey(null);
-                                }
-                              }}
-                            />
-                            <div className="meal-picker-hint">Enter saves · Esc closes</div>
-                            {allSuggestionsPool.length > 0 && (
-                              <div className="meal-picker-results" role="listbox">
-                                {allSuggestionsPool
-                                  .filter((s) => !pickerValue || s.toLowerCase().includes(pickerValue.toLowerCase()))
-                                  .slice(0, 8)
-                                  .map((s) => (
-                                    <div
-                                      key={s}
-                                      className="meal-picker-option"
-                                      onClick={() => handleCommitPicker(day.date_iso, mealKey, s)}
-                                    >
-                                      <span>{getMealEmoji(s)}</span> <span>{s}</span>
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-                            <div className="meal-picker-btns">
-                              <button
-                                type="button"
-                                className="meal-picker-ok"
-                                onClick={() => handleCommitPicker(day.date_iso, mealKey)}
-                              >
-                                ✓ Set
-                              </button>
-                              <button
-                                type="button"
-                                className="meal-picker-clear"
-                                onClick={() => handleCommitPicker(day.date_iso, mealKey, '')}
-                              >
-                                Clear
-                              </button>
-                              <button
-                                type="button"
-                                className="meal-picker-cancel"
-                                onClick={() => setOpenSlotKey(null)}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
+
+                <button
+                  type="button"
+                  className="meal-kanban-add-btn"
+                  onClick={() => handleOpenAddMealModal(day.date_iso)}
+                >
+                  <i className="fas fa-plus" /> Add Meal
+                </button>
               </div>
             );
           })}
         </div>
 
+        {/* Suggested Meals Pool */}
         <div
           className={`meal-suggestions-panel collapsible-section${suggestedMealsCollapsed ? ' collapsed' : ''}`}
         >
@@ -644,7 +834,7 @@ export const MealAndShoppingSection: React.FC = () => {
             className="meal-suggestions-toggle section-toggle"
             onClick={() => setSuggestedMealsCollapsed((p) => !p)}
           >
-            <i className="fas fa-utensils" /> Suggested Meals
+            <i className="fas fa-utensils" /> Quick Suggested Meals ({suggestions.length})
             <i className="fas fa-chevron-down section-chevron" />
           </h3>
           <div className="meal-suggestion-add-row">
@@ -692,7 +882,7 @@ export const MealAndShoppingSection: React.FC = () => {
       </section>
 
       {/* ===================================================================
-          2. SHOPPING LIST
+          2. SHOPPING LIST (SMART CATALOG & DEDUPLICATED)
          =================================================================== */}
       <section
         className={`meal-planner-section shopping-list-section collapsible-section${shoppingCollapsed ? ' collapsed' : ''}`}
@@ -703,19 +893,155 @@ export const MealAndShoppingSection: React.FC = () => {
           onClick={() => setShoppingCollapsed((p) => !p)}
         >
           <i className="fas fa-cart-shopping" /> <span>Shopping List</span>
+          <SectionHelpTip
+            title="Smart Shopping List"
+            text="Catalog tracks frequent items and purchase frequency. Use 'Frequently Added' or 'Suggested' to restock items in bulk with one click. 'Hide Checked' clears ticked items while shopping, and 'Archive Checked' records purchases to history."
+          />
           <i className="fas fa-chevron-down section-chevron" />
         </h2>
-        <p className="meal-planner-subtitle">
-          Items needed for your planned meals this week plus general weekly shopping — split by store.
-        </p>
 
+        {/* Smart Toolbar */}
+        <div className="shopping-smart-toolbar">
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => setFrequentlyModalOpen(true)}
+            title="Add frequently purchased staples"
+          >
+            <i className="fas fa-star" /> Frequently Added ({intel.frequently_added?.length || 0})
+          </button>
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => setSuggestedModalOpen(true)}
+            title="Items predicted to restock based on purchase frequency"
+          >
+            <i className="fas fa-lightbulb" /> Suggested Restock ({intel.suggested?.length || 0})
+          </button>
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => setRecentlyPurchasedOpen(true)}
+            title="View purchased history"
+          >
+            <i className="fas fa-clock-rotate-left" /> Purchased History
+          </button>
+          <button
+            type="button"
+            className={`edit-btn${hideChecked ? ' active' : ''}`}
+            onClick={() => setHideChecked((h) => !h)}
+            title="Hide or show checked items"
+          >
+            <i className={hideChecked ? 'fas fa-eye-slash' : 'fas fa-eye'} />{' '}
+            {hideChecked ? 'Show Checked' : 'Hide Checked'}
+          </button>
+          <button
+            type="button"
+            className="edit-btn"
+            style={{
+              marginLeft: 'auto',
+              background: 'rgba(34,197,94,0.18)',
+              borderColor: 'rgba(34,197,94,0.4)',
+              color: '#86efac',
+            }}
+            onClick={handleArchiveChecked}
+            title="Archive checked items as purchased and save to history"
+          >
+            <i className="fas fa-box-archive" /> Archive Checked (Purchased)
+          </button>
+        </div>
+
+        {/* Smart Search Combobox */}
+        <div className="shopping-manage-block" style={{ margin: '10px 0 14px 0' }}>
+          <div className="shopping-add-row" style={{ position: 'relative' }}>
+            <div className="shopping-combobox-wrap" ref={comboboxRef}>
+              <input
+                type="text"
+                className="modern-input"
+                placeholder="Search staples (e.g. Paper Towel, Milk, Bread) or type new item…"
+                value={shoppingSearch}
+                onFocus={() => setShoppingComboboxOpen(true)}
+                onChange={(e) => {
+                  setShoppingSearch(e.target.value);
+                  setShoppingComboboxOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (
+                      filteredCatalog.length > 0 &&
+                      shoppingSearch.trim().toLowerCase() === filteredCatalog[0].name.toLowerCase()
+                    ) {
+                      handleSelectComboboxItem(filteredCatalog[0].name, filteredCatalog[0].default_store);
+                    } else if (shoppingSearch.trim()) {
+                      handleSelectComboboxItem(shoppingSearch.trim());
+                    }
+                  } else if (e.key === 'Escape') {
+                    setShoppingComboboxOpen(false);
+                  }
+                }}
+              />
+              {shoppingComboboxOpen && (
+                <div className="shopping-combobox-dropdown">
+                  {filteredCatalog.map((item) => (
+                    <div
+                      key={item.normalized_key}
+                      className="shopping-combobox-item"
+                      onClick={() => handleSelectComboboxItem(item.name, item.default_store)}
+                    >
+                      <span>{item.name}</span>
+                      <span className="shopping-combobox-times">
+                        {item.times_added ? `${item.times_added}× added` : ''} · {item.default_store || 'aldi'}
+                      </span>
+                    </div>
+                  ))}
+                  {shoppingSearch.trim() &&
+                    !catalogPool.some(
+                      (c) => c.name.toLowerCase() === shoppingSearch.trim().toLowerCase()
+                    ) && (
+                      <div
+                        className="shopping-combobox-item shopping-combobox-item-custom"
+                        onClick={() => handleSelectComboboxItem(shoppingSearch.trim())}
+                      >
+                        <span>+ Add &ldquo;{shoppingSearch.trim()}&rdquo; to shopping list</span>
+                        <span className="shopping-combobox-times">new item</span>
+                      </div>
+                    )}
+                </div>
+              )}
+            </div>
+            <select
+              className="meal-quick-add shopping-store-select shopping-dynamic-store-select"
+              value={shoppingStore || stores[0]?.id || ''}
+              onChange={(e) => setShoppingStore(e.target.value)}
+              style={{ maxWidth: 160 }}
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="edit-btn"
+              onClick={() => {
+                if (shoppingSearch.trim()) {
+                  handleSelectComboboxItem(shoppingSearch.trim());
+                }
+              }}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Stores Columns */}
         <div className="shopping-stores-row" id="shopping-stores-row">
           {stores.map((store) => {
-            // Find meal groups that have ingredients for this store
             const mealGroupsForStore = Object.entries(ingredientsMap).filter(([mealKey, ings]) => {
               const isPlannedOrActive =
-                Boolean(plannedMealsMap[mealKey.toLowerCase()]) ||
-                (shop?.active || []).includes(mealKey);
+                Boolean(plannedMealsMap[mealKey.toLowerCase()]) || (shop?.active || []).includes(mealKey);
               return (
                 isPlannedOrActive &&
                 (ings || []).some(
@@ -772,7 +1098,9 @@ export const MealAndShoppingSection: React.FC = () => {
                     </button>
                   )}
                   <span
-                    className={`shopping-store-badge${uncheckedCount === 0 && totalItemsCount > 0 ? ' shopping-store-badge-done' : ''}`}
+                    className={`shopping-store-badge${
+                      uncheckedCount === 0 && totalItemsCount > 0 ? ' shopping-store-badge-done' : ''
+                    }`}
                   >
                     {uncheckedCount ? `${uncheckedCount} to get` : '✓ All done'}
                   </span>
@@ -792,6 +1120,16 @@ export const MealAndShoppingSection: React.FC = () => {
                           plannedMealsMap[mealKey.toLowerCase()] ||
                           mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
 
+                        // If hideChecked is true, check if all items are checked
+                        const visibleIngs = hideChecked
+                          ? storeIngs.filter((ing) => {
+                              const itemKey = `meal::${mealKey}::${ing.name.toLowerCase()}`;
+                              return !shop?.checked?.[itemKey];
+                            })
+                          : storeIngs;
+
+                        if (visibleIngs.length === 0) return null;
+
                         return (
                           <div
                             key={mealKey}
@@ -802,7 +1140,7 @@ export const MealAndShoppingSection: React.FC = () => {
                               <span className="shopping-meal-group-name">{displayName}</span>
                               {isPlanned && <span className="shopping-planned-badge">This week</span>}
                             </div>
-                            {storeIngs.map((ing: MealIngredient) => {
+                            {visibleIngs.map((ing: MealIngredient) => {
                               const itemKey = `meal::${mealKey}::${ing.name.toLowerCase()}`;
                               const checked = Boolean(shop?.checked?.[itemKey]);
                               return (
@@ -837,11 +1175,13 @@ export const MealAndShoppingSection: React.FC = () => {
                       &ensp;General Shopping
                     </div>
                     {storeGeneral.length === 0 ? (
-                      <div className="shopping-empty-msg">No general items yet — add some below.</div>
+                      <div className="shopping-empty-msg">No general items yet.</div>
                     ) : (
                       storeGeneral.map((g) => {
                         const itemKey = `general::${g.name.toLowerCase()}`;
                         const checked = Boolean(g.checked || shop?.checked?.[itemKey]);
+                        if (hideChecked && checked) return null;
+
                         return (
                           <div
                             key={itemKey}
@@ -876,64 +1216,21 @@ export const MealAndShoppingSection: React.FC = () => {
           })}
         </div>
 
-        <div className="shopping-action-row">
+        <div className="shopping-action-row" style={{ marginTop: 10 }}>
           <button
             type="button"
             className="edit-btn"
             id="clear-checked-shopping-btn"
             onClick={handleClearCheckedShopping}
           >
-            <i className="fas fa-broom" /> Clear Checked
+            <i className="fas fa-eraser" /> Uncheck All
           </button>
           <button type="button" className="edit-btn" id="add-store-btn" onClick={handleAddStorePrompt}>
             <i className="fas fa-plus" /> Add Store
           </button>
         </div>
 
-        <div className="shopping-manage-block" style={{ margin: '10px 0 4px 0' }}>
-          <label className="shopping-manage-label">
-            <i className="fas fa-list-check" />
-            &ensp;Add General Shopping Item
-          </label>
-          <div className="shopping-add-row">
-            <input
-              type="text"
-              id="shopping-quick-input"
-              className="modern-input"
-              placeholder="e.g. Bread, Milk..."
-              maxLength={80}
-              value={quickItemName}
-              onChange={(e) => setQuickItemName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleQuickAddShopping();
-                }
-              }}
-            />
-            <select
-              id="shopping-quick-store"
-              className="meal-quick-add shopping-store-select shopping-dynamic-store-select"
-              value={quickItemStore || stores[0]?.id || ''}
-              onChange={(e) => setQuickItemStore(e.target.value)}
-            >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="edit-btn"
-              id="shopping-quick-add-btn"
-              onClick={handleQuickAddShopping}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-
+        {/* Archived History */}
         <div
           className={`shopping-archived-wrap collapsible-section${archivedCollapsed ? ' collapsed' : ''}`}
           id="shopping-archived-section"
@@ -942,24 +1239,43 @@ export const MealAndShoppingSection: React.FC = () => {
             className="section-toggle shopping-archived-toggle"
             onClick={() => setArchivedCollapsed((p) => !p)}
           >
-            <i className="fas fa-box-archive" /> Old Shopping List
+            <i className="fas fa-box-archive" /> Old Archived Shopping List
             <span id="shopping-archived-count" className="shopping-archived-count">
               {(shop?.archived || []).length || ''}
             </span>
             <i className="fas fa-chevron-down section-chevron" />
           </h3>
           <div id="shopping-archived-list">
-            {(shop?.archived || []).length === 0 && (
+            {(shop?.archived || []).length === 0 ? (
               <div className="shopping-empty-msg" style={{ padding: '8px 12px' }}>
                 No archived items yet.
               </div>
+            ) : (
+              (shop?.archived || []).slice(0, 30).map((item, idx) => (
+                <div key={idx} className="shopping-archived-row">
+                  <span className="shopping-archived-name">{item.name}</span>
+                  <span className="shopping-archived-store">{item.store}</span>
+                  {item.purchased_at && (
+                    <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>
+                      {new Date(item.purchased_at).toLocaleDateString()}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="shopping-restore-btn"
+                    onClick={() => handleSelectComboboxItem(item.name, item.store)}
+                  >
+                    + Re-add
+                  </button>
+                </div>
+              ))
             )}
           </div>
         </div>
       </section>
 
       {/* ===================================================================
-          3. MEAL LIBRARY
+          3. MEAL LIBRARY & RECIPES
          =================================================================== */}
       <section
         className={`meal-planner-section collapsible-section${libraryCollapsed ? ' collapsed' : ''}`}
@@ -969,14 +1285,32 @@ export const MealAndShoppingSection: React.FC = () => {
           className="section-title section-toggle meal-planner-title"
           onClick={() => setLibraryCollapsed((p) => !p)}
         >
-          <i className="fas fa-book-open" /> <span>Meal Library</span>
+          <i className="fas fa-book-open" /> <span>Meal Library & Recipes</span>
+          <SectionHelpTip
+            title="Meal Library & Notion Sync"
+            text="Build recipes with ingredients, prep time, servings, and method. Use 'Sync from Notion' to pull recipes directly from your Notion recipe database, or use the webhook API for your Discord/Google Apps Script recipe bot."
+          />
           <i className="fas fa-chevron-down section-chevron" />
         </h2>
-        <p className="meal-planner-subtitle">
-          Build your collection of meals and their ingredients. Leave a comment, drop a YouTube cooking link, or give a
-          meal a like.
-        </p>
 
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={handleSyncNotion}
+            disabled={notionSyncing}
+            style={{
+              background: 'rgba(99,102,241,0.18)',
+              borderColor: 'rgba(99,102,241,0.45)',
+              color: '#c7d2fe',
+            }}
+          >
+            <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />{' '}
+            {notionSyncing ? 'Syncing Notion Recipes…' : 'Sync from Notion'}
+          </button>
+        </div>
+
+        {/* Add Ingredients to a Meal */}
         <div className="shopping-manage-block" style={{ marginBottom: 12 }}>
           <label className="shopping-manage-label">
             <i className="fas fa-utensils" />
@@ -1074,6 +1408,7 @@ export const MealAndShoppingSection: React.FC = () => {
           </div>
         </div>
 
+        {/* Meal Cards Grid */}
         <div className="shopping-ingredients-library" id="shopping-ingredients-library">
           {Object.keys(ingredientsMap).length === 0 ? (
             <div className="shopping-empty-msg" style={{ margin: '8px 0' }}>
@@ -1085,11 +1420,18 @@ export const MealAndShoppingSection: React.FC = () => {
                 .sort()
                 .map((mealKey) => {
                   const items = ingredientsMap[mealKey] || [];
-                  const imageUrl = mealImages[mealKey] || '';
+                  const recipeObj = recipesRecord[mealKey];
+                  const imageUrl = recipeObj?.image_url || mealImages[mealKey] || '';
                   const displayName = mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
 
                   return (
-                    <div key={mealKey} className="meal-card" data-meal={mealKey}>
+                    <div
+                      key={mealKey}
+                      className="meal-card"
+                      data-meal={mealKey}
+                      onClick={() => handleOpenRecipeModal({ title: displayName, meal_key: mealKey })}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <div className="meal-card-img-area">
                         {imageUrl ? (
                           <img src={resolveAssetUrl(imageUrl)} alt={displayName} className="meal-card-img" />
@@ -1101,9 +1443,10 @@ export const MealAndShoppingSection: React.FC = () => {
                       </div>
                       <div className="meal-card-header">
                         <span className="meal-card-title">{displayName}</span>
+                        <span style={{ fontSize: '0.72rem', opacity: 0.65 }}>View Recipe &rarr;</span>
                       </div>
                       <div className="meal-card-ing-list">
-                        {items.map((item: MealIngredient, idx: number) => {
+                        {items.slice(0, 4).map((item: MealIngredient, idx: number) => {
                           const storeObj = stores.find(
                             (s) =>
                               s.id.toLowerCase() === (item.store || '').toLowerCase() ||
@@ -1119,71 +1462,14 @@ export const MealAndShoppingSection: React.FC = () => {
                               >
                                 {renderStoreIcon(storeObj?.icon)}
                               </span>
-                              <button
-                                type="button"
-                                className="meal-card-ing-btn meal-card-ing-btn--remove"
-                                title="Remove"
-                                onClick={() => handleRemoveLibraryIngredient(mealKey, idx)}
-                              >
-                                ✕
-                              </button>
                             </div>
                           );
                         })}
-                      </div>
-                      <div className="meal-card-quick-add">
-                        <input
-                          type="text"
-                          className="meal-card-qa-input"
-                          placeholder="Add ingredient..."
-                          maxLength={80}
-                          value={cardQuickIngName[mealKey] || ''}
-                          onChange={(e) =>
-                            setCardQuickIngName((prev) => ({ ...prev, [mealKey]: e.target.value }))
-                          }
-                        />
-                        <input
-                          type="text"
-                          className="meal-card-qa-qty"
-                          placeholder="Qty"
-                          maxLength={40}
-                          value={cardQuickIngQty[mealKey] || ''}
-                          onChange={(e) =>
-                            setCardQuickIngQty((prev) => ({ ...prev, [mealKey]: e.target.value }))
-                          }
-                        />
-                        <select
-                          className="meal-card-qa-store shopping-dynamic-store-select"
-                          value={cardQuickIngStore[mealKey] || stores[0]?.id || ''}
-                          onChange={(e) =>
-                            setCardQuickIngStore((prev) => ({ ...prev, [mealKey]: e.target.value }))
-                          }
-                        >
-                          {stores.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="meal-card-qa-btn"
-                          title="Add ingredient"
-                          onClick={async () => {
-                            const n = (cardQuickIngName[mealKey] || '').trim();
-                            if (!n) return;
-                            await handleAddLibraryIngredient(
-                              mealKey,
-                              n,
-                              cardQuickIngQty[mealKey] || '',
-                              cardQuickIngStore[mealKey] || stores[0]?.id || 'aldi'
-                            );
-                            setCardQuickIngName((prev) => ({ ...prev, [mealKey]: '' }));
-                            setCardQuickIngQty((prev) => ({ ...prev, [mealKey]: '' }));
-                          }}
-                        >
-                          <i className="fas fa-plus" />
-                        </button>
+                        {items.length > 4 && (
+                          <div style={{ padding: '2px 8px', fontSize: '0.72rem', opacity: 0.5 }}>
+                            +{items.length - 4} more ingredients
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1192,6 +1478,537 @@ export const MealAndShoppingSection: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* ===================================================================
+          MODALS
+         =================================================================== */}
+
+      {/* 1. Add / Edit Meal Modal (Multi-day support!) */}
+      {planModalOpen && (
+        <div className="cr-modal-overlay" onClick={() => setPlanModalOpen(false)}>
+          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-modal-header">
+              <h3>
+                <i className="fas fa-calendar-plus" /> Plan a Meal
+              </h3>
+              <button type="button" className="cr-modal-close" onClick={() => setPlanModalOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="cr-modal-body">
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                  Meal Name
+                </label>
+                <input
+                  type="text"
+                  className="modern-input"
+                  placeholder="e.g. Spaghetti Bolognese, Pizza, Tacos..."
+                  value={planMealTitle}
+                  onChange={(e) => setPlanMealTitle(e.target.value)}
+                  autoFocus
+                />
+                {allSuggestionsPool.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {allSuggestionsPool.slice(0, 6).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="edit-btn"
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                        onClick={() => setPlanMealTitle(s)}
+                      >
+                        {getMealEmoji(s)} {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                  Audience
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['Everyone', 'Kids', 'Adults'].map((aud) => (
+                    <button
+                      key={aud}
+                      type="button"
+                      className={`edit-btn${planAudience === aud ? ' active' : ''}`}
+                      onClick={() => setPlanAudience(aud)}
+                    >
+                      {aud}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>
+                  Select Days (Plan across multiple nights)
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
+                  {weekDays.map((d) => {
+                    const checked = planSelectedDays.includes(d.date_iso);
+                    return (
+                      <label
+                        key={d.date_iso}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: checked ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                          borderRadius: 8,
+                          padding: '6px 8px',
+                          cursor: 'pointer',
+                          fontSize: '0.82rem',
+                          color: '#f8fafc',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPlanSelectedDays((prev) => [...prev, d.date_iso]);
+                            } else {
+                              setPlanSelectedDays((prev) => prev.filter((iso) => iso !== d.date_iso));
+                            }
+                          }}
+                        />
+                        <span>{d.day_short}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    fontSize: '0.88rem',
+                    color: '#f8fafc',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={planAddShopping}
+                    onChange={(e) => setPlanAddShopping(e.target.checked)}
+                  />
+                  <span>Add meal ingredients to Shopping List</span>
+                </label>
+              </div>
+            </div>
+            <div className="cr-modal-footer">
+              <button type="button" className="edit-btn" onClick={() => setPlanModalOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="edit-btn"
+                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                onClick={handleSaveMealCard}
+              >
+                Save to Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Recipe View & Edit Modal */}
+      {activeRecipe && (
+        <div className="cr-modal-overlay" onClick={() => setActiveRecipe(null)}>
+          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-modal-header">
+              <h3>
+                <i className="fas fa-book-open" /> {activeRecipe.title}
+              </h3>
+              <button type="button" className="cr-modal-close" onClick={() => setActiveRecipe(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="cr-modal-body">
+              {editingRecipe ? (
+                <>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      className="modern-input"
+                      value={recipeFormTitle}
+                      onChange={(e) => setRecipeFormTitle(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                        Prep Time
+                      </label>
+                      <input
+                        type="text"
+                        className="modern-input"
+                        placeholder="e.g. 25 mins"
+                        value={recipeFormPrep}
+                        onChange={(e) => setRecipeFormPrep(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                        Servings
+                      </label>
+                      <input
+                        type="text"
+                        className="modern-input"
+                        placeholder="e.g. 4 people"
+                        value={recipeFormServings}
+                        onChange={(e) => setRecipeFormServings(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                      Instructions / Method
+                    </label>
+                    <textarea
+                      className="modern-input"
+                      rows={6}
+                      placeholder="Step by step instructions..."
+                      value={recipeFormInstructions}
+                      onChange={(e) => setRecipeFormInstructions(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {activeRecipe.image_url && (
+                    <img
+                      src={resolveAssetUrl(activeRecipe.image_url)}
+                      alt={activeRecipe.title}
+                      className="recipe-modal-img"
+                    />
+                  )}
+                  <div className="recipe-meta-row">
+                    <span>
+                      <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
+                    </span>
+                    <span>
+                      <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
+                    </span>
+                    {activeRecipe.notion_id && (
+                      <span style={{ color: '#a78bfa' }}>
+                        <i className="fas fa-arrows-rotate" /> Synced from Notion
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
+                    <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {(activeRecipe.ingredients || []).length === 0 ? (
+                        <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
+                          No ingredients specified.
+                        </div>
+                      ) : (
+                        (activeRecipe.ingredients || []).map((ing, idx) => (
+                          <div key={idx} className="recipe-ing-item">
+                            <span>{ing.name}</span>
+                            <span style={{ opacity: 0.6 }}>{ing.qty}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
+                    <div className="recipe-instructions-box">
+                      {activeRecipe.instructions || 'No instructions written yet. Click Edit to add them!'}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="cr-modal-footer">
+              {editingRecipe ? (
+                <>
+                  <button type="button" className="edit-btn" onClick={() => setEditingRecipe(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                    onClick={handleSaveRecipeForm}
+                  >
+                    Save Recipe
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    onClick={() => handleAddRecipeIngredientsToShopping(activeRecipe)}
+                    style={{ background: 'rgba(34,197,94,0.18)', borderColor: 'rgba(34,197,94,0.4)', color: '#86efac' }}
+                  >
+                    <i className="fas fa-cart-plus" /> Add all to Shopping List
+                  </button>
+                  <button type="button" className="edit-btn" onClick={() => setEditingRecipe(true)}>
+                    <i className="fas fa-pencil" /> Edit
+                  </button>
+                  <button type="button" className="edit-btn" onClick={() => setActiveRecipe(null)}>
+                    Close
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Frequently Added Modal */}
+      {frequentlyModalOpen && (
+        <div className="cr-modal-overlay" onClick={() => setFrequentlyModalOpen(false)}>
+          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-modal-header">
+              <h3>
+                <i className="fas fa-star" /> Frequently Added Staples
+              </h3>
+              <button type="button" className="cr-modal-close" onClick={() => setFrequentlyModalOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="cr-modal-body">
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                Select staples you need this week. Click &lsquo;Add Selected&rsquo; to add them all at once.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  className="edit-btn"
+                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                  onClick={() => {
+                    const allKeys: Record<string, boolean> = {};
+                    (intel.frequently_added || []).forEach((item) => {
+                      allKeys[item.normalized_key] = true;
+                    });
+                    setSelectedFrequentKeys(allKeys);
+                  }}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  className="edit-btn"
+                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                  onClick={() => setSelectedFrequentKeys({})}
+                >
+                  Clear All
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {(intel.frequently_added || []).map((item) => {
+                  const checked = Boolean(selectedFrequentKeys[item.normalized_key]);
+                  return (
+                    <label
+                      key={item.normalized_key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setSelectedFrequentKeys((prev) => ({
+                              ...prev,
+                              [item.normalized_key]: e.target.checked,
+                            }));
+                          }}
+                        />
+                        <span style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                        {item.times_added}× added · {item.default_store || 'aldi'}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="cr-modal-footer">
+              <button type="button" className="edit-btn" onClick={() => setFrequentlyModalOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="edit-btn"
+                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                onClick={() => handleBatchAddFromKeys(selectedFrequentKeys, intel.frequently_added)}
+              >
+                Add Selected to Shopping List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Suggested Restock Modal */}
+      {suggestedModalOpen && (
+        <div className="cr-modal-overlay" onClick={() => setSuggestedModalOpen(false)}>
+          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-modal-header">
+              <h3>
+                <i className="fas fa-lightbulb" /> Suggested Restock
+              </h3>
+              <button type="button" className="cr-modal-close" onClick={() => setSuggestedModalOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="cr-modal-body">
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                Items predicted to need restocking based on your historical purchase frequency.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {(intel.suggested || []).length === 0 ? (
+                  <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
+                    No suggested items due right now!
+                  </div>
+                ) : (
+                  (intel.suggested || []).map((item) => {
+                    const checked = Boolean(selectedSuggestedKeys[item.normalized_key]);
+                    return (
+                      <label
+                        key={item.normalized_key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedSuggestedKeys((prev) => ({
+                                ...prev,
+                                [item.normalized_key]: e.target.checked,
+                              }));
+                            }}
+                          />
+                          <div>
+                            <div style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
+                            <div style={{ fontSize: '0.72rem', color: '#93c5fd' }}>{item.reason}</div>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>{item.default_store || 'aldi'}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+            <div className="cr-modal-footer">
+              <button type="button" className="edit-btn" onClick={() => setSuggestedModalOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="edit-btn"
+                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                onClick={() => handleBatchAddFromKeys(selectedSuggestedKeys, intel.suggested)}
+              >
+                Add Selected to Shopping List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Recently Purchased Modal */}
+      {recentlyPurchasedOpen && (
+        <div className="cr-modal-overlay" onClick={() => setRecentlyPurchasedOpen(false)}>
+          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cr-modal-header">
+              <h3>
+                <i className="fas fa-clock-rotate-left" /> Purchased History
+              </h3>
+              <button type="button" className="cr-modal-close" onClick={() => setRecentlyPurchasedOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="cr-modal-body">
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                Items ticked and archived as purchased from your shopping trips.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+                {(intel.recently_purchased || []).length === 0 ? (
+                  <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
+                    No purchase history logged yet.
+                  </div>
+                ) : (
+                  (intel.recently_purchased || []).map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '7px 10px',
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
+                        <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>
+                          {item.store} · {new Date(item.purchased_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="edit-btn"
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                        onClick={() => handleSelectComboboxItem(item.name, item.store)}
+                      >
+                        + Re-add
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="cr-modal-footer">
+              <button type="button" className="edit-btn" onClick={() => setRecentlyPurchasedOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

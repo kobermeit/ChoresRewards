@@ -169,6 +169,42 @@ export interface VehicleService {
   notes: string | null;
 }
 
+export interface RecipeItem {
+  id?: number;
+  meal_key: string;
+  title: string;
+  image_url: string | null;
+  ingredients: Array<{ name: string; store: string; qty: string }>;
+  instructions: string;
+  servings: string;
+  prep_time: string;
+  notion_id?: string | null;
+}
+
+export interface ShoppingCatalogItem {
+  id: number;
+  name: string;
+  normalized_key: string;
+  default_store: string;
+  times_added: number;
+  times_purchased: number;
+  last_added_at: string | null;
+  last_purchased_at: string | null;
+  avg_interval_days: number | null;
+  days_since_last?: number;
+  reason?: string;
+}
+
+export interface ShoppingPurchaseLogItem {
+  id: number;
+  name: string;
+  normalized_key: string;
+  default_store: string;
+  store: string;
+  qty: string;
+  purchased_at: string;
+}
+
 export interface BootstrapData {
   success: boolean;
   app_version?: string;
@@ -201,21 +237,28 @@ export interface BootstrapData {
   meal_planner: {
     week_start: string;
     week_days: MealDayInfo[];
-    plan: Record<string, MealSlotMap>;
+    plan: Record<string, any>;
     recurring: Record<string, Record<string, { enabled: boolean; value: string }>>;
     suggestions: string[];
     ingredients: Record<string, MealIngredient[]>;
     images: Record<string, string>;
     social: Record<string, { comments: Array<{ id: string; author: string; text: string; created_at: string }>; votes: Record<string, string> }>;
   };
+  recipes?: Record<string, RecipeItem>;
   shopping: {
     checked: Record<string, boolean>;
     general: Array<{ id?: string; name: string; store: string; qty?: string; checked?: boolean }>;
     hidden: Record<string, boolean>;
     active: string[];
     meal_order: string[];
-    archived: Array<{ name: string; store: string; qty?: string }>;
+    archived: Array<{ name: string; store: string; qty?: string; purchased_at?: string }>;
     stores: ShoppingStore[];
+    intelligence?: {
+      catalog: ShoppingCatalogItem[];
+      frequently_added: ShoppingCatalogItem[];
+      suggested: ShoppingCatalogItem[];
+      recently_purchased: ShoppingPurchaseLogItem[];
+    };
   };
   notes_kanban: {
     columns: NoteColumn[];
