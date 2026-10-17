@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { Reward, FamilyMember } from '../types';
 import { Modal } from './common/Modal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { FallbackImage } from './common/FallbackImage';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -74,6 +76,8 @@ export const RewardsSection: React.FC = () => {
 
   // Celebration modal state
   const [celebratingReward, setCelebratingReward] = useState<{ title: string; personName: string } | null>(null);
+
+  useBodyScrollLock(Boolean(modalOpen || redeemPickerReward || celebratingReward));
 
   if (!data) return null;
 
@@ -286,15 +290,11 @@ export const RewardsSection: React.FC = () => {
       </datalist>
 
       {/* Available Rewards Section */}
-      <section
-        className={`rewards-section collapsible-section${availableCollapsed ? ' collapsed' : ''}`}
-        id="rewards-section"
-      >
+      <section className="rewards-section" id="rewards-section">
         <div className="rewards-header-row">
           <h2
-            className="section-title section-toggle"
-            onClick={() => setAvailableCollapsed((p) => !p)}
-            style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+            className="section-title"
+            style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}
           >
             <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
             <span>Available Rewards</span>
@@ -310,7 +310,6 @@ export const RewardsSection: React.FC = () => {
             >
               {filteredRewards.length}
             </span>
-            <i className="fas fa-chevron-down section-chevron" />
           </h2>
 
           <button
@@ -436,8 +435,8 @@ export const RewardsSection: React.FC = () => {
           </div>
         )}
 
-        {/* Compact Modern Rewards Grid */}
-        <div className="rewards-grid-modern">
+        {/* Netflix / Amazon Experience Rewards Grid */}
+        <div className="rewards-grid-modern" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
           {filteredRewards.map((reward) => {
             const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
             const assignedPerson = !isEveryone ? family.find((p) => p.name === reward.assigned_to) : null;
@@ -451,27 +450,77 @@ export const RewardsSection: React.FC = () => {
             const canRedeem = targetPerson ? currentPts >= reqPts : true;
 
             return (
-              <div key={reward.id} className="reward-card-modern">
-                {/* Header row: Visual + Title + Points Badge */}
-                <div className="reward-card-header">
-                  <div className="reward-card-title-group">
-                    {reward.image_url ? (
-                      <img
-                        src={resolveAssetUrl(reward.image_url)}
-                        alt={reward.title}
-                        className="reward-card-thumb"
-                      />
-                    ) : (
-                      <div className="reward-card-icon-box">
-                        <i className={`fas ${getRewardIconClass(reward.title)}`} />
-                      </div>
-                    )}
-                    <h3 className="reward-card-title" title={reward.title}>
-                      {reward.title}
-                    </h3>
-                  </div>
+              <div
+                key={reward.id}
+                className="reward-card-modern"
+                style={{
+                  background: 'linear-gradient(145deg, #1e293b, #111827)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 18,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+              >
+                {/* Hero Visual Banner (Netflix style) */}
+                <div style={{ height: 140, position: 'relative', overflow: 'hidden', background: '#0f172a' }}>
+                  {reward.image_url ? (
+                    <FallbackImage
+                      src={resolveAssetUrl(reward.image_url)}
+                      alt={reward.title}
+                      className="reward-hero-img"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      fallbackIcon={getRewardIconClass(reward.title)}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                        color: 'rgba(255,255,255,0.3)',
+                      }}
+                    >
+                      <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '3rem', opacity: 0.5 }} />
+                    </div>
+                  )}
 
-                  <span className={`reward-points-pill${isCash ? ' cash' : ''}`}>
+                  {/* Gradient shadow overlay */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.3) 50%, transparent 100%)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+
+                  {/* Points Currency Floating Pill */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      background: 'rgba(0, 0, 0, 0.8)',
+                      backdropFilter: 'blur(8px)',
+                      border: `1.5px solid ${isCash ? '#4ade80' : '#fbbf24'}`,
+                      color: isCash ? '#4ade80' : '#fbbf24',
+                      padding: '4px 10px',
+                      borderRadius: 10,
+                      fontWeight: 900,
+                      fontSize: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}
+                    title="Required Currency"
+                  >
                     {isCash ? (
                       <>
                         <i className="fas fa-money-bill-wave" />
@@ -479,135 +528,189 @@ export const RewardsSection: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <i className="fas fa-award" />
+                        <span>⭐</span>
                         <span>{reqPts} pts</span>
                       </>
                     )}
-                  </span>
-                </div>
-
-                {/* Meta row: Assignee pill + Recurring badge */}
-                <div className="reward-card-meta">
-                  {isEveryone ? (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '2px 8px',
-                        borderRadius: 6,
-                        background: 'rgba(168, 85, 247, 0.15)',
-                        color: '#c084fc',
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                      }}
-                    >
-                      🌟 Everyone
-                    </span>
-                  ) : (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <img
-                        src={resolveAvatarUrl(assignedPerson?.avatar)}
-                        alt={reward.assigned_to}
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                        }}
-                      />
-                      <span style={{ fontWeight: 600, color: 'var(--cr-text-primary)', fontSize: '0.82rem' }}>
-                        {reward.assigned_to}
-                      </span>
-                    </div>
-                  )}
-
-                  {reward.is_recurring !== false ? (
-                    <span
-                      title="Repeatable / recurring reward"
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--cr-text-secondary)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      🔁 Recurring
-                    </span>
-                  ) : (
-                    <span
-                      title="One-time reward"
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--cr-text-secondary)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      1-time
-                    </span>
-                  )}
-                </div>
-
-                {/* Optional description */}
-                {reward.description && (
-                  <p className="reward-card-desc" title={reward.description}>
-                    {reward.description}
-                  </p>
-                )}
-
-                {/* Progress bar (if assigned to someone or if a person is filtered) */}
-                {targetPerson && (
-                  <div>
-                    <div className="reward-progress-track">
-                      <div className="reward-progress-bar" style={{ width: `${achievedPercent}%` }} />
-                    </div>
-                    <div className="reward-progress-text">
-                      <span>{targetPerson.name}: {currentPts} / {reqPts} pts</span>
-                      <span>{achievedPercent}%</span>
-                    </div>
                   </div>
-                )}
 
-                {/* Actions row: Redeem button + Edit / Delete icons side-by-side */}
-                <div className="reward-card-actions-row">
-                  <button
-                    type="button"
-                    className="btn-redeem-modern"
-                    onClick={() => handleRedeemReward(reward)}
-                    disabled={targetPerson ? !canRedeem : false}
-                    title={
-                      targetPerson && !canRedeem
-                        ? `Not enough points (${currentPts}/${reqPts})`
-                        : `Redeem "${reward.title}"`
-                    }
-                  >
-                    <i className="fas fa-check-circle" /> Redeem
-                  </button>
+                  {/* Assignee Badge in Hero */}
+                  <div style={{ position: 'absolute', top: 10, left: 10 }}>
+                    {isEveryone ? (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 8,
+                          background: 'rgba(168, 85, 247, 0.85)',
+                          backdropFilter: 'blur(6px)',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '0.74rem',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        🌟 Everyone
+                      </span>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(6px)',
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <img
+                          src={resolveAvatarUrl(assignedPerson?.avatar)}
+                          alt={reward.assigned_to}
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.78rem' }}>
+                          {reward.assigned_to}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Card Body */}
+                <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '1.05rem',
+                          fontWeight: 800,
+                          color: '#f8fafc',
+                          lineHeight: 1.3,
+                        }}
+                        title={reward.title}
+                      >
+                        {reward.title}
+                      </h3>
+                      {reward.is_recurring !== false ? (
+                        <span
+                          title="Repeatable / recurring reward"
+                          style={{
+                            fontSize: '0.72rem',
+                            color: '#94a3b8',
+                            background: 'rgba(255,255,255,0.06)',
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          🔁 Recurring
+                        </span>
+                      ) : (
+                        <span
+                          title="One-time reward"
+                          style={{
+                            fontSize: '0.72rem',
+                            color: '#94a3b8',
+                            background: 'rgba(255,255,255,0.06)',
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          1-time
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Optional description */}
+                    {reward.description && (
+                      <p
+                        style={{
+                          margin: '4px 0 8px',
+                          fontSize: '0.82rem',
+                          color: 'rgba(255,255,255,0.65)',
+                          lineHeight: 1.4,
+                        }}
+                        title={reward.description}
+                      >
+                        {reward.description}
+                      </p>
+                    )}
+
+                    {/* Progress bar (if targetPerson) */}
+                    {targetPerson && (
+                      <div style={{ margin: '8px 0 4px' }}>
+                        <div className="reward-progress-track" style={{ height: 6, borderRadius: 3 }}>
+                          <div className="reward-progress-bar" style={{ width: `${achievedPercent}%` }} />
+                        </div>
+                        <div className="reward-progress-text" style={{ fontSize: '0.74rem', marginTop: 3 }}>
+                          <span>{targetPerson.name}: {currentPts} / {reqPts} pts</span>
+                          <span>{achievedPercent}%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions row: Redeem button + Edit / Delete icons side-by-side */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
                     <button
                       type="button"
-                      className="reward-icon-btn"
-                      onClick={() => openEditModal(reward)}
-                      title="Edit reward"
-                      aria-label="Edit reward"
+                      className="btn-redeem-modern"
+                      onClick={() => handleRedeemReward(reward)}
+                      disabled={targetPerson ? !canRedeem : false}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        fontWeight: 800,
+                        fontSize: '0.9rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        cursor: targetPerson && !canRedeem ? 'not-allowed' : 'pointer',
+                        opacity: targetPerson && !canRedeem ? 0.45 : 1,
+                      }}
+                      title={
+                        targetPerson && !canRedeem
+                          ? `Not enough points (${currentPts}/${reqPts})`
+                          : `Redeem "${reward.title}"`
+                      }
                     >
-                      <i className="fas fa-pencil-alt" />
+                      <i className="fas fa-check-circle" /> Redeem
                     </button>
-                    <button
-                      type="button"
-                      className="reward-icon-btn delete"
-                      onClick={() => handleDeleteReward(reward)}
-                      title="Delete reward"
-                      aria-label="Delete reward"
-                    >
-                      <i className="fas fa-trash-alt" />
-                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        type="button"
+                        className="reward-icon-btn"
+                        onClick={() => openEditModal(reward)}
+                        title="Edit reward"
+                        aria-label="Edit reward"
+                      >
+                        <i className="fas fa-pencil-alt" />
+                      </button>
+                      <button
+                        type="button"
+                        className="reward-icon-btn delete"
+                        onClick={() => handleDeleteReward(reward)}
+                        title="Delete reward"
+                        aria-label="Delete reward"
+                      >
+                        <i className="fas fa-trash-alt" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -962,14 +1065,10 @@ export const RedeemedRewardsSection: React.FC = () => {
   };
 
   return (
-    <section
-      className={`completed-rewards collapsible-section${collapsed ? ' collapsed' : ''}`}
-      id="redeemed-section"
-    >
+    <section className="completed-rewards" id="redeemed-section">
       <h2
-        className="section-title section-toggle"
-        onClick={() => setCollapsed((p) => !p)}
-        style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+        className="section-title"
+        style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}
       >
         <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
         <span>Redeemed Rewards</span>
@@ -985,7 +1084,6 @@ export const RedeemedRewardsSection: React.FC = () => {
         >
           {redeemedRewards.length}
         </span>
-        <i className="fas fa-chevron-down section-chevron" />
       </h2>
 
       {redeemedRewards.length === 0 && (

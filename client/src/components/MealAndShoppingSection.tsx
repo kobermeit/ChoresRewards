@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { MealIngredient, ShoppingStore, RecipeItem, ShoppingCatalogItem } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { FallbackImage } from './common/FallbackImage';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -156,6 +158,8 @@ export const MealAndShoppingSection: React.FC = () => {
   const [planAudience, setPlanAudience] = useState('Everyone');
   const [planSelectedDays, setPlanSelectedDays] = useState<string[]>([]);
   const [planEditingCardId, setPlanEditingCardId] = useState<string | null>(null);
+  const [planComboboxOpen, setPlanComboboxOpen] = useState(false);
+  const planComboboxRef = useRef<HTMLDivElement>(null);
 
   // Recipe View Modal
   const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
@@ -163,6 +167,17 @@ export const MealAndShoppingSection: React.FC = () => {
   // Notion Sync in Library
   const [notionSyncing, setNotionSyncing] = useState(false);
   const comboboxRef = useRef<HTMLDivElement>(null);
+
+  // Lock body scroll whenever any meal modal is open
+  useBodyScrollLock(
+    Boolean(
+      planModalOpen ||
+      activeRecipe ||
+      frequentlyModalOpen ||
+      suggestedModalOpen ||
+      recentlyPurchasedOpen
+    )
+  );
 
   // Inline slot picker state
   const [openSlotKey, setOpenSlotKey] = useState<string | null>(null);
@@ -203,6 +218,9 @@ export const MealAndShoppingSection: React.FC = () => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
         setShoppingComboboxOpen(false);
+      }
+      if (planComboboxRef.current && !planComboboxRef.current.contains(e.target as Node)) {
+        setPlanComboboxOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -462,6 +480,40 @@ export const MealAndShoppingSection: React.FC = () => {
     ])
   );
 
+  const allLibraryRecipes = useMemo(() => {
+    const map = new Map<string, { meal_key: string; title: string; prep_time?: string; servings?: string; image_url?: string }>();
+    Object.keys(recipesRecord || {}).forEach((k) => {
+      const r = recipesRecord[k];
+      map.set(k.toLowerCase(), {
+        meal_key: k,
+        title: r.title || k.charAt(0).toUpperCase() + k.slice(1),
+        prep_time: r.prep_time,
+        servings: r.servings,
+        image_url: r.image_url,
+      });
+    });
+    Object.keys(ingredientsMap || {}).forEach((k) => {
+      if (!map.has(k.toLowerCase())) {
+        map.set(k.toLowerCase(), {
+          meal_key: k,
+          title: k.charAt(0).toUpperCase() + k.slice(1),
+          prep_time: '',
+          servings: '',
+          image_url: mealImages[k] || '',
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }, [recipesRecord, ingredientsMap, mealImages]);
+
+  const filteredPlanRecipes = useMemo(() => {
+    if (!planMealTitle.trim()) return allLibraryRecipes.slice(0, 15);
+    const q = planMealTitle.toLowerCase().trim();
+    return allLibraryRecipes
+      .filter((r) => r.title.toLowerCase().includes(q) || r.meal_key.toLowerCase().includes(q))
+      .slice(0, 15);
+  }, [allLibraryRecipes, planMealTitle]);
+
   const catalogPool = intel.catalog || [];
   const filteredCatalog = shoppingSearch.trim()
     ? catalogPool
@@ -647,20 +699,13 @@ export const MealAndShoppingSection: React.FC = () => {
       {/* ===================================================================
           1. WEEKLY MEAL PLANNER (KANBAN DAYS)
          =================================================================== */}
-      <section
-        className={`meal-planner-section collapsible-section${plannerCollapsed ? ' collapsed' : ''}`}
-        id="meal-planner-section"
-      >
-        <h2
-          className="section-title section-toggle meal-planner-title"
-          onClick={() => setPlannerCollapsed((p) => !p)}
-        >
+      <section className="meal-planner-section" id="meal-planner-section">
+        <h2 className="section-title meal-planner-title" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
           <i className="fas fa-utensils" /> <span>Weekly Meal Planner</span>
           <SectionHelpTip
             title="Weekly Meal Planner"
             text="Plan meals as Kanban columns with multiple tiles per day (e.g. Kids vs Adults). Click any meal tile to open recipe instructions and ingredients, or add them straight to shopping. Select multiple days when cooking big meals to last multiple nights!"
           />
-          <i className="fas fa-chevron-down section-chevron" />
         </h2>
 
         <div className="meal-week-nav">
@@ -809,79 +854,21 @@ export const MealAndShoppingSection: React.FC = () => {
             );
           })}
         </div>
-
-        {/* Suggested Meals Pool */}
-        <div
-          className={`meal-suggestions-panel collapsible-section${suggestedMealsCollapsed ? ' collapsed' : ''}`}
-        >
-          <h3
-            className="meal-suggestions-toggle section-toggle"
-            onClick={() => setSuggestedMealsCollapsed((p) => !p)}
-          >
-            <i className="fas fa-utensils" /> Quick Suggested Meals ({suggestions.length})
-            <i className="fas fa-chevron-down section-chevron" />
-          </h3>
-          <div className="meal-suggestion-add-row">
-            <input
-              type="text"
-              id="meal-suggestion-input"
-              className="modern-input"
-              placeholder="Add suggested meal..."
-              maxLength={80}
-              value={newSuggestionText}
-              onChange={(e) => setNewSuggestionText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddMealSuggestion();
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="edit-btn"
-              id="meal-suggestion-add-btn"
-              onClick={handleAddMealSuggestion}
-            >
-              Add
-            </button>
-          </div>
-          <div id="meal-suggestions-list" className="meal-suggestions-list">
-            {suggestions.map((meal) => (
-              <span key={meal} className="meal-suggestion-chip">
-                <span>
-                  {getMealEmoji(meal)} {meal}
-                </span>
-                <button
-                  type="button"
-                  className="meal-suggestion-del"
-                  onClick={() => handleDeleteMealSuggestion(meal)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* ===================================================================
           2. SHOPPING LIST (SMART CATALOG & DEDUPLICATED)
          =================================================================== */}
       <section
-        className={`meal-planner-section shopping-list-section collapsible-section${shoppingCollapsed ? ' collapsed' : ''}`}
+        className="meal-planner-section shopping-list-section"
         id="shopping-list-section"
       >
-        <h2
-          className="section-title section-toggle meal-planner-title"
-          onClick={() => setShoppingCollapsed((p) => !p)}
-        >
+        <h2 className="section-title meal-planner-title" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
           <i className="fas fa-cart-shopping" /> <span>Shopping List</span>
           <SectionHelpTip
             title="Smart Shopping List"
             text="Catalog tracks frequent items and purchase frequency. Use 'Frequently Added' or 'Suggested' to restock items in bulk with one click. 'Hide Checked' clears ticked items while shopping, and 'Archive Checked' records purchases to history."
           />
-          <i className="fas fa-chevron-down section-chevron" />
         </h2>
 
         {/* Smart Toolbar */}
@@ -1250,7 +1237,7 @@ export const MealAndShoppingSection: React.FC = () => {
           3. MEAL LIBRARY & RECIPES
          =================================================================== */}
       <section
-        className={`meal-planner-section collapsible-section${libraryCollapsed ? ' collapsed' : ''}`}
+        className="meal-planner-section"
         id="meal-library-section"
       >
         <div
@@ -1264,16 +1251,14 @@ export const MealAndShoppingSection: React.FC = () => {
           }}
         >
           <h2
-            className="section-title section-toggle meal-planner-title"
-            onClick={() => setLibraryCollapsed((p) => !p)}
-            style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            className="section-title meal-planner-title"
+            style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <i className="fas fa-book-open" /> <span>Meal Library & Recipes</span>
             <SectionHelpTip
               title="Meal Library & Notion Sync"
               text="Build recipes with ingredients, prep time, servings, and method. Use 'Sync from Notion' to pull recipes directly from your Notion recipe database, or use the webhook API for your Discord/Google Apps Script recipe bot."
             />
-            <i className="fas fa-chevron-down section-chevron" />
           </h2>
 
           <button
@@ -1404,70 +1389,73 @@ export const MealAndShoppingSection: React.FC = () => {
 
         {/* Meal Cards Grid */}
         <div className="shopping-ingredients-library" id="shopping-ingredients-library">
-          {Object.keys(ingredientsMap).length === 0 ? (
+          {allLibraryRecipes.length === 0 ? (
             <div className="shopping-empty-msg" style={{ margin: '8px 0' }}>
-              No meals yet - add ingredients above.
+              No meals yet - add ingredients above or sync from Notion.
             </div>
           ) : (
             <div className="meal-card-grid">
-              {Object.keys(ingredientsMap)
-                .sort()
-                .map((mealKey) => {
-                  const items = ingredientsMap[mealKey] || [];
-                  const recipeObj = recipesRecord[mealKey];
-                  const imageUrl = recipeObj?.image_url || mealImages[mealKey] || '';
-                  const displayName = mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
+              {allLibraryRecipes.map((recipe) => {
+                const mealKey = recipe.meal_key;
+                const items = ingredientsMap[mealKey] || (recipesRecord[mealKey]?.ingredients) || [];
+                const imageUrl = recipe.image_url || mealImages[mealKey] || '';
+                const displayName = recipe.title;
 
-                  return (
-                    <div
-                      key={mealKey}
-                      className="meal-card"
-                      data-meal={mealKey}
-                      onClick={() => handleOpenRecipeModal({ title: displayName, meal_key: mealKey })}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div className="meal-card-img-area">
-                        {imageUrl ? (
-                          <img src={resolveAssetUrl(imageUrl)} alt={displayName} className="meal-card-img" />
-                        ) : (
-                          <div className="meal-card-img-placeholder">
-                            <span className="meal-card-emoji">{getMealEmoji(mealKey)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="meal-card-header">
-                        <span className="meal-card-title">{displayName}</span>
-                        <span style={{ fontSize: '0.72rem', opacity: 0.65 }}>View Recipe &rarr;</span>
-                      </div>
-                      <div className="meal-card-ing-list">
-                        {items.slice(0, 4).map((item: MealIngredient, idx: number) => {
-                          const storeObj = stores.find(
-                            (s) =>
-                              s.id.toLowerCase() === (item.store || '').toLowerCase() ||
-                              s.name.toLowerCase() === (item.store || '').toLowerCase()
-                          );
-                          return (
-                            <div key={idx} className="meal-card-ing-row">
-                              <span className="meal-card-ing-name">{item.name}</span>
-                              <span className="meal-card-ing-qty">{item.qty || ''}</span>
-                              <span
-                                className="shopping-lib-store-icon-badge meal-card-ing-store"
-                                title={storeObj?.name || item.store}
-                              >
-                                {renderStoreIcon(storeObj?.icon)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {items.length > 4 && (
-                          <div style={{ padding: '2px 8px', fontSize: '0.72rem', opacity: 0.5 }}>
-                            +{items.length - 4} more ingredients
-                          </div>
-                        )}
-                      </div>
+                return (
+                  <div
+                    key={mealKey}
+                    className="meal-card"
+                    data-meal={mealKey}
+                    onClick={() => handleOpenRecipeModal({ title: displayName, meal_key: mealKey })}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="meal-card-img-area">
+                      <FallbackImage
+                        src={imageUrl ? resolveAssetUrl(imageUrl) : ''}
+                        alt={displayName}
+                        className="meal-card-img"
+                        fallbackEmoji={getMealEmoji(mealKey)}
+                        fallbackIcon="fa-utensils"
+                      />
                     </div>
-                  );
-                })}
+                    <div className="meal-card-header">
+                      <span className="meal-card-title">{displayName}</span>
+                      <span style={{ fontSize: '0.72rem', opacity: 0.65 }}>View Recipe &rarr;</span>
+                    </div>
+                    <div className="meal-card-ing-list">
+                      {items.slice(0, 4).map((item: MealIngredient, idx: number) => {
+                        const storeObj = stores.find(
+                          (s) =>
+                            s.id.toLowerCase() === (item.store || '').toLowerCase() ||
+                            s.name.toLowerCase() === (item.store || '').toLowerCase()
+                        );
+                        return (
+                          <div key={idx} className="meal-card-ing-row">
+                            <span className="meal-card-ing-name">{item.name}</span>
+                            <span className="meal-card-ing-qty">{item.qty || ''}</span>
+                            <span
+                              className="shopping-lib-store-icon-badge meal-card-ing-store"
+                              title={storeObj?.name || item.store}
+                            >
+                              {renderStoreIcon(storeObj?.icon)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {items.length > 4 && (
+                        <div style={{ padding: '2px 8px', fontSize: '0.72rem', opacity: 0.5 }}>
+                          +{items.length - 4} more ingredients
+                        </div>
+                      )}
+                      {items.length === 0 && (
+                        <div style={{ padding: '2px 8px', fontSize: '0.72rem', opacity: 0.5, fontStyle: 'italic' }}>
+                          {recipe.prep_time || 'Tap to view recipe method'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1490,50 +1478,134 @@ export const MealAndShoppingSection: React.FC = () => {
               </button>
             </div>
             <div className="cr-modal-body">
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-                  Meal Name
+              <div ref={planComboboxRef} style={{ position: 'relative' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4, display: 'block' }}>
+                  Meal Name (Search Library or type custom)
                 </label>
-                <input
-                  type="text"
-                  className="modern-input"
-                  placeholder="e.g. Spaghetti Bolognese, Pizza, Tacos..."
-                  value={planMealTitle}
-                  onChange={(e) => setPlanMealTitle(e.target.value)}
-                  autoFocus
-                />
-                {allSuggestionsPool.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {allSuggestionsPool.slice(0, 6).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className="edit-btn"
-                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                        onClick={() => setPlanMealTitle(s)}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    className="modern-input"
+                    placeholder="Search meal library (e.g. Butter Chicken, Pizza) or type new meal…"
+                    value={planMealTitle}
+                    onFocus={() => setPlanComboboxOpen(true)}
+                    onChange={(e) => {
+                      setPlanMealTitle(e.target.value);
+                      setPlanComboboxOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setPlanComboboxOpen(false);
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (filteredPlanRecipes.length > 0 && planMealTitle.trim().toLowerCase() === filteredPlanRecipes[0].title.toLowerCase()) {
+                          setPlanMealTitle(filteredPlanRecipes[0].title);
+                          setPlanComboboxOpen(false);
+                        } else {
+                          setPlanComboboxOpen(false);
+                        }
+                      }
+                    }}
+                    autoFocus
+                  />
+                  {planMealTitle && (
+                    <button
+                      type="button"
+                      onClick={() => setPlanMealTitle('')}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.4)',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Combobox Dropdown */}
+                {planComboboxOpen && (
+                  <div
+                    className="shopping-combobox-dropdown"
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                      zIndex: 10001,
+                      marginTop: 4,
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    {filteredPlanRecipes.map((r) => (
+                      <div
+                        key={r.meal_key}
+                        className="shopping-combobox-item"
+                        onClick={() => {
+                          setPlanMealTitle(r.title);
+                          setPlanComboboxOpen(false);
+                        }}
                       >
-                        {getMealEmoji(s)} {s}
-                      </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '1.2rem' }}>{getMealEmoji(r.meal_key)}</span>
+                          <span style={{ fontWeight: 700 }}>{r.title}</span>
+                        </div>
+                        <span className="shopping-combobox-times">
+                          {r.prep_time || 'recipe'} · {r.servings || '4 serv'}
+                        </span>
+                      </div>
                     ))}
+                    {planMealTitle.trim() &&
+                      !allLibraryRecipes.some(
+                        (r) => r.title.toLowerCase() === planMealTitle.trim().toLowerCase()
+                      ) && (
+                        <div
+                          className="shopping-combobox-item shopping-combobox-item-custom"
+                          onClick={() => setPlanComboboxOpen(false)}
+                        >
+                          <span>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
+                          <span className="shopping-combobox-times">custom</span>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
 
               <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
                   Audience
                 </label>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {['Everyone', 'Kids', 'Adults'].map((aud) => (
-                    <button
-                      key={aud}
-                      type="button"
-                      className={`edit-btn${planAudience === aud ? ' active' : ''}`}
-                      onClick={() => setPlanAudience(aud)}
-                    >
-                      {aud}
-                    </button>
-                  ))}
+                  {['Everyone', 'Kids', 'Adults'].map((aud) => {
+                    const active = planAudience === aud;
+                    return (
+                      <button
+                        key={aud}
+                        type="button"
+                        onClick={() => setPlanAudience(aud)}
+                        style={{
+                          padding: '7px 16px',
+                          borderRadius: 999,
+                          border: active ? '1.5px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
+                          background: active ? '#2563eb' : 'rgba(255, 255, 255, 0.06)',
+                          color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {aud === 'Everyone' ? '🌟 Everyone' : aud === 'Kids' ? '🧒 Kids' : '🧑 Adults'}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1628,13 +1700,16 @@ export const MealAndShoppingSection: React.FC = () => {
               </button>
             </div>
             <div className="cr-modal-body">
-              {activeRecipe.image_url && (
-                <img
+              {activeRecipe.image_url ? (
+                <FallbackImage
                   src={resolveAssetUrl(activeRecipe.image_url)}
                   alt={activeRecipe.title}
                   className="recipe-modal-img"
+                  fallbackEmoji={getMealEmoji(activeRecipe.meal_key || activeRecipe.title)}
+                  fallbackIcon="fa-utensils"
+                  style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }}
                 />
-              )}
+              ) : null}
               <div className="recipe-meta-row">
                 <span>
                   <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}

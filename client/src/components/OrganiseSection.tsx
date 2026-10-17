@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export const OrganiseSection: React.FC = () => {
   const { showToast } = useApp();
@@ -173,13 +174,14 @@ export const OrganiseSection: React.FC = () => {
   const cars = items.filter((i) => i.category === 'car');
   const bills = items.filter((i) => i.category !== 'car');
 
+  useBodyScrollLock(Boolean(showAddModal || activeVehicle));
+
   return (
     <>
-      <section className={`organise-section collapsible-section${collapsed ? ' collapsed' : ''} admin-only`} id="organise-section">
+      <section className="organise-section admin-only" id="organise-section">
         <h2
-          className="section-title section-toggle"
-          onClick={() => setCollapsed((c) => !c)}
-          style={{ cursor: 'pointer' }}
+          className="section-title"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
         >
           <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} /> Organise
           <SectionHelpTip
@@ -190,7 +192,6 @@ export const OrganiseSection: React.FC = () => {
               'Click "+12m Renew" on bills/policies to roll the due date forward by a year.',
             ]}
           />
-          <i className="fas fa-chevron-down section-chevron" />
         </h2>
         <div className="organise-body">
           <div className="organise-toolbar">

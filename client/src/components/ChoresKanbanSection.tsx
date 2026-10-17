@@ -4,6 +4,7 @@ import { apiGet, apiPost, resolveAvatarUrl } from '../api';
 import { BadgeItem, Chore, ExtraChore, Person } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 const CHORE_EMOJI_OPTIONS = [
   '', '✅', '🍽️', '🧺', '🗑️', '🧹', '🚿', '🦷', '👕', '🌱', '🍳', '🥗',
@@ -97,6 +98,12 @@ function formatDaysTag(daysOfWeek: string | string[] | null | undefined): string
   return shortDays.map((d) => mapDay[d] || d.charAt(0).toUpperCase() + d.slice(1, 3)).join(', ');
 }
 
+function formatPoints(pts: number | string, isCashMode = false): string {
+  const n = Number(pts) || 0;
+  if (isCashMode) return `$${n.toFixed(2)}`;
+  return n % 1 === 0 ? `${n.toFixed(0)}` : `${n.toFixed(1)}`;
+}
+
 export const ChoresKanbanSection: React.FC = () => {
   const {
     data,
@@ -170,6 +177,17 @@ export const ChoresKanbanSection: React.FC = () => {
   const [bodyChallengeText, setBodyChallengeText] = useState('');
   const [bonusAwarded, setBonusAwarded] = useState<number | null>(null);
   const [spinningBonus, setSpinningBonus] = useState(false);
+
+  useBodyScrollLock(
+    Boolean(
+      addChoreModalOpen ||
+      editingPersonModal ||
+      choreToDelete ||
+      extraModalPerson ||
+      profileModalPerson ||
+      celebrationPerson
+    )
+  );
 
   if (!data) return null;
 
@@ -500,14 +518,8 @@ export const ChoresKanbanSection: React.FC = () => {
 
   return (
     <>
-      <section
-        id="chores-section"
-        className={`chores-section collapsible-section${choresCollapsed ? ' collapsed' : ''}`}
-      >
-        <h2
-          className="section-title section-toggle"
-          onClick={() => setChoresCollapsed((p) => !p)}
-        >
+      <section id="chores-section" className="chores-section">
+        <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 14px' }}>
           <i className="fas fa-house-chimney" style={{ color: 'var(--cr-text-primary)' }} />
           <span>Family Members Chores</span>
           <SectionHelpTip
@@ -518,7 +530,6 @@ export const ChoresKanbanSection: React.FC = () => {
               'Hold and drag the bottom handle on any column to reorder family members.',
             ]}
           />
-          <i className="fas fa-chevron-down section-chevron" />
         </h2>
 
         {/* User Filter Bar (All Family vs Single User Grid View) */}
@@ -835,42 +846,74 @@ export const ChoresKanbanSection: React.FC = () => {
                       return (
                         <div
                           key={chore.id}
-                          className={`chore${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
+                          className={`chore chore-compact-card${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
                           style={{
                             margin: 0,
                             borderRadius: 14,
-                            padding: '12px 12px 10px',
+                            padding: '12px 14px',
                             display: 'flex',
                             flexDirection: 'column',
                             justifyContent: 'space-between',
-                            minHeight: 120,
+                            gap: 10,
                             position: 'relative',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                           }}
                         >
                           <div>
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 6,
-                              }}
-                            >
-                              <span
-                                className="chore-points-badge"
-                                style={{ position: 'static', fontSize: '0.78rem', padding: '2px 8px' }}
-                              >
-                                {isCash ? `$${Number(chore.points).toFixed(2)}` : `🏅 ${Number(chore.points).toFixed(1)}`}
-                              </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                {chore.is_daily && (
-                                  <span className="chore-tag chore-tag-daily" style={{ fontSize: '0.68rem' }}>
-                                    Daily
+                            {/* Top row: Points Badge on Left + Icon & Title on Same Line + Delete / Days Tag */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                                <span
+                                  className="chore-points-badge"
+                                  style={{
+                                    position: 'static',
+                                    fontSize: '1rem',
+                                    fontWeight: 900,
+                                    padding: '4px 9px',
+                                    borderRadius: 10,
+                                    background: isCash ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)',
+                                    border: `1px solid ${isCash ? 'rgba(34,197,94,0.45)' : 'rgba(245,158,11,0.45)'}`,
+                                    color: isCash ? '#4ade80' : '#fbbf24',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    flexShrink: 0,
+                                    margin: 0,
+                                  }}
+                                  title="Chore Points"
+                                >
+                                  {isCash ? (
+                                    <span>${Number(chore.points).toFixed(2)}</span>
+                                  ) : (
+                                    <>
+                                      <span>⭐</span>
+                                      <span>{formatPoints(chore.points)}</span>
+                                    </>
+                                  )}
+                                </span>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+                                  <span style={{ fontSize: '1.45rem', lineHeight: 1, flexShrink: 0 }}>
+                                    {detectChoreIcon(chore.title, chore.icon)}
                                   </span>
-                                )}
+                                  <span
+                                    style={{
+                                      fontWeight: 800,
+                                      fontSize: '0.98rem',
+                                      lineHeight: 1.25,
+                                      color: 'var(--cr-text-primary, #fff)',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {chore.title}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                                 {daysLabel && (
-                                  <span className="chore-tag" style={{ fontSize: '0.68rem' }}>
+                                  <span className="chore-tag" style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
                                     {daysLabel}
                                   </span>
                                 )}
@@ -886,27 +929,11 @@ export const ChoresKanbanSection: React.FC = () => {
                               </div>
                             </div>
 
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                margin: '6px 0 10px',
-                                textAlign: 'left',
-                              }}
-                            >
-                              <span style={{ fontSize: '1.55rem', lineHeight: 1 }}>
-                                {detectChoreIcon(chore.title, chore.icon)}
-                              </span>
-                              <span style={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.25 }}>
-                                {chore.title}
-                              </span>
-                            </div>
-
                             {chore.due_datetime && (
-                              <div style={{ marginBottom: 8, textAlign: 'left' }}>
+                              <div style={{ marginTop: 8, textAlign: 'left' }}>
                                 <span
                                   className={`chore-tag ${isOverdue ? 'chore-tag-overdue' : 'chore-tag-due'}`}
+                                  style={{ fontSize: '0.74rem' }}
                                 >
                                   <i className="fas fa-clock" /> {isOverdue ? 'Overdue' : `Due ${chore.due_datetime}`}
                                 </span>
@@ -917,7 +944,7 @@ export const ChoresKanbanSection: React.FC = () => {
                           <button
                             type="button"
                             className="btn-complete-chore"
-                            style={{ minHeight: 44, padding: '10px 14px !important', fontSize: '1rem !important' }}
+                            style={{ minHeight: 38, padding: '8px 12px', fontSize: '0.95rem', borderRadius: 10 }}
                             onClick={() => handleCompleteChore(chore, person)}
                           >
                             <i className="fas fa-check" /> Complete
@@ -1136,17 +1163,18 @@ export const ChoresKanbanSection: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Compact Balance Badge */}
+                  {/* Prominent Balance Badge for Kids on Tablets */}
                   <span
                     className="chore-points-badge"
                     title={`Total ${isCash ? 'cash' : 'points'} for ${person.name}`}
                     style={{
                       position: 'static',
-                      fontSize: '0.85rem',
-                      fontWeight: 800,
-                      padding: '3px 9px',
-                      borderRadius: 999,
-                      background: 'rgba(0, 0, 0, 0.4)',
+                      fontSize: '1.15rem',
+                      fontWeight: 900,
+                      padding: '4px 12px',
+                      borderRadius: 12,
+                      background: 'rgba(0, 0, 0, 0.45)',
+                      border: '1px solid rgba(251, 191, 36, 0.3)',
                       flexShrink: 0,
                     }}
                   >
@@ -1158,7 +1186,7 @@ export const ChoresKanbanSection: React.FC = () => {
                     ) : (
                       <>
                         <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
-                        <span className="chore-points-value">{totalPts.toFixed(1)}</span>
+                        <span className="chore-points-value">{formatPoints(totalPts)}</span>
                       </>
                     )}
                   </span>
@@ -1230,33 +1258,69 @@ export const ChoresKanbanSection: React.FC = () => {
                           key={chore.id}
                           className={`chore chore-compact-card${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
                           data-chore-id={chore.id}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                            padding: '10px 12px',
+                            borderRadius: 14,
+                            position: 'relative',
+                          }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                            <span
-                              className="chore-points-badge"
-                              style={{ position: 'static', fontSize: '0.78rem', padding: '2px 8px', margin: 0 }}
-                              title="Points for this chore"
-                            >
-                              {isCash ? (
-                                <>
-                                  <i className="fas fa-money-bill-wave" style={{ color: '#4ade80', marginRight: 4 }} />
-                                  <span className="chore-points-value">${Number(chore.points).toFixed(2)}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
-                                  <span className="chore-points-value">{Number(chore.points).toFixed(1)}</span>
-                                </>
-                              )}
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {chore.is_daily && (
-                                <span className="chore-tag chore-tag-daily" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
-                                  Daily
+                          {/* Top Row: Points on left + Chore Icon & Title on same line + Right delete/days */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                              {/* Prominent Points Badge */}
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '4px 8px',
+                                  borderRadius: 8,
+                                  background: isCash ? 'rgba(34, 197, 94, 0.22)' : 'rgba(245, 158, 11, 0.22)',
+                                  border: `1px solid ${isCash ? 'rgba(34, 197, 94, 0.45)' : 'rgba(245, 158, 11, 0.45)'}`,
+                                  color: isCash ? '#4ade80' : '#fbbf24',
+                                  fontWeight: 900,
+                                  fontSize: '0.92rem',
+                                  flexShrink: 0,
+                                }}
+                                title="Chore reward"
+                              >
+                                {isCash ? (
+                                  <span>${Number(chore.points).toFixed(2)}</span>
+                                ) : (
+                                  <>
+                                    <span style={{ fontSize: '0.82rem' }}>⭐</span>
+                                    <span>{formatPoints(chore.points)}</span>
+                                  </>
+                                )}
+                              </span>
+
+                              {/* Chore Icon & Title on same line */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+                                <span style={{ fontSize: '1.35rem', lineHeight: 1, flexShrink: 0 }}>
+                                  {detectChoreIcon(chore.title, chore.icon)}
                                 </span>
-                              )}
+                                <span
+                                  style={{
+                                    fontWeight: 800,
+                                    fontSize: '0.92rem',
+                                    lineHeight: 1.25,
+                                    color: 'var(--cr-text-primary, #fff)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {chore.title}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Right tools: custom days tag & delete button (NO daily tag!) */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                               {daysLabel && (
-                                <span className="chore-tag" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                <span className="chore-tag" style={{ fontSize: '0.62rem', padding: '2px 5px' }}>
                                   {daysLabel}
                                 </span>
                               )}
@@ -1272,13 +1336,8 @@ export const ChoresKanbanSection: React.FC = () => {
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 6px', textAlign: 'left' }}>
-                            <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{detectChoreIcon(chore.title, chore.icon)}</span>
-                            <span style={{ fontWeight: 700, fontSize: '0.92rem', lineHeight: 1.25 }}>{chore.title}</span>
-                          </div>
-
                           {chore.due_datetime && (
-                            <div style={{ marginBottom: 6, textAlign: 'left' }}>
+                            <div style={{ textAlign: 'left' }}>
                               <span className={`chore-tag ${isOverdue ? 'chore-tag-overdue' : 'chore-tag-due'}`} style={{ fontSize: '0.72rem' }}>
                                 <i className="fas fa-clock" /> {isOverdue ? 'Overdue' : `Due ${chore.due_datetime}`}
                               </span>
@@ -1288,7 +1347,7 @@ export const ChoresKanbanSection: React.FC = () => {
                           <button
                             type="button"
                             className="btn-complete-chore"
-                            style={{ minHeight: 34, padding: '6px 12px', fontSize: '0.88rem' }}
+                            style={{ minHeight: 34, padding: '6px 12px', fontSize: '0.88rem', borderRadius: 10 }}
                             onClick={() => handleCompleteChore(chore, person)}
                           >
                             <i className="fas fa-check" /> Complete

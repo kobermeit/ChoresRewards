@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export interface ModalProps {
   open: boolean;
@@ -19,6 +20,8 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   maxWidth = 580,
 }) => {
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {

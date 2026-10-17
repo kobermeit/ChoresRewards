@@ -268,13 +268,10 @@ export const NotesSection: React.FC = () => {
   };
 
   return (
-    <section
-      className={`notes-kanban-section collapsible-section${sectionCollapsed ? ' collapsed' : ''}`}
-      id="notes-kanban-section"
-    >
+    <section className="notes-kanban-section" id="notes-kanban-section">
       <h2
-        className="section-title section-toggle"
-        onClick={() => setSectionCollapsed((p) => !p)}
+        className="section-title"
+        style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
       >
         <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} /> <span>Notes</span>
         <SectionHelpTip
@@ -285,7 +282,6 @@ export const NotesSection: React.FC = () => {
             'Expand "Text Pads" below for longer freeform scratchpads with 1-click copy.',
           ]}
         />
-        <i className="fas fa-chevron-down section-chevron" />
       </h2>
 
       <div className="notes-kanban-board" id="notes-kanban-board">
@@ -554,13 +550,13 @@ export const CalendarSection: React.FC = () => {
 
   return (
     <section
-      className={`rewards-section collapsible-section${collapsed ? ' collapsed' : ''}`}
+      className="rewards-section"
       style={{ marginTop: '1rem' }}
       id="events-section"
     >
       <h2
-        className="section-title section-toggle"
-        onClick={() => setCollapsed((p) => !p)}
+        className="section-title"
+        style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
       >
         <i className="fas fa-calendar-alt" style={{ color: '#60a5fa' }} />{' '}
         <span>Upcoming Family Events</span>
@@ -586,7 +582,6 @@ export const CalendarSection: React.FC = () => {
             <i className="fas fa-list" />
           </button>
         </div>
-        <i className="fas fa-chevron-down section-chevron" />
       </h2>
 
       {gcal.error ? (

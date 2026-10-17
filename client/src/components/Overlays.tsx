@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, resolveAssetUrl, resolveAvatarUrl } from '../api';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export const Overlays: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ export const Overlays: React.FC = () => {
 // ============================================================================
 const ScreensaverOverlay: React.FC = () => {
   const { screensaverOpen, setScreensaverOpen, data } = useApp();
+  useBodyScrollLock(screensaverOpen);
   const [config, setConfig] = useState<any>(null);
   const [summary, setSummary] = useState<any[]>([]);
   const [slideIdx, setSlideIdx] = useState(0);
@@ -195,6 +197,7 @@ const ScreensaverOverlay: React.FC = () => {
 // ============================================================================
 const VisualTimerModal: React.FC = () => {
   const { visualTimerOpen, setVisualTimerOpen, playSound } = useApp();
+  useBodyScrollLock(visualTimerOpen);
   const [totalSeconds, setTotalSeconds] = useState(300); // default 5 min
   const [remainingSeconds, setRemainingSeconds] = useState(300);
   const [running, setRunning] = useState(false);
@@ -406,6 +409,7 @@ const MEMORY_EMOJIS = ['🐶', '🐱', '🦊', '🐼', '🐸', '🦁'];
 
 const KidsPlayWidgetModal: React.FC = () => {
   const { playWidgetOpen, setPlayWidgetOpen, playWidgetInitialGame, playSound } = useApp();
+  useBodyScrollLock(playWidgetOpen);
   const [tab, setTab] = useState<'maths' | 'colours' | 'patterns' | 'memory'>('maths');
   const [score, setScore] = useState(0);
 

@@ -184,11 +184,6 @@ export const Header: React.FC = () => {
     }
   };
 
-  const [headerExpanded, setHeaderExpanded] = useState(false);
-
-  const toggleHeaderExpanded = () => {
-    setHeaderExpanded((prev) => !prev);
-  };
 
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
   const notifWrapRef = useRef<HTMLDivElement | null>(null);
@@ -214,7 +209,7 @@ export const Header: React.FC = () => {
   }, [notifOpen]);
 
   return (
-    <header className={`dashboard-header-sticky${headerExpanded ? ' header-expanded' : ''}`}>
+    <header className="dashboard-header-sticky">
       <div
         className="header-content"
         style={{
@@ -465,27 +460,6 @@ export const Header: React.FC = () => {
           </nav>
         )}
 
-        <button
-          id="header-collapse-toggle"
-          title={headerExpanded ? 'Collapse menu' : 'Expand full menu'}
-          onClick={toggleHeaderExpanded}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            minHeight: 0,
-            padding: 0,
-            borderRadius: 8,
-            border: '1px solid rgba(148,163,184,0.2)',
-            background: headerExpanded ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.06)',
-            color: headerExpanded ? '#93c5fd' : 'var(--cr-text-secondary)',
-            cursor: 'pointer',
-          }}
-        >
-          <i className={`fas ${headerExpanded ? 'fa-chevron-up' : 'fa-ellipsis'}`} />
-        </button>
       </div>
 
       {/* 7-Day Weather Forecast Panel */}
