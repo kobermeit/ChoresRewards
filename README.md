@@ -1,236 +1,94 @@
 # ChoresRewards
 
-A self-hosted family hub for chores, rewards, meals, shopping, and the household calendar.
-
-Kids complete chores, earn points (or pocket money), and redeem rewards. Parents get a single place for the weekly meal plan, shopping list, family events, sticky notes, and car/bill reminders. Built for a tablet on the fridge, a browser, or an Unraid box.
-
-**GitHub:** [matda59/ChoresRewards](https://github.com/matda59/ChoresRewards)  
-**Docker:** `ghcr.io/matda59/choresrewards:latest`  
-**Unraid support:** [forum thread](https://forums.unraid.net/topic/192603-choresrewards-support-thread/)
+A modern, self-hosted family hub for chores, rewards, weekly meal planning, smart shopping lists, and household organization. Built for always-on wall-mounted tablets (e.g. on the fridge), desktop browsers, and Home Assistant OS (HAOS).
 
 ---
 
-## Screenshots
+## Architecture & Tech Stack
 
-### Today at a Glance
-Tasks left, meals, upcoming events, top rewards, family photos, and sticky notes — plus live clock and weather in the header.
-
-![Dashboard](static/images/choresrewards2026_1.png)
-
-### Rewards
-Custom rewards with photos, point costs, and progress toward redeeming.
-
-![Available Rewards](static/images/choresrewards2026_2.png)
-
-### Family calendar
-Google Calendar week view with colour-coded events and a time grid.
-
-![Family calendar](static/images/choresrewards2026_3.png)
-
-### Weekly meal planner
-Plan breakfast, lunch, and dinner. Drag meals to swap. Click to edit.
-
-![Weekly Meal Planner](static/images/choresrewards2026_4.png)
-
-### Shopping list
-Ingredients from this week's meals plus general shopping, split by store.
-
-![Shopping List](static/images/choresrewards2026_5.png)
-
-### Meal library
-Save meals with ingredients, quantities, and which store they come from.
-
-![Meal Library](static/images/choresrewards2026_6.png)
-
-### Family chores
-Per-child kanban columns with points, streaks, badges, emoji icons, and Complete buttons.
-
-![Family Members Chores](static/images/choresrewards2026_7.png)
-
-### Organise
-Cars, insurance, bills, and service history with due dates and mileage.
-
-![Organise](static/images/choresrewards2026_8.png)
-
-### Sticky notes
-Colour-coded, resizable notes on the dashboard.
-
-![Sticky Notes](static/images/choresrewards2026_9.png)
-
-### Settings
-Points or cash, family members, bonus points, custom sounds, Gotify, quizzes, and a photo screensaver.
-
-![General Settings](static/images/choresrewards2026_10.png)
-![All Chores](static/images/choresrewards2026_11.png)
-![Bonus Points](static/images/choresrewards2026_12.png)
-![Audio Settings](static/images/choresrewards2026_13.png)
-![Gotify notifications](static/images/choresrewards2026_14.png)
-![Quiz Questions](static/images/choresrewards2026_15.png)
-![Screensaver](static/images/choresrewards2026_16.png)
+- **Frontend:** React 19 + TypeScript + Vite (`/client`)
+- **Backend:** Node.js + Express + `better-sqlite3` (`/server`)
+- **Database:** SQLite (`/data/choresrewards.db` or `/app/instance/choresrewards.db` in Docker)
+- **Deployment:** Home Assistant OS Add-on (`/choresrewards`) and Standalone Docker Container
 
 ---
 
-## Features
+## Local Development & Setup
 
-### Chores & rewards
-- Per-person chore columns with custom colours, avatars, and emoji icons
-- Daily chores that reset automatically, or one-off chores that disappear when done
-- Schedule chores for specific days of the week
-- Decimal point values (e.g. 0.1 for brushing teeth)
-- Drag and drop to reorder chores
-- Points **or** cash / pocket-money mode
-- Bonus points when all chores are done — fixed amount, or a random range
-- Optional age-appropriate Brain Quiz for extra bonus points
-- Custom sound effects on chore complete (upload MP3, WAV, or OGG)
-- Celebrations when a kid finishes everything
-- Streaks and badges (first chore, 10/50/100 chores, perfect day, early bird, 3/7/30-day streaks)
-- 4-digit master PIN so kids can't change settings
+### Prerequisites
 
-### Household
-- **Dashboard** — today's leftover chores, meals, events, rewards, and family photos
-- **Weather** — current conditions plus a 7-day forecast in the sticky header
-- **Google Calendar** — family week view with colour rules, time-grid or list
-- **Meal planner** — weekly plan with suggested meals and drag-to-swap
-- **Shopping list** — meal ingredients + general items, grouped by store (Aldi, Woolworths, etc.)
-- **Meal library** — recipes/ingredients you reuse each week
-- **Sticky notes** — resizable, colour-coded, with a text-size toggle
-- **Organise** — cars, rego, insurance, bills, and per-car service history
-- **Screensaver** — full-screen family photo slideshow after idle, with clock and today's chore summary
-- **Gotify** — self-hosted push notifications for chore complete, reward added/redeemed, overdue rewards
-- **Activity log** — history of what happened and who did it
-- Dark and light themes
+- **Node.js:** v18.0.0 or higher
+- **npm:** v9.0.0 or higher
 
-### Family-friendly
-- First-run setup wizard
-- Admin lock on the sidebar
-- Age field drives quiz difficulty (easy vs complex)
-- Tuned for an always-on tablet / low-end hardware
+### 1. Installation
 
----
-
-## Quick start (Docker)
+Install dependencies across the root, backend, and frontend:
 
 ```bash
-docker run -d \
-  --name choresrewards \
-  -p 3112:3000 \
-  -e TZ=Australia/Adelaide \
-  -e ENABLE_GOOGLE_CALENDAR=true \
-  -v choresrewards_data:/app/instance \
-  -v choresrewards_uploads:/app/static/uploads \
-  --restart unless-stopped \
-  ghcr.io/matda59/choresrewards:latest
+npm run install:all
 ```
 
-Open `http://localhost:3112` and complete the setup wizard.
+*(Or run `npm install` inside `/server` and `/client` individually).*
 
-Map **both** volumes. Uploads (avatars, reward photos, screensaver pictures, organise photos) live under `/app/static/uploads` and will disappear on container update if that path is not persisted.
+### 2. Building
 
-### Docker Compose
-
-```yaml
-services:
-  choresawards:
-    image: ghcr.io/matda59/choresrewards:latest
-    ports:
-      - "3112:3000"
-    volumes:
-      - ./instance:/app/instance
-      - uploads_data:/app/static/uploads
-    environment:
-      - TZ=Australia/Adelaide
-      - ENABLE_GOOGLE_CALENDAR=true
-    restart: always
-
-volumes:
-  uploads_data:
-```
+Build both the client SPA and backend TypeScript:
 
 ```bash
-docker compose up -d
+npm run build
 ```
 
-### Unraid
+This compiles client assets into `client/dist/` and backend code into `server/dist/`.
 
-Install from Community Applications, or use the template pointing at `ghcr.io/matda59/choresrewards:latest`.
+### 3. Running Locally
 
-| Path / port | Container | Purpose |
-|---|---|---|
-| appdata folder | `/app/instance` | SQLite database |
-| uploads folder | `/app/static/uploads` | Photos and custom sounds |
-| `3112` | `3000` | Web UI |
-| `TZ` | | Your timezone |
-| `ENABLE_GOOGLE_CALENDAR` | `true` | Show Google Calendar settings |
+- **Production mode (serves frontend from backend on port 8099):**
+  ```bash
+  npm start
+  ```
+  Open `http://localhost:8099`.
+
+- **Development mode (with hot reloading):**
+  - Backend: `npm run dev:server` (runs with `tsx watch` on port 8099)
+  - Frontend: `npm run dev` (Vite dev server with API proxy on port 5173)
 
 ---
 
-## Local nightly channel
+## Home Assistant OS (HAOS) Add-on Integration
 
-Test new features (Google Calendar, screensaver, etc.) without touching a stable `latest` deploy.
+This repository is configured as a native Home Assistant OS add-on in the `/choresrewards` directory.
 
-```powershell
-docker compose -f docker-compose.nightly.yml up --build -d
+### Important: Triggering Add-on Updates in HAOS
+
+> [!IMPORTANT]
+> **Home Assistant OS detects add-on updates strictly by comparing the `version` string in `choresrewards/config.yaml`.**
+>
+> If you make changes to the codebase and push to GitHub, **you must increment the version string in `choresrewards/config.yaml`** (for example, bumping `1.0.3` to `1.1.0`). If the version string is unchanged, Home Assistant will not prompt the user to update or rebuild the container image.
+
+### Building the Add-on Docker Container
+
+The container compiles the React client and Node.js server inside a multi-stage Alpine build:
+
+```dockerfile
+# Context: repo root
+docker build -f choresrewards/Dockerfile -t choresrewards:local .
 ```
 
-- Nightly URL: `http://localhost:3113`
-- Data volume: `nightly_instance_data`
-- Uploads volume: `nightly_uploads_data`
+---
 
-Stop:
+## Key Features
 
-```powershell
-docker compose -f docker-compose.nightly.yml down
-```
-
-Rebuild after code changes:
-
-```powershell
-docker compose -f docker-compose.nightly.yml up --build -d
-```
-
-This is local-only. It does not push to GitHub or GHCR.
+- **Chores & Rewards:** Daily midnight auto-reset (Brisbane/configurable timezone), Kanban columns with streaks, badges, points or pocket-money mode, and single-user chore grid filter.
+- **Kanban Meal Planner:** Plan dinners with unlimited tiles per day (e.g. Kids vs Adults). Multi-day scheduling allows planning a meal across multiple nights. Click any meal tile to view full recipe ingredients & method.
+- **Smart Shopping List:** Case-insensitive catalog intelligence with plural normalization (`Paper Towels` == `papertowel`). Includes quick-add search combobox, `⭐ Frequently Added` modal, `💡 Suggested Restock` predictions, `👁️ Hide Checked` toggle, and `📦 Archive Checked` which marks items as purchased and logs them to history.
+- **Recipe Library & Notion Sync:**
+  - **Notion Database Sync:** Sync recipes from your Notion recipe database (`POST /api/recipes/sync_notion`).
+  - **Discord / Apps Script Webhook:** Direct HTTP endpoint (`POST /api/recipes/import`) to push transcribed recipes from photo bots or external scripts directly into your library.
+- **Compact Tablet Layout:** Slim 48px fixed sidebar and collapsible header (~80px height) optimized for 1280px tablet screens, with smooth scroll offset.
+- **Security & Setup:** Master 4-digit PIN lock for settings, and Setup Wizard accessible directly inside Settings without duplicating existing members.
 
 ---
 
-## Optional: Google Calendar
+## License
 
-1. Set `ENABLE_GOOGLE_CALENDAR=true`
-2. In Settings, enable Google Calendar
-3. Add Calendar ID(s)
-4. Upload a Google service-account JSON key
-5. Share each calendar with the service-account email
-
-Colour rules let you tint events (e.g. Will vs Charlie vs household).
-
----
-
-## Optional: Gotify
-
-In **Settings → Notification Settings**, add your Gotify server URL and app token. Choose which family members and events to notify on, then send a test notification.
-
----
-
-## Tech
-
-- Python / Flask / SQLite
-- Gunicorn in Docker
-- Image: `ghcr.io/matda59/choresrewards:latest` (and `:nightly`)
-- Port **3000** in the container
-
-No cloud account required. Family data stays on your server. Optional Google Calendar and weather lookups call those services. Anonymous install counting is described below.
-
----
-
-## Usage statistics
-
-Image pulls and installs are counted separately.
-
-- **Pulls** are GHCR downloads. Updates count again, so this number is larger than the number of households. A daily job stores the history in `stats/usage.json`.
-- **Installs** count each saved data folder once, the first time a container starts.
-- **Check-ins** happen at most once a day per install.
-
-The container only downloads two tiny public files on GitHub. That increments download counters. Names, chores, photos, and your server address are not sent.
-
-Adults can open **Usage statistics** from the sidebar chart icon, or from Settings. To turn counting off, set `CHORESREWARDS_TELEMETRY=off`, or clear the checkbox on that page.
-
-GitHub stars, forks, and 14-day clone and view totals are on the same page.
+MIT
