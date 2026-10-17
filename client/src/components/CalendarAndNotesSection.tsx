@@ -8,14 +8,15 @@ const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#
 export const NotesSection: React.FC = () => {
   const { data, refresh, showToast } = useApp();
 
-  const [sectionCollapsed, setSectionCollapsed] = useState(true);
+  const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const [deletedCollapsed, setDeletedCollapsed] = useState(true);
-  const [padsCollapsed, setPadsCollapsed] = useState(true);
+  const [padsCollapsed, setPadsCollapsed] = useState(false);
 
   const [newNoteText, setNewNoteText] = useState<Record<string, string>>({});
   const [newPadTitle, setNewPadTitle] = useState('');
   const [newPadContent, setNewPadContent] = useState('');
   const [editingPadContent, setEditingPadContent] = useState<Record<string, string>>({});
+  const [padModes, setPadModes] = useState<Record<string, 'view' | 'edit'>>({});
 
   if (!data) return null;
 
@@ -135,6 +136,135 @@ export const NotesSection: React.FC = () => {
     } catch {
       // ignore
     }
+  };
+
+  const renderFormattedNote = (content: string) => {
+    if (!content) return <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Empty note</span>;
+    const lines = content.split('\n');
+    const elements: React.ReactNode[] = [];
+    let inList = false;
+    let listItems: React.ReactNode[] = [];
+
+    const flushList = (keyPrefix: string) => {
+      if (inList && listItems.length > 0) {
+        elements.push(
+          <ul key={`${keyPrefix}-ul`} style={{ margin: '6px 0 12px 22px', padding: 0 }}>
+            {listItems}
+          </ul>
+        );
+        listItems = [];
+        inList = false;
+      }
+    };
+
+    const formatInline = (text: string): React.ReactNode => {
+      const codeParts = text.split(/(`[^`]+`)/g);
+      return codeParts.map((part, i) => {
+        if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+          return (
+            <code
+              key={i}
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                padding: '2px 5px',
+                borderRadius: '4px',
+                fontSize: '0.86em',
+                fontFamily: 'monospace',
+                color: '#93c5fd',
+              }}
+            >
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+        const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+        return boldParts.map((bPart, bi) => {
+          if (bPart.startsWith('**') && bPart.endsWith('**') && bPart.length >= 4) {
+            return <strong key={`${i}-${bi}`} style={{ color: '#f8fafc' }}>{bPart.slice(2, -2)}</strong>;
+          }
+          return bPart;
+        });
+      });
+    };
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        flushList(`flush-${idx}`);
+        return;
+      }
+
+      if (trimmed === '---' || trimmed === '***') {
+        flushList(`hr-${idx}`);
+        elements.push(
+          <hr
+            key={`hr-${idx}`}
+            style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.12)', margin: '14px 0' }}
+          />
+        );
+        return;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        flushList(`h1-${idx}`);
+        elements.push(
+          <h2
+            key={`h1-${idx}`}
+            style={{ fontSize: '1.35rem', margin: '16px 0 8px', color: '#f8fafc', fontWeight: 700 }}
+          >
+            {formatInline(trimmed.slice(2))}
+          </h2>
+        );
+        return;
+      }
+
+      if (trimmed.startsWith('## ')) {
+        flushList(`h2-${idx}`);
+        elements.push(
+          <h3
+            key={`h2-${idx}`}
+            style={{ fontSize: '1.14rem', margin: '14px 0 6px', color: '#60a5fa', fontWeight: 700 }}
+          >
+            {formatInline(trimmed.slice(3))}
+          </h3>
+        );
+        return;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        flushList(`h3-${idx}`);
+        elements.push(
+          <h4
+            key={`h3-${idx}`}
+            style={{ fontSize: '0.98rem', margin: '10px 0 4px', color: '#93c5fd', fontWeight: 600 }}
+          >
+            {formatInline(trimmed.slice(4))}
+          </h4>
+        );
+        return;
+      }
+
+      if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
+        inList = true;
+        const bulletText = trimmed.slice(2);
+        listItems.push(
+          <li key={`li-${idx}`} style={{ margin: '4px 0', lineHeight: 1.5, color: '#e2e8f0' }}>
+            {formatInline(bulletText)}
+          </li>
+        );
+        return;
+      }
+
+      flushList(`p-${idx}`);
+      elements.push(
+        <p key={`p-${idx}`} style={{ margin: '6px 0', lineHeight: 1.55, color: '#e2e8f0' }}>
+          {formatInline(line)}
+        </p>
+      );
+    });
+
+    flushList('final');
+    return <div className="text-pad-rendered-view">{elements}</div>;
   };
 
   return (
@@ -303,6 +433,9 @@ export const NotesSection: React.FC = () => {
           ) : (
             textPads.map((pad) => {
               const val = editingPadContent[pad.id] !== undefined ? editingPadContent[pad.id] : pad.content;
+              const mode = padModes[pad.id] || 'view';
+              const isView = mode === 'view';
+
               return (
                 <div key={pad.id} className="text-pad-card">
                   <div className="text-pad-card-header">
@@ -314,6 +447,16 @@ export const NotesSection: React.FC = () => {
                     />
                     <span className="text-pad-meta">{(val || '').length.toLocaleString()} chars</span>
                     <div className="text-pad-actions">
+                      <button
+                        type="button"
+                        className={`edit-btn text-pad-mode-btn${isView ? ' active' : ''}`}
+                        title={isView ? 'Switch to Edit mode' : 'Switch to Formatted View'}
+                        onClick={() =>
+                          setPadModes((prev) => ({ ...prev, [pad.id]: isView ? 'edit' : 'view' }))
+                        }
+                      >
+                        <i className={isView ? 'fas fa-pencil' : 'fas fa-eye'} /> {isView ? 'Edit' : 'View'}
+                      </button>
                       <button
                         type="button"
                         className="edit-btn text-pad-copy-btn"
@@ -335,13 +478,34 @@ export const NotesSection: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <textarea
-                    className="text-pad-textarea"
-                    rows={8}
-                    value={val}
-                    onChange={(e) => setEditingPadContent((prev) => ({ ...prev, [pad.id]: e.target.value }))}
-                    onBlur={() => handleSaveTextPad(pad.id, pad.title)}
-                  />
+
+                  {isView ? (
+                    <div className="text-pad-rendered-view">{renderFormattedNote(val)}</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <textarea
+                        className="text-pad-textarea"
+                        rows={14}
+                        value={val}
+                        onChange={(e) =>
+                          setEditingPadContent((prev) => ({ ...prev, [pad.id]: e.target.value }))
+                        }
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                          onClick={async () => {
+                            await handleSaveTextPad(pad.id, pad.title);
+                            setPadModes((prev) => ({ ...prev, [pad.id]: 'view' }));
+                          }}
+                        >
+                          <i className="fas fa-check" /> Done & View
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
