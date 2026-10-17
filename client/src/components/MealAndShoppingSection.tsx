@@ -126,7 +126,7 @@ function renderStoreIcon(icon?: string) {
 }
 
 export const MealAndShoppingSection: React.FC = () => {
-  const { data, refresh, showToast } = useApp();
+  const { data, refresh, showToast, confirm, isChild } = useApp();
 
   // Accordion states matching original index.html
   const [plannerCollapsed, setPlannerCollapsed] = useState(false);
@@ -401,9 +401,13 @@ export const MealAndShoppingSection: React.FC = () => {
   };
 
   const handleDeleteStore = async (store: ShoppingStore) => {
-    if (!window.confirm(`Delete "${store.name}"? Items assigned to it will remain in the Meals library.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete "${store.name}"?`,
+      message: `Delete "${store.name}"? Items assigned to it will remain in the Meals library.`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     const nextStores = stores.filter((s) => s.id !== store.id);
     await apiPost('save_shopping_stores', { stores: nextStores });
     await refresh();
@@ -829,27 +833,31 @@ export const MealAndShoppingSection: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="meal-kanban-card-del"
-                            title="Delete meal"
-                            onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
-                          >
-                            ✕
-                          </button>
+                          {!isChild && (
+                            <button
+                              type="button"
+                              className="meal-kanban-card-del"
+                              title="Delete meal"
+                              onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       );
                     })
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  className="meal-kanban-add-btn"
-                  onClick={() => handleOpenAddMealModal(day.date_iso)}
-                >
-                  <i className="fas fa-plus" /> Add Meal
-                </button>
+                {!isChild && (
+                  <button
+                    type="button"
+                    className="meal-kanban-add-btn"
+                    onClick={() => handleOpenAddMealModal(day.date_iso)}
+                  >
+                    <i className="fas fa-plus" /> Add Meal
+                  </button>
+                )}
               </div>
             );
           })}

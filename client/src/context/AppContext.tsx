@@ -1,12 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { BootstrapData } from '../types';
-import { apiGet, resolveAssetUrl } from '../api';
+import { BootstrapData, Person } from '../types';
+import { apiGet, apiPost, resolveAssetUrl } from '../api';
+import { ConfirmModal } from '../components/common/ConfirmModal';
+import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
+import { FamilyMemberModal } from '../components/FamilyMemberModal';
 
 export interface ToastItem {
   id: string;
   message: string;
   type?: 'success' | 'error' | 'info' | 'badge';
   undoAction?: () => void;
+}
+
+export interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  danger?: boolean;
 }
 
 export type ActiveView =
@@ -29,6 +40,15 @@ interface AppContextValue {
   openAdultPinModal: (onSuccess?: () => void) => void;
   playSound: (customUrl?: string) => void;
   showToast: (message: string, options?: { type?: ToastItem['type']; undoAction?: () => void }) => void;
+  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  activeUser: Person | null;
+  switchUser: (personId: number, pin?: string) => Promise<{ success: boolean; error?: string }>;
+  isParent: boolean;
+  isChild: boolean;
+  isFamily: boolean;
+  profileSwitcherOpen: boolean;
+  setProfileSwitcherOpen: (open: boolean) => void;
+  openEditMemberModal: (person?: Person | null) => void;
   activeView: ActiveView;
   setActiveView: (v: ActiveView) => void;
   scrollToSection: (sectionId: string) => void;
@@ -70,6 +90,37 @@ export const AppProvider: React.FC<{
       sessionStorage.removeItem('cr_adult_unlocked');
     }
   }, []);
+
+  const [activeUser, setActiveUser] = useState<Person | null>(null);
+  const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Person | null | undefined>(undefined);
+
+  // In-app Confirm modal state
+  const [confirmConfig, setConfirmConfig] = useState<(ConfirmOptions & { resolve: (val: boolean) => void }) | null>(null);
+
+  const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmConfig({
+        ...options,
+        resolve,
+      });
+    });
+  }, []);
+
+  const handleConfirmAction = useCallback(() => {
+    if (confirmConfig) {
+      confirmConfig.resolve(true);
+      setConfirmConfig(null);
+    }
+  }, [confirmConfig]);
+
+  const handleCancelAction = useCallback(() => {
+    if (confirmConfig) {
+      confirmConfig.resolve(false);
+      setConfirmConfig(null);
+    }
+  }, [confirmConfig]);
+
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [selectedChorePersonId, setSelectedChorePersonId] = useState<number | null>(null);
@@ -84,7 +135,12 @@ export const AppProvider: React.FC<{
       const res = await apiGet<BootstrapData>('bootstrap');
       if (res && res.success) {
         setData(res);
-        if (res.auth?.adult_mode) {
+        if (res.auth?.active_user) {
+          setActiveUser(res.auth.active_user);
+          if (res.auth.active_user.role === 'parent') {
+            setAdultMode(true);
+          }
+        } else if (res.auth?.adult_mode) {
           setAdultMode(true);
         }
       }
@@ -123,18 +179,67 @@ export const AppProvider: React.FC<{
     };
   }, [refresh]);
 
+  // Sync activeUser from data when loaded
+  useEffect(() => {
+    if (!activeUser && data?.family && data.family.length > 0) {
+      if (data.auth?.active_user) {
+        setActiveUser(data.auth.active_user);
+      } else {
+        const defaultUser = data.family.find((p) => p.role === 'family') || data.family[0];
+        setActiveUser(defaultUser);
+      }
+    }
+  }, [data, activeUser]);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('cr-theme', theme);
   }, [theme]);
 
+  const isParent = activeUser?.role === 'parent' || activeUser?.is_admin === true || adultMode;
+  const isChild = activeUser?.role === 'child';
+  const isFamily = activeUser?.role === 'family' || (!isParent && !isChild);
+
   useEffect(() => {
-    document.documentElement.classList.toggle('adult-mode', adultMode);
-    document.documentElement.classList.toggle('child-mode', !adultMode);
-    document.body.classList.toggle('adult-mode', adultMode);
-    document.body.classList.toggle('child-mode', !adultMode);
-    document.body.classList.toggle('adult-unlocked', adultMode);
-  }, [adultMode]);
+    document.documentElement.classList.toggle('adult-mode', isParent);
+    document.documentElement.classList.toggle('child-mode', isChild);
+    document.body.classList.toggle('adult-mode', isParent);
+    document.body.classList.toggle('child-mode', isChild);
+    document.body.classList.toggle('adult-unlocked', isParent);
+  }, [isParent, isChild]);
+
+  const switchUser = useCallback(
+    async (personId: number, pin?: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const res = await apiPost<{ success: boolean; active_user: Person; error?: string }>('switch_user', {
+          person_id: personId,
+          pin,
+        });
+        if (res && res.success && res.active_user) {
+          setActiveUser(res.active_user);
+          if (res.active_user.role === 'parent') {
+            setAdultMode(true);
+          } else {
+            setAdultMode(false);
+          }
+          await refresh();
+          return { success: true };
+        }
+        return { success: false, error: res?.error || 'Failed to switch user' };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Failed to switch user' };
+      }
+    },
+    [refresh, setAdultMode]
+  );
+
+  const openEditMemberModal = useCallback((person?: Person | null) => {
+    setEditingMember(person === undefined ? null : person);
+  }, []);
+
+  const closeEditMemberModal = useCallback(() => {
+    setEditingMember(undefined);
+  }, []);
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -152,20 +257,16 @@ export const AppProvider: React.FC<{
     (customUrl?: string) => {
       if (muted) return;
       try {
-        let target = customUrl;
-        if (!target) {
-          const list = soundsListRef.current;
-          if (list.length > 0) {
-            target = list[Math.floor(Math.random() * list.length)];
-          } else {
-            target = '/static/sounds/ta-da_yrvBrlS.mp3';
-          }
+        let src = customUrl;
+        if (!src && soundsListRef.current.length > 0) {
+          const idx = Math.floor(Math.random() * soundsListRef.current.length);
+          src = soundsListRef.current[idx];
         }
-        const audio = new Audio(resolveAssetUrl(target));
-        audio.volume = 0.7;
+        if (!src) src = resolveAssetUrl('sounds/ding.mp3');
+        const audio = new Audio(src);
         audio.play().catch(() => {});
       } catch {
-        // ignore audio error
+        // audio playback blocked or unavailable
       }
     },
     [muted]
@@ -174,39 +275,29 @@ export const AppProvider: React.FC<{
   const showToast = useCallback(
     (message: string, options?: { type?: ToastItem['type']; undoAction?: () => void }) => {
       const id = `${Date.now()}_${Math.random()}`;
-      setToasts((prev) => [...prev, { id, message, type: options?.type || 'success', undoAction: options?.undoAction }]);
+      const item: ToastItem = {
+        id,
+        message,
+        type: options?.type || 'info',
+        undoAction: options?.undoAction,
+      };
+      setToasts((prev) => [...prev, item]);
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 5000);
+      }, 3500);
     },
     []
   );
 
-  const scrollToSection = useCallback(
-    (sectionId: string) => {
-      const doScroll = () => {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          if (el.classList.contains('collapsed')) {
-            const toggle = el.querySelector<HTMLElement>('.section-toggle');
-            toggle?.click();
-          }
-          const headerEl = document.querySelector('header');
-          const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 90;
-          const targetY = el.getBoundingClientRect().top + window.scrollY - (headerHeight + 20);
-          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-        }
-      };
-
-      if (activeView !== 'dashboard') {
-        setActiveView('dashboard');
-        setTimeout(doScroll, 120);
-      } else {
-        doScroll();
+  const scrollToSection = useCallback((sectionId: string) => {
+    setActiveView('dashboard');
+    setTimeout(() => {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    },
-    [activeView]
-  );
+    }, 50);
+  }, []);
 
   const openPlayGame = useCallback((game: 'maths' | 'colours' | 'patterns' | 'memory') => {
     setPlayWidgetInitialGame(game);
@@ -214,13 +305,12 @@ export const AppProvider: React.FC<{
   }, []);
 
   const formatRewardValue = useCallback(
-    (val: number) => {
-      const num = Number(val || 0);
-      const formatted = Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, '');
-      if (data?.reward_system === 'cash') {
-        return `$${Number(val || 0).toFixed(2)}`;
+    (val: number): string => {
+      const system = data?.reward_system || 'points';
+      if (system === 'cash') {
+        return `$${val.toFixed(2)}`;
       }
-      return `${formatted} pts`;
+      return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)} pts`;
     },
     [data?.reward_system]
   );
@@ -240,6 +330,15 @@ export const AppProvider: React.FC<{
         openAdultPinModal: onRequestAdultPin,
         playSound,
         showToast,
+        confirm,
+        activeUser,
+        switchUser,
+        isParent,
+        isChild,
+        isFamily,
+        profileSwitcherOpen,
+        setProfileSwitcherOpen,
+        openEditMemberModal,
         activeView,
         setActiveView,
         scrollToSection,
@@ -257,6 +356,34 @@ export const AppProvider: React.FC<{
       }}
     >
       {children}
+
+      {/* Global In-App Confirm Modal */}
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={Boolean(confirmConfig)}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          confirmText={confirmConfig.confirmText}
+          cancelText={confirmConfig.cancelText}
+          danger={confirmConfig.danger}
+          onConfirm={handleConfirmAction}
+          onCancel={handleCancelAction}
+        />
+      )}
+
+      {/* Profile Switcher Modal */}
+      <ProfileSwitcherModal
+        isOpen={profileSwitcherOpen}
+        onClose={() => setProfileSwitcherOpen(false)}
+      />
+
+      {/* Edit Family Member Modal */}
+      <FamilyMemberModal
+        isOpen={editingMember !== undefined}
+        member={editingMember || null}
+        onClose={closeEditMemberModal}
+      />
+
       {/* Global Toast Container */}
       <div
         id="toast-container"

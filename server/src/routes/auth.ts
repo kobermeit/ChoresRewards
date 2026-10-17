@@ -278,3 +278,49 @@ authRouter.post('/api/adult_logout', (req: Request, res: Response) => {
   }
   res.json({ success: true });
 });
+
+authRouter.post('/api/switch_user', (req: Request, res: Response) => {
+  const { person_id, pin } = req.body || {};
+  if (!person_id) {
+    res.status(400).json({ success: false, error: 'person_id is required' });
+    return;
+  }
+
+  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  if (!person) {
+    res.status(404).json({ success: false, error: 'Person not found' });
+    return;
+  }
+
+  const isParent = person.role === 'parent' || person.is_admin === 1;
+
+  if (person.pin) {
+    if (!checkPinHash(String(pin || ''), person.pin)) {
+      res.status(401).json({ success: false, error: 'Incorrect PIN' });
+      return;
+    }
+  }
+
+  req.session.authenticated = true;
+  req.session.person_id = person.id;
+  req.session.person_name = person.name;
+  req.session.adult_mode = isParent;
+  if (isParent) {
+    req.session.adult_name = person.name;
+  } else {
+    delete req.session.adult_name;
+  }
+
+  res.json({
+    success: true,
+    active_user: {
+      id: person.id,
+      name: person.name,
+      role: person.role || (isParent ? 'parent' : 'child'),
+      avatar: person.avatar || 'default_avatar.png',
+      color: person.color || '#ffffff',
+      is_admin: Boolean(person.is_admin),
+      has_pin: Boolean(person.pin),
+    },
+  });
+});

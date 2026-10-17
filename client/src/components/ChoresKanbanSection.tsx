@@ -114,7 +114,18 @@ export const ChoresKanbanSection: React.FC = () => {
     formatRewardValue,
     selectedChorePersonId,
     setSelectedChorePersonId,
+    confirm,
+    activeUser,
+    isParent,
+    isChild,
   } = useApp();
+
+  // If active user is a child, automatically focus their chore column
+  useEffect(() => {
+    if (isChild && activeUser) {
+      setSelectedChorePersonId(activeUser.id);
+    }
+  }, [isChild, activeUser?.id, setSelectedChorePersonId]);
 
   // Chores section collapsed state
   const [choresCollapsed, setChoresCollapsed] = useState(false);
@@ -191,7 +202,9 @@ export const ChoresKanbanSection: React.FC = () => {
 
   if (!data) return null;
 
-  const family = [...(data.family || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const family = [...(data.family || [])]
+    .filter((p) => p.role !== 'family' && p.name.toLowerCase() !== 'family')
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const chores = data.chores || [];
   const overdueIds = new Set(data.overdue_chore_ids || []);
   const isCash = data.reward_system === 'cash';
@@ -342,13 +355,12 @@ export const ChoresKanbanSection: React.FC = () => {
   };
 
   const handleClearCompleted = async (personName: string) => {
-    if (
-      !window.confirm(
-        "Clear today's completed chores for this person? Repeating chores come back tomorrow. One-off chores are removed."
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Clear Completed Chores?',
+      message: `Clear today's completed chores for ${personName}? Repeating chores come back tomorrow, and one-off chores are removed.`,
+      confirmText: 'Clear Completed',
+    });
+    if (!ok) return;
     try {
       await apiPost('clear_completed_chores', { assigned_to: personName });
       showToast(`Cleared completed chores for ${personName}`);

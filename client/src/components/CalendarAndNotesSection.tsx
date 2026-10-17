@@ -6,7 +6,7 @@ import { SectionHelpTip } from './HelpTooltipAndView';
 const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
 
 export const NotesSection: React.FC = () => {
-  const { data, refresh, showToast } = useApp();
+  const { data, refresh, showToast, confirm } = useApp();
 
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const [deletedCollapsed, setDeletedCollapsed] = useState(true);
@@ -69,7 +69,13 @@ export const NotesSection: React.FC = () => {
   };
 
   const handleDeleteColumn = async (colId: string, colTitle: string) => {
-    if (!window.confirm(`Delete list "${colTitle}"?`)) return;
+    const ok = await confirm({
+      title: `Delete List "${colTitle}"?`,
+      message: `Are you sure you want to delete the list "${colTitle}" and all of its notes?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiPost('delete_note_column', { id: colId });
       await refresh();
@@ -81,7 +87,12 @@ export const NotesSection: React.FC = () => {
   const handleClearChecked = async () => {
     const checkedList = activeNotes.filter((n) => n.checked);
     if (!checkedList.length) return;
-    if (!window.confirm(`Move ${checkedList.length} checked note(s) to Deleted Notes?`)) return;
+    const ok = await confirm({
+      title: 'Move Checked Notes?',
+      message: `Move ${checkedList.length} checked note(s) to Deleted Notes?`,
+      confirmText: 'Move to Deleted',
+    });
+    if (!ok) return;
     try {
       await Promise.all(checkedList.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: false })));
       await refresh();
@@ -92,7 +103,13 @@ export const NotesSection: React.FC = () => {
 
   const handleEmptyDeleted = async () => {
     if (!deletedNotes.length) return;
-    if (!window.confirm(`Permanently delete ${deletedNotes.length} note(s)?`)) return;
+    const ok = await confirm({
+      title: 'Permanently Delete Notes?',
+      message: `Permanently delete all ${deletedNotes.length} note(s)? This cannot be undone.`,
+      confirmText: 'Delete Permanently',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await Promise.all(deletedNotes.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: true })));
       await refresh();
@@ -129,7 +146,13 @@ export const NotesSection: React.FC = () => {
   };
 
   const handleDeleteTextPad = async (padId: string) => {
-    if (!window.confirm('Delete this text pad?')) return;
+    const ok = await confirm({
+      title: 'Delete Text Pad?',
+      message: 'Are you sure you want to delete this text pad? This cannot be undone.',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiPost('delete_text_pad', { id: padId });
       await refresh();

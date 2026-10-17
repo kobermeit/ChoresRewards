@@ -1,0 +1,459 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Person, UserRole } from '../types';
+import { apiPost, resolveAssetUrl } from '../api';
+import { useApp } from '../context/AppContext';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+
+const PRESET_COLORS = [
+  '#3b82f6', // Blue
+  '#ec4899', // Pink
+  '#8b5cf6', // Purple
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+  '#06b6d4', // Cyan
+  '#84cc16', // Lime
+  '#64748b', // Slate
+];
+
+interface FamilyMemberModalProps {
+  isOpen: boolean;
+  member: Person | null;
+  onClose: () => void;
+}
+
+export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, member, onClose }) => {
+  useBodyScrollLock(isOpen);
+  const { refresh, showToast } = useApp();
+
+  const [name, setName] = useState('');
+  const [age, setAge] = useState<string>('');
+  const [role, setRole] = useState<UserRole>('child');
+  const [color, setColor] = useState('#3b82f6');
+  const [pin, setPin] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (member) {
+      setName(member.name || '');
+      setAge(member.age !== null && member.age !== undefined ? String(member.age) : '');
+      setRole(member.role || (member.is_admin ? 'parent' : 'child'));
+      setColor(member.color || '#3b82f6');
+      setPin('');
+      if (member.avatar && member.avatar !== 'default_avatar.png') {
+        setAvatarPreview(resolveAssetUrl(`uploads/${member.avatar}`));
+      } else {
+        setAvatarPreview(null);
+      }
+      setSelectedFile(null);
+    } else {
+      setName('');
+      setAge('');
+      setRole('child');
+      setColor('#3b82f6');
+      setPin('');
+      setAvatarPreview(null);
+      setSelectedFile(null);
+    }
+  }, [member, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const objectUrl = URL.createObjectURL(file);
+      setAvatarPreview(objectUrl);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      showToast('Name is required', { type: 'error' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: any = {
+        name: trimmedName,
+        age: age ? Number(age) : null,
+        role,
+        color,
+      };
+      if (member?.id) {
+        payload.id = member.id;
+      }
+      if (pin.trim()) {
+        payload.pin = pin.trim();
+      }
+
+      const res = await apiPost<{ success: boolean; person: any }>('save_person', payload);
+      const savedPerson = res.person;
+
+      // If user picked a new photo file, upload it now
+      if (selectedFile && savedPerson?.id) {
+        const formData = new FormData();
+        formData.append('avatar', selectedFile);
+        const uploadRes = await fetch(`/api/upload_avatar/${savedPerson.id}`, {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadJson = await uploadRes.json();
+        if (!uploadJson.success) {
+          throw new Error(uploadJson.error || 'Failed to upload photo');
+        }
+      }
+
+      showToast(`Saved ${trimmedName}`);
+      await refresh();
+      onClose();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save member', { type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(8px)',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: '100%',
+          maxWidth: '480px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+          borderRadius: '20px',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+          padding: '24px',
+          color: '#f8fafc',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          animation: 'crModalFadeIn 0.18s ease-out',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fas fa-user-circle" style={{ color }} />
+            {member ? `Edit ${member.name}` : 'Add Family Member'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              fontSize: '1.2rem',
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <i className="fas fa-times" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {/* Avatar Photo Section */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '92px',
+                height: '92px',
+                borderRadius: '50%',
+                border: `3px solid ${color}`,
+                boxShadow: `0 0 16px ${color}44`,
+                background: '#1e293b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                position: 'relative',
+                cursor: 'pointer',
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              title="Click to change photo"
+            >
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt={name || 'Avatar'}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    fontSize: '2rem',
+                    fontWeight: 700,
+                    color: '#fff',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {name ? name.slice(0, 2) : '👤'}
+                </div>
+              )}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(0,0,0,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  transition: 'opacity 0.15s ease',
+                  color: '#fff',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
+              >
+                <i className="fas fa-camera" />
+              </div>
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*"
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#93c5fd',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <i className="fas fa-camera" /> {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+            </button>
+          </div>
+
+          {/* Name & Age Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Name</label>
+              <input
+                type="text"
+                className="modern-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Abby"
+                required
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#fff',
+                  fontSize: '0.95rem',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Age (optional)</label>
+              <input
+                type="number"
+                className="modern-input"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g. 6"
+                min="0"
+                max="120"
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#fff',
+                  fontSize: '0.95rem',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Role Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Role</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {[
+                { id: 'family' as UserRole, label: 'Family', desc: 'Shared tablet view', icon: 'fa-users' },
+                { id: 'child' as UserRole, label: 'Child', desc: 'Chores & games', icon: 'fa-star' },
+                { id: 'parent' as UserRole, label: 'Parent', desc: 'Full admin access', icon: 'fa-shield-alt' },
+              ].map((r) => {
+                const active = role === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setRole(r.id)}
+                    style={{
+                      padding: '12px 8px',
+                      borderRadius: '10px',
+                      background: active ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                      border: active ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                      color: active ? '#93c5fd' : '#cbd5e1',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <i className={`fas ${r.icon}`} style={{ fontSize: '1.2rem', marginBottom: 2 }} />
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>{r.label}</span>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{r.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Accent Color Palette */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Accent Colour</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: c,
+                    border: color === c ? '3px solid #fff' : '2px solid transparent',
+                    cursor: 'pointer',
+                    boxShadow: color === c ? '0 0 10px rgba(255,255,255,0.6)' : 'none',
+                    transition: 'transform 0.12s ease',
+                    transform: color === c ? 'scale(1.15)' : 'scale(1)',
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: 'transparent',
+                }}
+                title="Custom color"
+              />
+            </div>
+          </div>
+
+          {/* PIN Input (Optional) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>
+              PIN Protection {member?.has_pin && <span style={{ color: '#10b981' }}>(Current PIN set)</span>}
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={8}
+              className="modern-input"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep)' : 'Optional 4-digit PIN'}
+              style={{
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#fff',
+                fontSize: '0.95rem',
+              }}
+            />
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Used when switching to this profile on the shared tablet.
+            </span>
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#cbd5e1',
+                fontWeight: 600,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: '10px 24px',
+                borderRadius: '10px',
+                background: '#2563eb',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+              }}
+            >
+              {saving ? 'Saving...' : member ? 'Update Member' : 'Add Member'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

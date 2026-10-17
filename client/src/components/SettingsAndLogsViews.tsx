@@ -7,7 +7,7 @@ import { SetupWizard } from './SetupWizard';
 // 1. SETTINGS VIEW
 // ============================================================================
 export const SettingsView: React.FC = () => {
-  const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme } = useApp();
+  const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme, confirm, openEditMemberModal } = useApp();
   const [tab, setTab] = useState<
     'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
   >('general');
@@ -218,7 +218,13 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeletePerson = async (personId: number, name: string) => {
-    if (!window.confirm(`Delete ${name} and their chores?`)) return;
+    const ok = await confirm({
+      title: `Delete ${name}?`,
+      message: `Are you sure you want to delete ${name} and all of their chores and streaks? This cannot be undone.`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     await apiPost('delete_person', { person_id: personId });
     showToast(`Deleted ${name}`);
     await refresh();
@@ -568,7 +574,26 @@ export const SettingsView: React.FC = () => {
       {/* 2. FAMILY MEMBERS TAB */}
       {tab === 'family' && (
         <div className="card" style={{ padding: 24, borderRadius: 18 }}>
-          <h3 style={{ marginTop: 0 }}>👨‍👩‍👧‍👦 Manage Family Members</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>👨‍👩‍👧‍👦 Manage Family Members</h3>
+            <button
+              type="button"
+              onClick={() => openEditMemberModal(null)}
+              className="btn-primary"
+              style={{
+                padding: '8px 16px',
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <i className="fas fa-user-plus" /> Add Member
+            </button>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
             {(data?.family || []).map((p) => (
@@ -593,8 +618,31 @@ export const SettingsView: React.FC = () => {
                     style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>
-                      {p.name} {p.is_admin && <span style={{ color: '#fbbf24', fontSize: '0.75rem' }}>(Admin)</span>}
+                    <div style={{ fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {p.name}
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 8,
+                          background:
+                            p.role === 'parent'
+                              ? 'rgba(245, 158, 11, 0.2)'
+                              : p.role === 'family'
+                                ? 'rgba(59, 130, 246, 0.2)'
+                                : 'rgba(16, 185, 129, 0.2)',
+                          color:
+                            p.role === 'parent'
+                              ? '#fbbf24'
+                              : p.role === 'family'
+                                ? '#60a5fa'
+                                : '#34d399',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {p.role || (p.is_admin ? 'Parent' : 'Child')}
+                      </span>
                     </div>
                     <div style={{ fontSize: '0.82rem', opacity: 0.75 }}>
                       Balance: {p.points} pts (+{p.bonus_points} bonus) {p.age != null ? `• Age ${p.age}` : ''}
@@ -603,6 +651,24 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => openEditMemberModal(p)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      background: 'rgba(59,130,246,0.2)',
+                      color: '#93c5fd',
+                      border: 'none',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    ✏️ Edit
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleAdjustPoints(p.id, 1)}

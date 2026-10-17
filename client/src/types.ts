@@ -13,6 +13,8 @@ export interface PersonStreak {
   last_completed_date: string | null;
 }
 
+export type UserRole = 'parent' | 'child' | 'family';
+
 export interface Person {
   id: number;
   name: string;
@@ -22,6 +24,7 @@ export interface Person {
   color: string;
   order: number;
   is_admin: boolean;
+  role?: UserRole;
   has_pin?: boolean;
   age: number | null;
   streak: PersonStreak;
@@ -220,6 +223,7 @@ export interface BootstrapData {
     adult_name: string | null;
     person_id: number | null;
     person_name: string | null;
+    active_user?: Person | null;
   };
   family: Person[];
   chores: Chore[];

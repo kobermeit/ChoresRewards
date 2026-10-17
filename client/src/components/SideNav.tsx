@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
 
 export const SideNav: React.FC = () => {
-  const { adultMode, setAdultMode, openAdultPinModal, activeView, setActiveView, scrollToSection, showToast } =
+  const { isParent, isChild, setProfileSwitcherOpen, activeView, setActiveView, scrollToSection } =
     useApp();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sideNavCollapsed') === 'true';
@@ -19,16 +19,6 @@ export const SideNav: React.FC = () => {
       localStorage.setItem('sideNavCollapsed', String(next));
       return next;
     });
-  };
-
-  const handleLockToggle = async () => {
-    if (adultMode) {
-      await apiPost('adult_logout', {});
-      setAdultMode(false);
-      showToast('Locked Adult Mode 🔒');
-    } else {
-      openAdultPinModal();
-    }
   };
 
   const [activeSection, setActiveSection] = useState<string>('dashboard-section');
@@ -190,11 +180,11 @@ export const SideNav: React.FC = () => {
           <i className="fas fa-sticky-note" />
         </button>
 
-        {adultMode && (
+        {!isChild && (
           <button
             type="button"
             className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'organise-section' ? 'side-nav-active' : ''}`}
-            title="Organise"
+            title="Organise & Bills"
             onClick={() => {
               setActiveSection('organise-section');
               scrollToSection('organise-section');
@@ -230,7 +220,7 @@ export const SideNav: React.FC = () => {
         >
           <i className="fas fa-circle-question" />
         </button>
-        {adultMode && (
+        {!isChild && (
           <button
             type="button"
             className={`side-nav-btn side-nav-link ${activeView === 'settings' ? 'side-nav-active' : ''}`}
@@ -240,15 +230,6 @@ export const SideNav: React.FC = () => {
             <i className="fas fa-cog" />
           </button>
         )}
-        <button
-          type="button"
-          className={`side-nav-btn ${adultMode ? 'unlocked' : ''}`}
-          id="side-nav-lock-btn"
-          title="Admin lock / unlock"
-          onClick={handleLockToggle}
-        >
-          <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
-        </button>
       </nav>
     </>
   );

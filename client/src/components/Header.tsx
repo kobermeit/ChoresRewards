@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, resolveAssetUrl } from '../api';
 
 function weatherInfo(code: number): { icon: string; color: string; desc: string } {
   if (code === 0) return { icon: 'fa-sun', color: '#fbbf24', desc: 'Clear Sky' };
@@ -26,6 +26,11 @@ export const Header: React.FC = () => {
     adultMode,
     setAdultMode,
     openAdultPinModal,
+    activeUser,
+    setProfileSwitcherOpen,
+    isParent,
+    isChild,
+    isFamily,
     setActiveView,
     scrollToSection,
     showToast,
@@ -448,14 +453,95 @@ export const Header: React.FC = () => {
               )}
             </div>
 
-            {/* Parent Lock / Unlock */}
+            {/* User Profile Switcher */}
             <button
-              id="adult-lock-btn"
-              className={adultMode ? 'unlocked' : 'locked'}
-              onClick={handleLockClick}
-              title={adultMode ? 'Adult mode unlocked — tap to lock' : 'Tap to unlock adult mode'}
+              id="user-profile-btn"
+              type="button"
+              onClick={() => setProfileSwitcherOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 12px 4px 6px',
+                borderRadius: '24px',
+                background: isParent
+                  ? 'rgba(245, 158, 11, 0.15)'
+                  : isChild
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : 'rgba(59, 130, 246, 0.15)',
+                border: isParent
+                  ? '1px solid rgba(245, 158, 11, 0.4)'
+                  : isChild
+                    ? '1px solid rgba(16, 185, 129, 0.4)'
+                    : '1px solid rgba(59, 130, 246, 0.4)',
+                cursor: 'pointer',
+                color: '#fff',
+                transition: 'all 0.15s ease',
+              }}
+              title="Switch user profile"
             >
-              <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
+              {activeUser?.role === 'family' || activeUser?.name?.toLowerCase() === 'family' ? (
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: '#3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.95rem',
+                  }}
+                >
+                  👨‍👩‍👧‍👦
+                </div>
+              ) : activeUser?.avatar && activeUser.avatar !== 'default_avatar.png' ? (
+                <img
+                  src={resolveAssetUrl(`uploads/${activeUser.avatar}`)}
+                  alt={activeUser.name}
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: `2px solid ${activeUser.color || '#3b82f6'}`,
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: activeUser?.color || '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  {activeUser ? activeUser.name.slice(0, 2) : '👤'}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
+                  {activeUser?.name || 'Family'}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    color: isParent ? '#f59e0b' : isChild ? '#34d399' : '#60a5fa',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {isParent ? 'Parent 🛡️' : isChild ? 'Child ⭐' : 'Family 👨‍👩‍👧‍👦'}
+                </span>
+              </div>
+
+              <i className="fas fa-chevron-down" style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '2px' }} />
             </button>
           </nav>
         )}

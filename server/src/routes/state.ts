@@ -146,7 +146,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         bonus_points: roundPoints(p.bonus_points),
         avatar: p.avatar || 'default_avatar.png',
         color: p.color || '#ffffff',
-        order: p.order || 0,
+        role: p.role || (p.is_admin ? 'parent' : 'child'),
         is_admin: Boolean(p.is_admin),
         has_pin: Boolean(p.pin),
         age: p.age ?? null,
@@ -155,6 +155,23 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         total_completed: personTotalCompleted[String(p.id)] || 0,
       };
     });
+
+    const activePersonId = req.session?.person_id;
+    let activeUserRow = activePersonId ? peopleRows.find((p) => p.id === activePersonId) : null;
+    if (!activeUserRow) {
+      activeUserRow = peopleRows.find((p) => p.role === 'family') || peopleRows[0] || null;
+    }
+    const activeUser = activeUserRow
+      ? {
+          id: activeUserRow.id,
+          name: activeUserRow.name,
+          role: activeUserRow.role || (activeUserRow.is_admin ? 'parent' : 'child'),
+          avatar: activeUserRow.avatar || 'default_avatar.png',
+          color: activeUserRow.color || '#ffffff',
+          is_admin: Boolean(activeUserRow.is_admin),
+          has_pin: Boolean(activeUserRow.pin),
+        }
+      : null;
 
     const mealWeekDays = getWeekDaysList(weekStart);
     const { plan: mealPlan, recurring: mealRecurring } = getMealPlanForWeek(weekStart);
@@ -175,10 +192,11 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       master_pin_set: masterPinSet,
       auth: {
         authenticated: !masterPinSet ? true : Boolean(req.session?.authenticated),
-        adult_mode: Boolean(req.session?.adult_mode),
-        adult_name: req.session?.adult_name || null,
-        person_id: req.session?.person_id || null,
-        person_name: req.session?.person_name || null,
+        adult_mode: Boolean(req.session?.adult_mode || activeUser?.role === 'parent'),
+        adult_name: req.session?.adult_name || (activeUser?.role === 'parent' ? activeUser.name : null),
+        person_id: activeUser?.id || null,
+        person_name: activeUser?.name || null,
+        active_user: activeUser,
       },
       family,
       chores,

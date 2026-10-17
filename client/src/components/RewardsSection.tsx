@@ -46,13 +46,19 @@ function getRewardIconClass(title: string): string {
 }
 
 export const RewardsSection: React.FC = () => {
-  const { data, refresh, playSound, showToast } = useApp();
+  const { data, refresh, playSound, showToast, confirm, activeUser, isParent, isChild } = useApp();
 
   // Accordion state
   const [availableCollapsed, setAvailableCollapsed] = useState(false);
 
   // Person filter state (null = All Family)
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isChild && activeUser) {
+      setSelectedPersonId(activeUser.id);
+    }
+  }, [isChild, activeUser?.id]);
 
   // Add / Edit Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -81,7 +87,9 @@ export const RewardsSection: React.FC = () => {
 
   if (!data) return null;
 
-  const family: FamilyMember[] = data.family || [];
+  const family: FamilyMember[] = (data.family || []).filter(
+    (p) => p.role !== 'family' && p.name.toLowerCase() !== 'family'
+  );
   const rewards: Reward[] = data.rewards || [];
   const availableRewards = rewards.filter((r) => !r.completed);
   const isCash = data.reward_system === 'cash';
@@ -268,9 +276,13 @@ export const RewardsSection: React.FC = () => {
   };
 
   const handleDeleteReward = async (reward: Reward) => {
-    if (!window.confirm(`Are you sure you want to delete "${reward.title}"?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Delete Reward?',
+      message: `Are you sure you want to delete "${reward.title}"?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiPost('delete_reward', { reward_id: reward.id });
       showToast(`Deleted reward "${reward.title}"`);
@@ -312,22 +324,24 @@ export const RewardsSection: React.FC = () => {
             </span>
           </h2>
 
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={openAddModal}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: '0.88rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <i className="fas fa-plus" /> Add Reward
-          </button>
+          {!isChild && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openAddModal}
+              style={{
+                padding: '7px 16px',
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <i className="fas fa-plus" /> Add Reward
+            </button>
+          )}
         </div>
 
         {/* Person Filter Bar */}
@@ -691,26 +705,28 @@ export const RewardsSection: React.FC = () => {
                       <i className="fas fa-check-circle" /> Redeem
                     </button>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <button
-                        type="button"
-                        className="reward-icon-btn"
-                        onClick={() => openEditModal(reward)}
-                        title="Edit reward"
-                        aria-label="Edit reward"
-                      >
-                        <i className="fas fa-pencil-alt" />
-                      </button>
-                      <button
-                        type="button"
-                        className="reward-icon-btn delete"
-                        onClick={() => handleDeleteReward(reward)}
-                        title="Delete reward"
-                        aria-label="Delete reward"
-                      >
-                        <i className="fas fa-trash-alt" />
-                      </button>
-                    </div>
+                    {!isChild && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <button
+                          type="button"
+                          className="reward-icon-btn"
+                          onClick={() => openEditModal(reward)}
+                          title="Edit reward"
+                          aria-label="Edit reward"
+                        >
+                          <i className="fas fa-pencil-alt" />
+                        </button>
+                        <button
+                          type="button"
+                          className="reward-icon-btn delete"
+                          onClick={() => handleDeleteReward(reward)}
+                          title="Delete reward"
+                          aria-label="Delete reward"
+                        >
+                          <i className="fas fa-trash-alt" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1044,7 +1060,7 @@ export const RewardsSection: React.FC = () => {
 };
 
 export const RedeemedRewardsSection: React.FC = () => {
-  const { data, refresh, showToast } = useApp();
+  const { data, refresh, showToast, confirm } = useApp();
   const [collapsed, setCollapsed] = useState(true);
 
   if (!data) return null;
@@ -1054,7 +1070,13 @@ export const RedeemedRewardsSection: React.FC = () => {
   const isCash = data.reward_system === 'cash';
 
   const handleDeleteReward = async (reward: Reward) => {
-    if (!window.confirm(`Are you sure you want to delete "${reward.title}" from history?`)) return;
+    const ok = await confirm({
+      title: 'Delete from History?',
+      message: `Are you sure you want to delete "${reward.title}" from redemption history?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiPost('delete_reward', { reward_id: reward.id });
       showToast(`Deleted reward "${reward.title}"`);

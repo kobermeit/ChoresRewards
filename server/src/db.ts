@@ -181,6 +181,7 @@ export function initDatabase() {
 
   // Safe migrations for existing databases
   ensureColumn('person', 'age', 'INTEGER');
+  ensureColumn('person', 'role', "VARCHAR(20) DEFAULT 'child'");
   ensureColumn('chore', 'icon', 'VARCHAR(20)');
   ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
   ensureColumn('chore', 'extra_id', 'VARCHAR(32)');
@@ -203,6 +204,21 @@ export function initDatabase() {
 
   ensureColumn('vehicle_service', 'next_service_date', 'DATE');
   ensureColumn('vehicle_service', 'next_service_mileage', 'INTEGER');
+
+  // Ensure roles are populated and Family user exists
+  try {
+    db.prepare("UPDATE person SET role = 'parent' WHERE is_admin = 1 AND (role IS NULL OR role = '' OR role = 'child')").run();
+    db.prepare("UPDATE person SET role = 'child' WHERE (is_admin = 0 OR is_admin IS NULL) AND (role IS NULL OR role = '')").run();
+    const familyRow = db.prepare("SELECT id FROM person WHERE role = 'family' OR name = 'Family'").get();
+    if (!familyRow) {
+      db.prepare(`
+        INSERT INTO person (name, role, points, bonus_points, avatar, color, "order", is_admin)
+        VALUES ('Family', 'family', 0, 0, 'default_avatar.png', '#3b82f6', 99, 0)
+      `).run();
+    }
+  } catch (err) {
+    console.error('[startup] Error syncing person roles:', err);
+  }
 
   // Clear stale upload references on startup
   try {
