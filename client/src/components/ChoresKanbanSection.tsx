@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAvatarUrl } from '../api';
 import { BadgeItem, Chore, ExtraChore, Person } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
+import { Modal } from './common/Modal';
 
 const CHORE_EMOJI_OPTIONS = [
   '', '✅', '🍽️', '🧺', '🗑️', '🧹', '🚿', '🦷', '👕', '🌱', '🍳', '🥗',
@@ -108,7 +109,9 @@ export const ChoresKanbanSection: React.FC = () => {
     setSelectedChorePersonId,
   } = useApp();
 
-  // Add Chores accordion state
+  // Chores section collapsed state
+  const [choresCollapsed, setChoresCollapsed] = useState(false);
+  const [addChoreModalOpen, setAddChoreModalOpen] = useState(false);
   const [addChoresCollapsed, setAddChoresCollapsed] = useState(true);
 
   // Quick suggestions
@@ -475,6 +478,7 @@ export const ChoresKanbanSection: React.FC = () => {
       setIsRepeating(false);
       setHasDueDatetime(false);
       setNewDueDatetime('');
+      setAddChoreModalOpen(false);
       showToast(`Added chore "${newTitle.trim()}" for ${assigned}`);
       await refresh();
     } catch (err: any) {
@@ -496,23 +500,16 @@ export const ChoresKanbanSection: React.FC = () => {
 
   return (
     <>
-      <section id="chores-section-root">
+      <section
+        id="chores-section"
+        className={`chores-section collapsible-section${choresCollapsed ? ' collapsed' : ''}`}
+      >
         <h2
-          style={{
-            textAlign: 'center',
-            color: 'var(--cr-text-primary)',
-            marginBottom: 8,
-            marginTop: 0,
-            fontSize: '1.85em',
-            letterSpacing: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-          }}
+          className="section-title section-toggle"
+          onClick={() => setChoresCollapsed((p) => !p)}
         >
-          <i className="fas fa-house-chimney" style={{ color: 'var(--cr-text-primary)', fontSize: '1.15em' }} />
-          Family Members Chores
+          <i className="fas fa-house-chimney" style={{ color: 'var(--cr-text-primary)' }} />
+          <span>Family Members Chores</span>
           <SectionHelpTip
             title="Family Members Chores"
             tips={[
@@ -521,10 +518,8 @@ export const ChoresKanbanSection: React.FC = () => {
               'Hold and drag the bottom handle on any column to reorder family members.',
             ]}
           />
+          <i className="fas fa-chevron-down section-chevron" />
         </h2>
-        <div id="morning-greeting-bar" className="morning-greeting-bar" style={{ paddingBottom: 6 }}>
-          {greeting}
-        </div>
 
         {/* User Filter Bar (All Family vs Single User Grid View) */}
         <div
@@ -532,11 +527,11 @@ export const ChoresKanbanSection: React.FC = () => {
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             flexWrap: 'wrap',
             gap: 8,
             marginBottom: 14,
-            padding: '4px 8px',
+            padding: '4px 0',
           }}
         >
           <button
@@ -785,6 +780,29 @@ export const ChoresKanbanSection: React.FC = () => {
 
                     <button
                       type="button"
+                      style={{
+                        padding: '8px 13px',
+                        borderRadius: 10,
+                        border: '1px solid rgba(96,165,250,0.45)',
+                        background: 'rgba(59,130,246,0.22)',
+                        color: '#93c5fd',
+                        fontWeight: 800,
+                        fontSize: '0.84rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                      onClick={() => {
+                        setNewAssignedTo(person.name);
+                        setAddChoreModalOpen(true);
+                      }}
+                    >
+                      <i className="fas fa-plus" /> Add Chore
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setSelectedChorePersonId(null)}
                       style={{
                         padding: '8px 14px',
@@ -1024,49 +1042,113 @@ export const ChoresKanbanSection: React.FC = () => {
                 onDrop={() => handleDropColumn(person)}
               >
                 {/* Column header with centered name and edit icon */}
-                <div className="column-header">
-                  <h3
-                    className="name"
-                    style={{ position: 'relative', paddingRight: 28, cursor: 'pointer' }}
-                    title={`Tap to open ${person.name}'s full-screen chore grid`}
-                    onClick={() => setSelectedChorePersonId(person.id)}
-                  >
-                    <span className="person-name" data-person-id={person.id}>
-                      {person.name}
-                    </span>
-                    <i
-                      className="fas fa-pencil-alt edit-name-icon admin-only"
+                {/* Sleek Compact Column Header */}
+                <div
+                  className="chore-column-header-compact"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    background: 'rgba(0, 0, 0, 0.22)',
+                    borderRadius: 12,
+                    marginBottom: 8,
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                    <img
+                      src={resolveAvatarUrl(person.avatar)}
+                      alt={person.name}
+                      className="avatar avatar-tappable"
+                      onClick={() => handleOpenProfile(person)}
+                      title={`View ${person.name}'s badges`}
                       style={{
-                        position: 'absolute',
-                        top: -6,
-                        right: -2,
-                        fontSize: '0.45em',
-                        color: '#bbbbbb',
-                        background: 'rgba(0,0,0,0.45)',
+                        width: 40,
+                        height: 40,
                         borderRadius: '50%',
-                        width: 18,
-                        height: 18,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        objectFit: 'cover',
                         cursor: 'pointer',
-                      }}
-                      title="Edit Name"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingPersonModal(person);
-                        setEditingNameVal(person.name);
+                        flexShrink: 0,
                       }}
                     />
-                  </h3>
-                </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          className="person-name"
+                          style={{
+                            fontWeight: 800,
+                            fontSize: '1.05rem',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onClick={() => setSelectedChorePersonId(person.id)}
+                          title={`Tap to open ${person.name}'s full-screen chore grid`}
+                        >
+                          {person.name}
+                        </span>
+                        <i
+                          className="fas fa-pencil-alt edit-name-icon admin-only"
+                          style={{
+                            fontSize: '0.65rem',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            opacity: 0.7,
+                          }}
+                          title="Edit Name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPersonModal(person);
+                            setEditingNameVal(person.name);
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        {streakCount > 0 && (
+                          <span style={{ fontSize: '0.72rem', color: '#fb923c', fontWeight: 700 }}>
+                            🔥 {streakCount}d
+                          </span>
+                        )}
+                        {earnedBadges.length > 0 && (
+                          <span style={{ fontSize: '0.75rem' }} title="Badges">
+                            {earnedBadges.slice(0, 3).map((b) => b.emoji).join('')}
+                          </span>
+                        )}
+                        <label
+                          htmlFor={`avatar-upload-${person.id}`}
+                          className="admin-only"
+                          style={{ cursor: 'pointer', fontSize: '0.65rem', opacity: 0.5, color: '#94a3b8', marginLeft: 2 }}
+                          title="Change Photo"
+                        >
+                          <i className="fa-solid fa-image" />
+                        </label>
+                        <label
+                          htmlFor={`color-picker-${person.id}`}
+                          className="admin-only"
+                          style={{ cursor: 'pointer', fontSize: '0.65rem', opacity: 0.5, color: '#94a3b8' }}
+                          title="Change Color"
+                        >
+                          <i className="fas fa-palette" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
 
-                {/* Points / Balance Display */}
-                <div className="points-display">
-                  <div className="balance-label">{isCash ? 'Balance' : 'Points'}</div>
+                  {/* Compact Balance Badge */}
                   <span
                     className="chore-points-badge"
                     title={`Total ${isCash ? 'cash' : 'points'} for ${person.name}`}
+                    style={{
+                      position: 'static',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      padding: '3px 9px',
+                      borderRadius: 999,
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      flexShrink: 0,
+                    }}
                   >
                     {isCash ? (
                       <>
@@ -1076,122 +1158,50 @@ export const ChoresKanbanSection: React.FC = () => {
                     ) : (
                       <>
                         <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
-                        <span className="chore-points-value">{totalPts.toFixed(2)}</span>
+                        <span className="chore-points-value">{totalPts.toFixed(1)}</span>
                       </>
                     )}
                   </span>
                 </div>
 
-                {/* Avatar + Upload + Color Picker */}
-                <div className="avatar-container" style={{ marginBottom: 0, paddingBottom: 0 }}>
-                  <img
-                    src={resolveAvatarUrl(person.avatar)}
-                    alt={person.name}
-                    className="avatar avatar-tappable"
-                    onClick={() => handleOpenProfile(person)}
-                    title={`View ${person.name}'s badges`}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                    <div className="avatar-upload-form" style={{ margin: 0 }}>
-                      <input
-                        ref={(el) => {
-                          fileInputRefs.current[person.id] = el;
-                        }}
-                        id={`avatar-upload-${person.id}`}
-                        type="file"
-                        name="avatar"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleAvatarUpload(person, file);
-                        }}
-                      />
-                      <label
-                        htmlFor={`avatar-upload-${person.id}`}
-                        className="custom-file-upload"
-                        title="Change Profile Picture"
-                        style={{
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          zIndex: 2,
-                          position: 'relative',
-                        }}
-                      >
-                        <i className="fa-solid fa-image" />
-                      </label>
-                    </div>
-                    <input
-                      type="color"
-                      id={`color-picker-${person.id}`}
-                      className="color-input"
-                      value={person.color || '#cccccc'}
-                      onChange={(e) => handleColorChange(person, e.target.value)}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        padding: 0,
-                        borderRadius: 6,
-                        border: '1.5px solid #bbb',
-                        background: 'none',
-                        display: 'inline-block',
-                        verticalAlign: 'middle',
-                        cursor: 'pointer',
-                      }}
-                    />
-                    <label
-                      htmlFor={`color-picker-${person.id}`}
-                      className="color-picker-label"
-                      title="Change Kanban Color"
-                    >
-                      <i className="fas fa-palette" />
-                    </label>
-                  </div>
-                </div>
+                {/* Hidden photo upload & color inputs */}
+                <input
+                  ref={(el) => {
+                    fileInputRefs.current[person.id] = el;
+                  }}
+                  id={`avatar-upload-${person.id}`}
+                  type="file"
+                  name="avatar"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleAvatarUpload(person, file);
+                  }}
+                />
+                <input
+                  type="color"
+                  id={`color-picker-${person.id}`}
+                  value={person.color || '#cccccc'}
+                  onChange={(e) => handleColorChange(person, e.target.value)}
+                  style={{ display: 'none' }}
+                />
 
                 {/* Progress Bar */}
                 {totalToday > 0 && (
-                  <div className="chore-progress-wrap" data-done={doneToday} data-total={totalToday}>
+                  <div className="chore-progress-wrap" data-done={doneToday} data-total={totalToday} style={{ marginBottom: 6 }}>
                     <div
                       className="chore-progress-bar-container"
                       title={`${doneToday} of ${totalToday} done`}
+                      style={{ height: 8 }}
                     >
                       <div className="chore-progress-bar-fill" style={{ width: `${pct}%` }} />
                     </div>
-                    <div className="chore-progress-label">{remaining} left</div>
+                    <div className="chore-progress-label" style={{ fontSize: '0.74rem', marginTop: 3 }}>
+                      {remaining} left ({doneToday}/{totalToday})
+                    </div>
                   </div>
                 )}
-
-                {/* Streak Display */}
-                <div
-                  className={`streak-display${streakCount === 0 ? ' hidden' : ''}`}
-                  id={`streak-${person.id}`}
-                >
-                  {streakCount > 0 && (
-                    <>
-                      <span className="streak-flame">🔥</span>
-                      <span className="streak-count">{streakCount}-day streak</span>
-                      {longestStreak > streakCount && (
-                        <span className="streak-best"> (best: {longestStreak})</span>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Badge Shelf */}
-                <div className="badge-shelf" id={`badges-${person.id}`}>
-                  {earnedBadges.map((badge) => (
-                    <span
-                      key={badge.key}
-                      className="badge-item"
-                      title={`${badge.name}: ${badge.desc}`}
-                    >
-                      {badge.emoji}
-                    </span>
-                  ))}
-                </div>
 
                 <h4
                   className="chores-to-do-header"
@@ -1218,74 +1228,67 @@ export const ChoresKanbanSection: React.FC = () => {
                       return (
                         <div
                           key={chore.id}
-                          className={`chore${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
+                          className={`chore chore-compact-card${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
                           data-chore-id={chore.id}
-                          style={{
-                            margin: 8,
-                            borderRadius: 14,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                            paddingRight: 34,
-                            paddingTop: 40,
-                          }}
                         >
-                          <button
-                            type="button"
-                            className="btn-delete-chore-sm admin-only"
-                            onClick={() => setChoreToDelete(chore)}
-                            aria-label="Delete chore"
-                          >
-                            <i className="fas fa-times" />
-                          </button>
-
-                          <span
-                            className="chore-points-badge"
-                            style={{ position: 'absolute', top: 6, left: 6, marginLeft: 0 }}
-                            title="Points for this chore"
-                          >
-                            {isCash ? (
-                              <>
-                                <i className="fas fa-money-bill-wave" style={{ color: '#4ade80', marginRight: 4 }} />
-                                <span className="chore-points-value">${Number(chore.points).toFixed(2)}</span>
-                              </>
-                            ) : (
-                              <>
-                                <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
-                                <span className="chore-points-value">{Number(chore.points).toFixed(1)}</span>
-                              </>
-                            )}
-                          </span>
-
-                          <div className="chore-header">
-                            <span className="chore-icon">{detectChoreIcon(chore.title, chore.icon)}</span>
-                            <span className="chore-title">{chore.title}</span>
-                          </div>
-
-                          <div className="chore-meta">
-                            <div className="chore-tags">
-                              {chore.is_extra && (
-                                <span className="chore-tag chore-tag-extra">
-                                  <i className="fas fa-star" /> Extra
-                                </span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                            <span
+                              className="chore-points-badge"
+                              style={{ position: 'static', fontSize: '0.78rem', padding: '2px 8px', margin: 0 }}
+                              title="Points for this chore"
+                            >
+                              {isCash ? (
+                                <>
+                                  <i className="fas fa-money-bill-wave" style={{ color: '#4ade80', marginRight: 4 }} />
+                                  <span className="chore-points-value">${Number(chore.points).toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
+                                  <span className="chore-points-value">{Number(chore.points).toFixed(1)}</span>
+                                </>
                               )}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {chore.is_daily && (
-                                <span className="chore-tag chore-tag-daily">
-                                  <i className="fas fa-sync" /> Daily
+                                <span className="chore-tag chore-tag-daily" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                  Daily
                                 </span>
                               )}
-                              {daysLabel && <span className="chore-tag">{daysLabel}</span>}
-                              {chore.due_datetime && (
-                                <span
-                                  className={`chore-tag ${isOverdue ? 'chore-tag-overdue' : 'chore-tag-due'}`}
-                                >
-                                  <i className="fas fa-clock" /> {isOverdue ? 'Overdue' : `Due ${chore.due_datetime}`}
+                              {daysLabel && (
+                                <span className="chore-tag" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                  {daysLabel}
                                 </span>
                               )}
+                              <button
+                                type="button"
+                                className="btn-delete-chore-sm admin-only"
+                                style={{ position: 'static', width: 22, height: 22 }}
+                                onClick={() => setChoreToDelete(chore)}
+                                aria-label="Delete chore"
+                              >
+                                <i className="fas fa-times" />
+                              </button>
                             </div>
                           </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 6px', textAlign: 'left' }}>
+                            <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{detectChoreIcon(chore.title, chore.icon)}</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.92rem', lineHeight: 1.25 }}>{chore.title}</span>
+                          </div>
+
+                          {chore.due_datetime && (
+                            <div style={{ marginBottom: 6, textAlign: 'left' }}>
+                              <span className={`chore-tag ${isOverdue ? 'chore-tag-overdue' : 'chore-tag-due'}`} style={{ fontSize: '0.72rem' }}>
+                                <i className="fas fa-clock" /> {isOverdue ? 'Overdue' : `Due ${chore.due_datetime}`}
+                              </span>
+                            </div>
+                          )}
 
                           <button
                             type="button"
                             className="btn-complete-chore"
+                            style={{ minHeight: 34, padding: '6px 12px', fontSize: '0.88rem' }}
                             onClick={() => handleCompleteChore(chore, person)}
                           >
                             <i className="fas fa-check" /> Complete
@@ -1458,6 +1461,18 @@ export const ChoresKanbanSection: React.FC = () => {
                   </div>
                 )}
 
+                {/* + Add Chore tile */}
+                <button
+                  type="button"
+                  className="chore-kanban-add-btn"
+                  onClick={() => {
+                    setNewAssignedTo(person.name);
+                    setAddChoreModalOpen(true);
+                  }}
+                >
+                  <i className="fas fa-plus" /> Add Chore
+                </button>
+
                 {/* Drag handle for Kanban column */}
                 <div className="column-footer">
                   <span
@@ -1479,120 +1494,104 @@ export const ChoresKanbanSection: React.FC = () => {
         )}
       </section>
 
-      {/* ADD CHORES COLLAPSIBLE SECTION */}
-      <section
-        className={`chores collapsible-section${addChoresCollapsed ? ' collapsed' : ''} admin-only`}
-        id="add-chores-section"
+      {/* ADD CHORE MODAL */}
+      <Modal
+        open={addChoreModalOpen}
+        onClose={() => setAddChoreModalOpen(false)}
+        title="Add Chore"
+        icon="fas fa-tasks"
+        maxWidth={580}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setAddChoreModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={submittingChore}
+              onClick={(e) => handleAddChoreSubmit(e as any)}
+            >
+              <i className="fas fa-plus" /> {submittingChore ? 'Adding...' : 'Add Chore'}
+            </button>
+          </>
+        }
       >
-        <h2
-          className="section-title section-toggle"
-          onClick={() => setAddChoresCollapsed((p) => !p)}
-        >
-          <i className="fas fa-tasks" style={{ color: 'rgb(225, 0, 255)' }} /> Add Chores
-          <i className="fas fa-chevron-down section-chevron" />
-        </h2>
-
-        {/* Suggestions bar */}
-        <div className="chore-suggestions-bar">
-          <div className="chore-suggestions-header">
-            <span className="chore-suggestions-label">Quick Suggestions</span>
-            <div className="chore-suggestions-actions">
+        {/* Quick Suggestions Chips */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: 0.5, color: '#94a3b8', fontWeight: 700 }}>
+              Quick Suggestions
+            </span>
+            <button
+              type="button"
+              className="btn-suggestion-add"
+              title="Add a new chore suggestion"
+              onClick={() => setShowAddSuggestionInput((p) => !p)}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              <i className="fas fa-pencil-alt" />
+            </button>
+          </div>
+          {showAddSuggestionInput && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <input
+                type="text"
+                placeholder="Add chore suggestion..."
+                className="modern-input"
+                style={{ height: 32, fontSize: '0.82rem' }}
+                value={newSuggestionText}
+                onChange={(e) => setNewSuggestionText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newSuggestionText.trim();
+                    if (trimmed && !choreSuggestions.includes(trimmed)) {
+                      saveSuggestions([...choreSuggestions, trimmed]);
+                    }
+                    setNewSuggestionText('');
+                    setShowAddSuggestionInput(false);
+                  }
+                }}
+              />
               <button
                 type="button"
-                className="btn-suggestion-add"
-                title="Add a new chore suggestion"
-                onClick={() => setShowAddSuggestionInput((p) => !p)}
+                className="btn-primary"
+                style={{ padding: '4px 10px', height: 32, fontSize: '0.8rem' }}
+                onClick={() => {
+                  const trimmed = newSuggestionText.trim();
+                  if (trimmed && !choreSuggestions.includes(trimmed)) {
+                    saveSuggestions([...choreSuggestions, trimmed]);
+                  }
+                  setNewSuggestionText('');
+                  setShowAddSuggestionInput(false);
+                }}
               >
-                <i className="fas fa-pencil-alt" />
-              </button>
-              {showAddSuggestionInput && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input
-                    type="text"
-                    placeholder="Add chore suggestion..."
-                    className="modern-input suggestion-inline-input"
-                    value={newSuggestionText}
-                    onChange={(e) => setNewSuggestionText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const trimmed = newSuggestionText.trim();
-                        if (trimmed && !choreSuggestions.includes(trimmed)) {
-                          saveSuggestions([...choreSuggestions, trimmed]);
-                        }
-                        setNewSuggestionText('');
-                        setShowAddSuggestionInput(false);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ whiteSpace: 'nowrap', padding: '0.55rem 0.9rem' }}
-                    onClick={() => {
-                      const trimmed = newSuggestionText.trim();
-                      if (trimmed && !choreSuggestions.includes(trimmed)) {
-                        saveSuggestions([...choreSuggestions, trimmed]);
-                      }
-                      setNewSuggestionText('');
-                      setShowAddSuggestionInput(false);
-                    }}
-                  >
-                    <i className="fas fa-plus" /> Add
-                  </button>
-                </div>
-              )}
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ padding: '0.55rem 0.9rem' }}
-                onClick={() => setSuggestionsEditMode((p) => !p)}
-              >
-                {suggestionsEditMode ? 'Done' : 'Edit'}
+                Add
               </button>
             </div>
-          </div>
-          <div className="chore-suggestions">
-            {choreSuggestions.map((s, idx) =>
-              suggestionsEditMode ? (
-                <div key={idx} className="chore-suggestion-edit-item">
-                  <input
-                    type="text"
-                    value={s}
-                    className="modern-input"
-                    style={{ padding: '4px 8px', fontSize: '0.85rem', width: 120, height: 32 }}
-                    onChange={(e) => {
-                      const next = [...choreSuggestions];
-                      next[idx] = e.target.value;
-                      saveSuggestions(next);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-suggestion-delete"
-                    onClick={() => {
-                      saveSuggestions(choreSuggestions.filter((_, i) => i !== idx));
-                    }}
-                  >
-                    &times;
-                  </button>
-                </div>
-              ) : (
-                <button
-                  key={idx}
-                  type="button"
-                  className="chore-suggestion-chip"
-                  onClick={() => setNewTitle(s)}
-                >
-                  {s}
-                </button>
-              )
-            )}
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
+            {choreSuggestions.map((s, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="chore-suggestion-chip"
+                onClick={() => setNewTitle(s)}
+                style={{ fontSize: '0.78rem', padding: '4px 9px' }}
+              >
+                {s}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Add Chore Form */}
-        <form id="add-chore-form" onSubmit={handleAddChoreSubmit} className="chore-form-card">
+        <form id="add-chore-form" onSubmit={handleAddChoreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="chore-field-group">
             <label className="chore-field-label" htmlFor="chore-title-input">
               <i className="fas fa-tag" /> Chore Title
@@ -1602,7 +1601,7 @@ export const ChoresKanbanSection: React.FC = () => {
               type="text"
               name="title"
               placeholder="e.g. Clean your room, Pack lunch..."
-              className="modern-input chore-title-input"
+              className="modern-input"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               required
@@ -1610,12 +1609,12 @@ export const ChoresKanbanSection: React.FC = () => {
             />
           </div>
 
-          <div className="chore-meta-row">
-            <div className="chore-field-group chore-points-group" style={{ maxWidth: 150 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className="chore-field-group" style={{ flex: '0 0 130px' }}>
               <label className="chore-field-label" htmlFor="points-input">
                 {isCash ? (
                   <>
-                    <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} /> Cash amount
+                    <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} /> Cash ($)
                   </>
                 ) : (
                   <>
@@ -1636,17 +1635,18 @@ export const ChoresKanbanSection: React.FC = () => {
               />
             </div>
 
-            <div className="chore-field-group">
+            <div className="chore-field-group" style={{ flex: '1 1 200px' }}>
               <label className="chore-field-label">
                 <i className="fas fa-user-circle" /> Assign to
               </label>
-              <div className="chore-assign-pills" id="assigned-to-btn-group">
+              <div className="chore-assign-pills" id="assigned-to-btn-group" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {family.map((person) => (
                   <button
                     key={person.id}
                     type="button"
                     className={`chore-assign-pill assigned-to-btn${selectedAssignee === person.name ? ' selected' : ''}`}
                     onClick={() => setNewAssignedTo(person.name)}
+                    style={{ padding: '5px 12px', fontSize: '0.84rem' }}
                   >
                     <span className="pill-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
                     <span className="pill-name">{person.name}</span>
@@ -1658,24 +1658,26 @@ export const ChoresKanbanSection: React.FC = () => {
 
           {/* Repeating row */}
           <div className="chore-field-group">
-            <label className="chore-field-label">
-              <i className="fas fa-sync-alt" style={{ color: '#60a5fa' }} /> Repeating Chore
-            </label>
-            <label className="chore-toggle-wrap">
-              <input
-                type="checkbox"
-                checked={isRepeating}
-                onChange={(e) => {
-                  setIsRepeating(e.target.checked);
-                  if (!e.target.checked) setNewDaysOfWeek([]);
-                }}
-                className="chore-toggle-input"
-              />
-              <span className="chore-toggle-track">
-                <span className="chore-toggle-thumb" />
-              </span>
-              <span className="chore-toggle-label">{isRepeating ? 'On' : 'Off'}</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="chore-field-label" style={{ margin: 0 }}>
+                <i className="fas fa-sync-alt" style={{ color: '#60a5fa' }} /> Repeating Chore
+              </label>
+              <label className="chore-toggle-wrap">
+                <input
+                  type="checkbox"
+                  checked={isRepeating}
+                  onChange={(e) => {
+                    setIsRepeating(e.target.checked);
+                    if (!e.target.checked) setNewDaysOfWeek([]);
+                  }}
+                  className="chore-toggle-input"
+                />
+                <span className="chore-toggle-track">
+                  <span className="chore-toggle-thumb" />
+                </span>
+                <span className="chore-toggle-label">{isRepeating ? 'On' : 'Off'}</span>
+              </label>
+            </div>
           </div>
 
           {/* Days of week */}
@@ -1703,7 +1705,11 @@ export const ChoresKanbanSection: React.FC = () => {
 
           {/* Due date/time */}
           <div className="chore-due-row">
-            <div className="chore-due-toggle-line">
+            <div className="chore-due-toggle-line" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="chore-field-label" style={{ margin: 0 }}>
+                <i className="fas fa-clock" style={{ color: '#f87171' }} /> Set due date &amp; time{' '}
+                <span className="optional-label">(optional)</span>
+              </span>
               <label className="chore-toggle-wrap">
                 <input
                   type="checkbox"
@@ -1715,20 +1721,18 @@ export const ChoresKanbanSection: React.FC = () => {
                   <span className="chore-toggle-thumb" />
                 </span>
               </label>
-              <span className="chore-field-label" style={{ margin: 0 }}>
-                <i className="fas fa-clock" style={{ color: '#f87171' }} /> Set due date &amp; time{' '}
-                <span className="optional-label">(optional)</span>
-              </span>
             </div>
             {hasDueDatetime && (
-              <div>
+              <div style={{ marginTop: 6 }}>
                 <input
                   type="datetime-local"
                   value={newDueDatetime}
                   onChange={(e) => setNewDueDatetime(e.target.value)}
                   className="modern-input modern-datetime"
                 />
-                <p className="chore-due-warning">No points will be awarded if completed after the due date</p>
+                <p className="chore-due-warning" style={{ fontSize: '0.74rem', color: '#f87171', margin: '4px 0 0' }}>
+                  No points will be awarded if completed after the due date
+                </p>
               </div>
             )}
           </div>
@@ -1737,7 +1741,7 @@ export const ChoresKanbanSection: React.FC = () => {
           <div className="chore-field-group">
             <label className="chore-field-label">
               <i className="fas fa-face-smile" /> Icon{' '}
-              <span className="optional-label">(optional — auto-detected if left blank)</span>
+              <span className="optional-label">(optional — auto-detected if blank)</span>
             </label>
             <div className="chore-emoji-picker-wrap">
               <button
@@ -1768,12 +1772,8 @@ export const ChoresKanbanSection: React.FC = () => {
               )}
             </div>
           </div>
-
-          <button type="submit" disabled={submittingChore} className="btn-add-chore">
-            <i className="fas fa-plus" /> {submittingChore ? 'Adding...' : 'Add Chore'}
-          </button>
         </form>
-      </section>
+      </Modal>
 
       {/* EDIT NAME MODAL */}
       {editingPersonModal && (
@@ -1845,17 +1845,8 @@ export const ChoresKanbanSection: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="cancel-btn"
+                className="btn-cancel"
                 onClick={() => setEditingPersonModal(null)}
-                style={{
-                  background: '#888',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 18px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
               >
                 Cancel
               </button>
@@ -1936,16 +1927,8 @@ export const ChoresKanbanSection: React.FC = () => {
               )}
               <button
                 type="button"
+                className="btn-cancel"
                 onClick={() => setChoreToDelete(null)}
-                style={{
-                  background: '#888',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 18px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
               >
                 Cancel
               </button>

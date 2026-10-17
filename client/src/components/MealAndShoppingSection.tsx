@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { MealIngredient, ShoppingStore, RecipeItem, ShoppingCatalogItem } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
+import { Modal } from './common/Modal';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -202,6 +203,16 @@ export const MealAndShoppingSection: React.FC = () => {
       setWeekPlanState(data.meal_planner.plan || {});
     }
   }, [data?.meal_planner]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setShoppingComboboxOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   if (!data) return null;
 
@@ -783,31 +794,42 @@ export const MealAndShoppingSection: React.FC = () => {
                           onClick={() => handleOpenRecipeModal(card)}
                           title="Click to view recipe & ingredients"
                         >
-                          <div className="meal-kanban-card-header">
-                            <span className={`meal-audience-pill meal-audience-${card.audience || 'Everyone'}`}>
-                              {card.audience || 'Everyone'}
-                            </span>
-                            <button
-                              type="button"
-                              className="meal-kanban-card-del"
-                              title="Delete meal"
-                              onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div className="meal-kanban-card-title">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                             {customImg ? (
                               <img
                                 src={resolveAssetUrl(customImg)}
                                 alt=""
-                                style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4 }}
+                                style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
                               />
                             ) : (
-                              <span>{getMealEmoji(card.title)}</span>
+                              <span style={{ fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>{getMealEmoji(card.title)}</span>
                             )}
-                            <span>{card.title}</span>
+                            <span
+                              className="meal-kanban-card-title"
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: 600,
+                                fontSize: '0.84rem',
+                              }}
+                            >
+                              {card.title}
+                            </span>
+                            {card.audience && card.audience !== 'Everyone' && (
+                              <span className={`meal-audience-pill meal-audience-${card.audience}`}>
+                                {card.audience}
+                              </span>
+                            )}
                           </div>
+                          <button
+                            type="button"
+                            className="meal-kanban-card-del"
+                            title="Delete meal"
+                            onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
+                          >
+                            ✕
+                          </button>
                         </div>
                       );
                     })
@@ -904,7 +926,7 @@ export const MealAndShoppingSection: React.FC = () => {
         <div className="shopping-smart-toolbar">
           <button
             type="button"
-            className="edit-btn"
+            className="shopping-toolbar-btn"
             onClick={() => setFrequentlyModalOpen(true)}
             title="Add frequently purchased staples"
           >
@@ -912,7 +934,7 @@ export const MealAndShoppingSection: React.FC = () => {
           </button>
           <button
             type="button"
-            className="edit-btn"
+            className="shopping-toolbar-btn"
             onClick={() => setSuggestedModalOpen(true)}
             title="Items predicted to restock based on purchase frequency"
           >
@@ -920,34 +942,29 @@ export const MealAndShoppingSection: React.FC = () => {
           </button>
           <button
             type="button"
-            className="edit-btn"
+            className="shopping-toolbar-btn"
             onClick={() => setRecentlyPurchasedOpen(true)}
             title="View purchased history"
           >
-            <i className="fas fa-clock-rotate-left" /> Purchased History
+            <i className="fas fa-clock-rotate-left" /> History
           </button>
           <button
             type="button"
-            className={`edit-btn${hideChecked ? ' active' : ''}`}
+            className={`shopping-toolbar-btn shopping-icon-btn${hideChecked ? ' active' : ''}`}
             onClick={() => setHideChecked((h) => !h)}
-            title="Hide or show checked items"
+            title={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
+            aria-label={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
           >
-            <i className={hideChecked ? 'fas fa-eye-slash' : 'fas fa-eye'} />{' '}
-            {hideChecked ? 'Show Checked' : 'Hide Checked'}
+            <i className={hideChecked ? 'fas fa-eye-slash' : 'fas fa-eye'} />
           </button>
           <button
             type="button"
-            className="edit-btn"
-            style={{
-              marginLeft: 'auto',
-              background: 'rgba(34,197,94,0.18)',
-              borderColor: 'rgba(34,197,94,0.4)',
-              color: '#86efac',
-            }}
+            className="shopping-toolbar-btn shopping-archive-btn"
+            style={{ marginLeft: 'auto' }}
             onClick={handleArchiveChecked}
             title="Archive checked items as purchased and save to history"
           >
-            <i className="fas fa-box-archive" /> Archive Checked (Purchased)
+            <i className="fas fa-box-archive" /> Archive Checked
           </button>
         </div>
 
@@ -1014,7 +1031,6 @@ export const MealAndShoppingSection: React.FC = () => {
               className="meal-quick-add shopping-store-select shopping-dynamic-store-select"
               value={shoppingStore || stores[0]?.id || ''}
               onChange={(e) => setShoppingStore(e.target.value)}
-              style={{ maxWidth: 160 }}
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -1024,7 +1040,7 @@ export const MealAndShoppingSection: React.FC = () => {
             </select>
             <button
               type="button"
-              className="edit-btn"
+              className="shopping-add-btn"
               onClick={() => {
                 if (shoppingSearch.trim()) {
                   handleSelectComboboxItem(shoppingSearch.trim());
@@ -1099,10 +1115,10 @@ export const MealAndShoppingSection: React.FC = () => {
                   )}
                   <span
                     className={`shopping-store-badge${
-                      uncheckedCount === 0 && totalItemsCount > 0 ? ' shopping-store-badge-done' : ''
+                      uncheckedCount === 0 ? ' shopping-store-badge-done' : ''
                     }`}
                   >
-                    {uncheckedCount ? `${uncheckedCount} to get` : '✓ All done'}
+                    {uncheckedCount > 0 ? `${uncheckedCount} to get` : '✓ All done'}
                   </span>
                 </div>
 
@@ -1169,47 +1185,41 @@ export const MealAndShoppingSection: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="shopping-general-section">
-                    <div className="shopping-section-header">
-                      <i className="fas fa-list-check" aria-hidden="true" />
-                      &ensp;General Shopping
-                    </div>
-                    {storeGeneral.length === 0 ? (
-                      <div className="shopping-empty-msg">No general items yet.</div>
-                    ) : (
-                      storeGeneral.map((g) => {
-                        const itemKey = `general::${g.name.toLowerCase()}`;
-                        const checked = Boolean(g.checked || shop?.checked?.[itemKey]);
-                        if (hideChecked && checked) return null;
+                  {storeGeneral.length === 0 && mealGroupsForStore.length === 0 ? (
+                    <div className="shopping-empty-msg" style={{ padding: '8px 4px', fontSize: '0.82rem', opacity: 0.6 }}>No items yet.</div>
+                  ) : (
+                    storeGeneral.map((g) => {
+                      const itemKey = `general::${g.name.toLowerCase()}`;
+                      const checked = Boolean(g.checked || shop?.checked?.[itemKey]);
+                      if (hideChecked && checked) return null;
 
-                        return (
-                          <div
-                            key={itemKey}
-                            className={`shopping-item${checked ? ' shopping-item-checked' : ''}`}
+                      return (
+                        <div
+                          key={itemKey}
+                          className={`shopping-item${checked ? ' shopping-item-checked' : ''}`}
+                        >
+                          <label className="shopping-item-label">
+                            <input
+                              type="checkbox"
+                              className="shopping-checkbox"
+                              checked={checked}
+                              onChange={() => handleToggleShopCheck(itemKey, checked)}
+                            />
+                            <span className="shopping-item-name">{g.name}</span>
+                          </label>
+                          <button
+                            type="button"
+                            className="shopping-remove-btn"
+                            aria-label="Delete"
+                            title="Delete permanently"
+                            onClick={() => handleRemoveGeneralItem(g.name, g.id)}
                           >
-                            <label className="shopping-item-label">
-                              <input
-                                type="checkbox"
-                                className="shopping-checkbox"
-                                checked={checked}
-                                onChange={() => handleToggleShopCheck(itemKey, checked)}
-                              />
-                              <span className="shopping-item-name">{g.name}</span>
-                            </label>
-                            <button
-                              type="button"
-                              className="shopping-remove-btn"
-                              aria-label="Delete"
-                              title="Delete permanently"
-                              onClick={() => handleRemoveGeneralItem(g.name, g.id)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
@@ -1775,240 +1785,278 @@ export const MealAndShoppingSection: React.FC = () => {
       )}
 
       {/* 3. Frequently Added Modal */}
-      {frequentlyModalOpen && (
-        <div className="cr-modal-overlay" onClick={() => setFrequentlyModalOpen(false)}>
-          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="cr-modal-header">
-              <h3>
-                <i className="fas fa-star" /> Frequently Added Staples
-              </h3>
-              <button type="button" className="cr-modal-close" onClick={() => setFrequentlyModalOpen(false)}>
-                ✕
-              </button>
-            </div>
-            <div className="cr-modal-body">
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
-                Select staples you need this week. Click &lsquo;Add Selected&rsquo; to add them all at once.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button
-                  type="button"
-                  className="edit-btn"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                  onClick={() => {
-                    const allKeys: Record<string, boolean> = {};
-                    (intel.frequently_added || []).forEach((item) => {
-                      allKeys[item.normalized_key] = true;
-                    });
-                    setSelectedFrequentKeys(allKeys);
-                  }}
-                >
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  className="edit-btn"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                  onClick={() => setSelectedFrequentKeys({})}
-                >
-                  Clear All
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-                {(intel.frequently_added || []).map((item) => {
-                  const checked = Boolean(selectedFrequentKeys[item.normalized_key]);
-                  return (
-                    <label
-                      key={item.normalized_key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 10px',
-                        background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.08)'}`,
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            setSelectedFrequentKeys((prev) => ({
-                              ...prev,
-                              [item.normalized_key]: e.target.checked,
-                            }));
-                          }}
-                        />
-                        <span style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</span>
-                      </div>
-                      <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                        {item.times_added}× added · {item.default_store || 'aldi'}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="cr-modal-footer">
-              <button type="button" className="edit-btn" onClick={() => setFrequentlyModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="edit-btn"
-                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
-                onClick={() => handleBatchAddFromKeys(selectedFrequentKeys, intel.frequently_added)}
+      <Modal
+        open={frequentlyModalOpen}
+        onClose={() => setFrequentlyModalOpen(false)}
+        title="Frequently Added Staples"
+        icon="fas fa-star"
+        maxWidth={540}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setFrequentlyModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => handleBatchAddFromKeys(selectedFrequentKeys, intel.frequently_added)}
+            >
+              Add Selected to Shopping List
+            </button>
+          </>
+        }
+      >
+        <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+          Select staples you need this week. Click &lsquo;Add Selected&rsquo; to add them all at once.
+        </p>
+
+        {/* Standard Select All Checkbox */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 10px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={
+              (intel.frequently_added || []).length > 0 &&
+              (intel.frequently_added || []).every((item) => selectedFrequentKeys[item.normalized_key])
+            }
+            onChange={(e) => {
+              const checked = e.target.checked;
+              const next: Record<string, boolean> = {};
+              if (checked) {
+                (intel.frequently_added || []).forEach((item) => {
+                  next[item.normalized_key] = true;
+                });
+              }
+              setSelectedFrequentKeys(next);
+            }}
+          />
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
+            Select All ({intel.frequently_added?.length || 0})
+          </span>
+        </label>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+          {(intel.frequently_added || []).map((item) => {
+            const checked = Boolean(selectedFrequentKeys[item.normalized_key]);
+            return (
+              <label
+                key={item.normalized_key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 10px',
+                  background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.07)'}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
               >
-                Add Selected to Shopping List
-              </button>
-            </div>
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      setSelectedFrequentKeys((prev) => ({
+                        ...prev,
+                        [item.normalized_key]: e.target.checked,
+                      }));
+                    }}
+                  />
+                  <span style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</span>
+                </div>
+                <span style={{ fontSize: '0.74rem', opacity: 0.6 }}>
+                  {item.times_added}× added · {item.default_store || 'aldi'}
+                </span>
+              </label>
+            );
+          })}
         </div>
-      )}
+      </Modal>
 
       {/* 4. Suggested Restock Modal */}
-      {suggestedModalOpen && (
-        <div className="cr-modal-overlay" onClick={() => setSuggestedModalOpen(false)}>
-          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="cr-modal-header">
-              <h3>
-                <i className="fas fa-lightbulb" /> Suggested Restock
-              </h3>
-              <button type="button" className="cr-modal-close" onClick={() => setSuggestedModalOpen(false)}>
-                ✕
-              </button>
+      <Modal
+        open={suggestedModalOpen}
+        onClose={() => setSuggestedModalOpen(false)}
+        title="Suggested Restock"
+        icon="fas fa-lightbulb"
+        maxWidth={540}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setSuggestedModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => handleBatchAddFromKeys(selectedSuggestedKeys, intel.suggested)}
+            >
+              Add Selected to Shopping List
+            </button>
+          </>
+        }
+      >
+        <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+          Items predicted to need restocking based on your historical purchase frequency.
+        </p>
+
+        {/* Standard Select All Checkbox */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 10px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={
+              (intel.suggested || []).length > 0 &&
+              (intel.suggested || []).every((item) => selectedSuggestedKeys[item.normalized_key])
+            }
+            onChange={(e) => {
+              const checked = e.target.checked;
+              const next: Record<string, boolean> = {};
+              if (checked) {
+                (intel.suggested || []).forEach((item) => {
+                  next[item.normalized_key] = true;
+                });
+              }
+              setSelectedSuggestedKeys(next);
+            }}
+          />
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
+            Select All ({intel.suggested?.length || 0})
+          </span>
+        </label>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+          {(intel.suggested || []).length === 0 ? (
+            <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
+              No suggested items due right now!
             </div>
-            <div className="cr-modal-body">
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
-                Items predicted to need restocking based on your historical purchase frequency.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-                {(intel.suggested || []).length === 0 ? (
-                  <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
-                    No suggested items due right now!
+          ) : (
+            (intel.suggested || []).map((item) => {
+              const checked = Boolean(selectedSuggestedKeys[item.normalized_key]);
+              return (
+                <label
+                  key={item.normalized_key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '7px 10px',
+                    background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.07)'}`,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        setSelectedSuggestedKeys((prev) => ({
+                          ...prev,
+                          [item.normalized_key]: e.target.checked,
+                        }));
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#93c5fd' }}>{item.reason}</div>
+                    </div>
                   </div>
-                ) : (
-                  (intel.suggested || []).map((item) => {
-                    const checked = Boolean(selectedSuggestedKeys[item.normalized_key]);
-                    return (
-                      <label
-                        key={item.normalized_key}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 10px',
-                          background: checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.08)'}`,
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setSelectedSuggestedKeys((prev) => ({
-                                ...prev,
-                                [item.normalized_key]: e.target.checked,
-                              }));
-                            }}
-                          />
-                          <div>
-                            <div style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#93c5fd' }}>{item.reason}</div>
-                          </div>
-                        </div>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>{item.default_store || 'aldi'}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-            <div className="cr-modal-footer">
-              <button type="button" className="edit-btn" onClick={() => setSuggestedModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="edit-btn"
-                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
-                onClick={() => handleBatchAddFromKeys(selectedSuggestedKeys, intel.suggested)}
-              >
-                Add Selected to Shopping List
-              </button>
-            </div>
-          </div>
+                  <span style={{ fontSize: '0.74rem', opacity: 0.6 }}>{item.default_store || 'aldi'}</span>
+                </label>
+              );
+            })
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* 5. Recently Purchased Modal */}
-      {recentlyPurchasedOpen && (
-        <div className="cr-modal-overlay" onClick={() => setRecentlyPurchasedOpen(false)}>
-          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="cr-modal-header">
-              <h3>
-                <i className="fas fa-clock-rotate-left" /> Purchased History
-              </h3>
-              <button type="button" className="cr-modal-close" onClick={() => setRecentlyPurchasedOpen(false)}>
-                ✕
-              </button>
+      <Modal
+        open={recentlyPurchasedOpen}
+        onClose={() => setRecentlyPurchasedOpen(false)}
+        title="Purchased History"
+        icon="fas fa-clock-rotate-left"
+        maxWidth={540}
+        footer={
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => setRecentlyPurchasedOpen(false)}
+          >
+            Close
+          </button>
+        }
+      >
+        <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+          Items ticked and archived as purchased from your shopping trips.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+          {(intel.recently_purchased || []).length === 0 ? (
+            <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
+              No purchase history logged yet.
             </div>
-            <div className="cr-modal-body">
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
-                Items ticked and archived as purchased from your shopping trips.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
-                {(intel.recently_purchased || []).length === 0 ? (
-                  <div style={{ fontSize: '0.85rem', opacity: 0.6, fontStyle: 'italic', padding: 12 }}>
-                    No purchase history logged yet.
+          ) : (
+            (intel.recently_purchased || []).map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 10px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
+                  <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>
+                    {item.store} · {new Date(item.purchased_at).toLocaleDateString()}
                   </div>
-                ) : (
-                  (intel.recently_purchased || []).map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '7px 10px',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</div>
-                        <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>
-                          {item.store} · {new Date(item.purchased_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="edit-btn"
-                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                        onClick={() => handleSelectComboboxItem(item.name, item.store)}
-                      >
-                        + Re-add
-                      </button>
-                    </div>
-                  ))
-                )}
+                </div>
+                <button
+                  type="button"
+                  className="shopping-toolbar-btn"
+                  style={{ height: 28, fontSize: '0.75rem', padding: '0 8px' }}
+                  onClick={() => handleSelectComboboxItem(item.name, item.store)}
+                >
+                  + Re-add
+                </button>
               </div>
-            </div>
-            <div className="cr-modal-footer">
-              <button type="button" className="edit-btn" onClick={() => setRecentlyPurchasedOpen(false)}>
-                Close
-              </button>
-            </div>
-          </div>
+            ))
+          )}
         </div>
-      )}
+      </Modal>
     </>
   );
 };

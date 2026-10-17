@@ -751,11 +751,11 @@ export const RewardsSection: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditingReward(null)}
-                  className="btn-secondary"
+                  className="btn-cancel"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="save-btn">
+                <button type="submit" className="btn-primary">
                   Save Changes
                 </button>
               </div>

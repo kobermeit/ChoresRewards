@@ -58,10 +58,10 @@ export const SideNav: React.FC = () => {
         <button
           type="button"
           className="side-nav-btn"
-          title="Notes"
-          onClick={() => scrollToSection('notes-kanban-section')}
+          title="Family Members Chores"
+          onClick={() => scrollToSection('chores-section')}
         >
-          <i className="fas fa-sticky-note" />
+          <i className="fas fa-house" />
         </button>
         <button
           type="button"
@@ -74,10 +74,10 @@ export const SideNav: React.FC = () => {
         <button
           type="button"
           className="side-nav-btn"
-          title="Family Events"
-          onClick={() => scrollToSection('events-section')}
+          title="Redeemed Rewards"
+          onClick={() => scrollToSection('redeemed-section')}
         >
-          <i className="fas fa-calendar-alt" />
+          <i className="fas fa-medal" />
         </button>
         <button
           type="button"
@@ -106,42 +106,20 @@ export const SideNav: React.FC = () => {
         <button
           type="button"
           className="side-nav-btn"
-          title="Family Members Chores"
-          onClick={() => scrollToSection('kanban')}
+          title="Family Events"
+          onClick={() => scrollToSection('events-section')}
         >
-          <i className="fas fa-house" />
+          <i className="fas fa-calendar-alt" />
         </button>
-
-        <div className="side-nav-divider" />
-
-        {adultMode && (
-          <>
-            <button
-              type="button"
-              className="side-nav-btn"
-              title="Add Chores"
-              onClick={() => scrollToSection('add-chores-section')}
-            >
-              <i className="fas fa-tasks" />
-            </button>
-            <button
-              type="button"
-              className="side-nav-btn"
-              title="Create Reward"
-              onClick={() => scrollToSection('create-reward-section')}
-            >
-              <i className="fas fa-gift" />
-            </button>
-          </>
-        )}
         <button
           type="button"
           className="side-nav-btn"
-          title="Redeemed Rewards"
-          onClick={() => scrollToSection('redeemed-section')}
+          title="Notes & Text Pads"
+          onClick={() => scrollToSection('notes-kanban-section')}
         >
-          <i className="fas fa-medal" />
+          <i className="fas fa-sticky-note" />
         </button>
+
         {adultMode && (
           <button
             type="button"

@@ -91,12 +91,12 @@ const MainShell: React.FC<{
         ) : (
           <>
             <DashboardSection />
-            <NotesSection />
-            <RewardsSection />
-            <CalendarSection />
-            <MealAndShoppingSection />
             <ChoresKanbanSection />
+            <RewardsSection />
             <RedeemedRewardsSection />
+            <MealAndShoppingSection />
+            <CalendarSection />
+            <NotesSection />
             <OrganiseSection />
           </>
         )}
