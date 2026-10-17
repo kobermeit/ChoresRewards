@@ -134,7 +134,7 @@ export const CalendarView: React.FC = () => {
     const dateIso = `${currentYear}-${mStr}-${dStr}`;
     calendarCells.push({
       dateIso,
-      dayNum,
+      dayNum: d,
       isCurrentMonth: true,
       isToday: dateIso === localToday,
       events: events.filter((e) => e.start_date_iso === dateIso),
@@ -582,6 +582,7 @@ export const CalendarView: React.FC = () => {
             {calendarCells.map((cell, idx) => (
               <div
                 key={idx}
+                className="calendar-day-cell"
                 style={{
                   background: cell.isToday
                     ? 'rgba(2, 132, 199, 0.12)'

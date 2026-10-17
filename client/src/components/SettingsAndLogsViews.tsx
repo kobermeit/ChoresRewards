@@ -49,8 +49,6 @@ export const SettingsView: React.FC = () => {
   const [calEnabled, setCalEnabled] = useState(false);
   const [calIcalUrl, setCalIcalUrl] = useState('');
   const [calEmbedUrl, setCalEmbedUrl] = useState('');
-  const [calApiKey, setCalApiKey] = useState('');
-  const [calIdsText, setCalIdsText] = useState('');
 
   // Screensaver state
   const [ssConfig, setSsConfig] = useState<any>(null);
@@ -76,11 +74,6 @@ export const SettingsView: React.FC = () => {
           setCalEnabled(Boolean(res.google_calendar_enabled ?? res.google_calendar?.enabled));
           setCalIcalUrl(res.gcal_ical_url || '');
           setCalEmbedUrl(res.gcal_embed_url || '');
-          setCalApiKey(res.google_calendar_api_key || res.google_calendar?.api_key || '');
-          const ids = (res.google_calendar?.calendars || []).map((c: any) =>
-            typeof c === 'string' ? c : c.id
-          );
-          setCalIdsText(res.google_calendar_id || ids.join('\n'));
         }
       }
     } catch {
@@ -288,8 +281,6 @@ export const SettingsView: React.FC = () => {
       google_calendar_enabled: calEnabled,
       gcal_ical_url: calIcalUrl.trim(),
       gcal_embed_url: calEmbedUrl.trim(),
-      api_key: calApiKey.trim(),
-      calendar_id: calIdsText.trim(),
     });
     showToast('Saved Google Calendar settings & synced!');
     await refresh();
@@ -1057,7 +1048,7 @@ export const SettingsView: React.FC = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                Secret Address in iCal Format (.ics URL) <span style={{ color: '#38bdf8', fontWeight: 500 }}>— Recommended (Zero Setup)</span>
+                Secret Address in iCal Format (.ics URL)
               </label>
               <input
                 type="url"
@@ -1083,38 +1074,9 @@ export const SettingsView: React.FC = () => {
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
               />
               <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
-                Provides an interactive full Google Calendar view on the Calendar page.
+                Optional embed link if you want the interactive Google Calendar iframe tab on the Calendar page.
               </span>
             </div>
-
-            <details style={{ marginTop: 6, fontSize: '0.84rem' }}>
-              <summary style={{ cursor: 'pointer', color: '#94a3b8', fontWeight: 600 }}>
-                ⚙️ Advanced (Google Cloud API Key / Service Account)
-              </summary>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>Google API Key</label>
-                  <input
-                    type="password"
-                    placeholder="AIzaSy..."
-                    value={calApiKey}
-                    onChange={(e) => setCalApiKey(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>
-                    Calendar IDs (one per line)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={calIdsText}
-                    onChange={(e) => setCalIdsText(e.target.value)}
-                    style={{ width: '100%', padding: 10, borderRadius: 10 }}
-                  />
-                </div>
-              </div>
-            </details>
 
             <button type="submit" className="btn-primary" style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 700 }}>
               💾 Save Calendar Settings

@@ -203,7 +203,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
   });
 });
 
-organiseRouter.get('/api/organise', (_req: Request, res: Response) => {
+organiseRouter.get(['/api/organise', '/api/organise/items'], (_req: Request, res: Response) => {
   const rows = db.prepare('SELECT * FROM organise_item ORDER BY category, sort_order, id').all() as Array<any>;
   const today = getFamilyToday();
   res.json({
@@ -212,7 +212,7 @@ organiseRouter.get('/api/organise', (_req: Request, res: Response) => {
   });
 });
 
-organiseRouter.post('/api/organise', requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const title = String(data.title || '').trim().slice(0, 200);
@@ -286,7 +286,28 @@ organiseRouter.post('/api/organise', requireAdult, (req: Request, res: Response)
   }
 });
 
-organiseRouter.put('/api/organise/:itemId', requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise/:itemId/renew', '/api/organise/items/:itemId/renew'], requireAdult, (req: Request, res: Response) => {
+  const itemId = Number(req.params.itemId);
+  const row = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+  if (!row) {
+    res.status(404).json({ success: false, error: 'Item not found' });
+    return;
+  }
+  const months = Math.max(1, Number(req.body?.months) || 12);
+  const base = row.due_date ? new Date(row.due_date) : new Date();
+  base.setMonth(base.getMonth() + months);
+  const newDue = base.toISOString().slice(0, 10);
+  db.prepare('UPDATE organise_item SET due_date = ?, last_date = ?, paid = 1 WHERE id = ?').run(
+    newDue,
+    row.due_date || getFamilyToday(),
+    itemId
+  );
+  logActivity('organise_renewed', `Renewed ${row.title} to ${newDue}`);
+  const updated = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId);
+  res.json({ success: true, item: formatOrganiseItem(updated) });
+});
+
+organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
     const existing = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
@@ -380,7 +401,7 @@ organiseRouter.put('/api/organise/:itemId', requireAdult, (req: Request, res: Re
 });
 
 organiseRouter.post(
-  '/api/organise/:itemId/photo',
+  ['/api/organise/:itemId/photo', '/api/organise/items/:itemId/photo'],
   requireAdult,
   organisePhotoUpload.single('photo'),
   (req: Request, res: Response) => {
@@ -415,7 +436,7 @@ organiseRouter.post(
   }
 );
 
-organiseRouter.delete('/api/organise/:itemId', requireAdult, (req: Request, res: Response) => {
+organiseRouter.delete(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
   const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
   if (!item) {
@@ -429,7 +450,7 @@ organiseRouter.delete('/api/organise/:itemId', requireAdult, (req: Request, res:
   res.json({ success: true });
 });
 
-organiseRouter.get('/api/organise/:itemId/services', (req: Request, res: Response) => {
+organiseRouter.get(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
   const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId);
   if (!item) {
@@ -442,7 +463,7 @@ organiseRouter.get('/api/organise/:itemId/services', (req: Request, res: Respons
   res.json({ success: true, services: services.map(formatVehicleService) });
 });
 
-organiseRouter.post('/api/organise/:itemId/services', requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], requireAdult, (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
     const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
@@ -490,7 +511,7 @@ organiseRouter.post('/api/organise/:itemId/services', requireAdult, (req: Reques
   }
 });
 
-organiseRouter.put('/api/organise/:itemId/services/:serviceId', requireAdult, (req: Request, res: Response) => {
+organiseRouter.put(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
     const serviceId = Number(req.params.serviceId);
@@ -550,7 +571,7 @@ organiseRouter.put('/api/organise/:itemId/services/:serviceId', requireAdult, (r
   }
 });
 
-organiseRouter.delete('/api/organise/:itemId/services/:serviceId', requireAdult, (req: Request, res: Response) => {
+organiseRouter.delete(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
   const serviceId = Number(req.params.serviceId);
   const svc = db

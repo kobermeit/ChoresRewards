@@ -17,8 +17,6 @@ import {
 } from '../services/chores';
 import {
   getGoogleCalendarData,
-  getServiceAccountEmail,
-  getServiceAccountPath,
   isGoogleCalendarFeatureEnabled,
   invalidateGcalCache,
 } from '../services/googleCalendar';
@@ -52,11 +50,6 @@ const screensaverUpload = multer({
     },
   }),
   limits: { fileSize: 100 * 1024 * 1024 },
-});
-
-const gcalSaUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 },
 });
 
 const formParser = multer();
@@ -206,13 +199,7 @@ function handleGetSettings(_req: Request, res: Response) {
     google_calendar_enabled: (AppSetting.get('google_calendar_enabled', 'false') || 'false').toLowerCase() === 'true',
     gcal_ical_url: AppSetting.get('gcal_ical_url', '') || AppSetting.get('google_calendar_ical_url', '') || '',
     gcal_embed_url: AppSetting.get('gcal_embed_url', '') || AppSetting.get('google_calendar_embed_url', '') || '',
-    google_calendar_api_key: AppSetting.get('google_calendar_api_key', '') || '',
-    google_calendar_id: AppSetting.get('google_calendar_id', '') || '',
-    google_calendar_color_rules: AppSetting.get('google_calendar_color_rules', '') || '',
-    google_calendar_max_results: Number(AppSetting.get('google_calendar_max_results', '20') || 20),
-    google_calendar_days_ahead: Number(AppSetting.get('google_calendar_days_ahead', '14') || 14),
     google_calendar_refresh_minutes: Number(AppSetting.get('google_calendar_refresh_minutes', '15') || 15),
-    gcal_sa_email: getServiceAccountEmail(),
     family,
     chores: allChores.map((c) => ({
       ...c,
@@ -324,20 +311,11 @@ function handleSettingsPost(req: Request, res: Response) {
         data.google_calendar_enabled === 'true' ||
         data.google_calendar_enabled === 'on';
       AppSetting.set('google_calendar_enabled', gcalEnabled ? 'true' : 'false');
-      if (data.google_calendar_api_key !== undefined) {
-        AppSetting.set('google_calendar_api_key', String(data.google_calendar_api_key).trim());
+      if (data.gcal_ical_url !== undefined) {
+        AppSetting.set('gcal_ical_url', String(data.gcal_ical_url).trim());
       }
-      if (data.google_calendar_id !== undefined) {
-        AppSetting.set('google_calendar_id', String(data.google_calendar_id).trim());
-      }
-      if (data.google_calendar_color_rules !== undefined) {
-        AppSetting.set('google_calendar_color_rules', String(data.google_calendar_color_rules));
-      }
-      if (data.google_calendar_max_results !== undefined) {
-        AppSetting.set('google_calendar_max_results', String(data.google_calendar_max_results));
-      }
-      if (data.google_calendar_days_ahead !== undefined) {
-        AppSetting.set('google_calendar_days_ahead', String(data.google_calendar_days_ahead));
+      if (data.gcal_embed_url !== undefined) {
+        AppSetting.set('gcal_embed_url', String(data.gcal_embed_url).trim());
       }
       if (data.google_calendar_refresh_minutes !== undefined) {
         AppSetting.set('google_calendar_refresh_minutes', String(data.google_calendar_refresh_minutes));
@@ -780,52 +758,6 @@ settingsRouter.post('/api/screensaver/clear', requireAdult, (_req: Request, res:
   }
   saveScreensaverPhotosRaw([]);
   res.json({ success: true, photos: [], deleted: photos.length });
-});
-
-settingsRouter.post(
-  '/settings/gcal-service-account/upload',
-  requireAdult,
-  gcalSaUpload.fields([
-    { name: 'gcal_sa_file', maxCount: 1 },
-    { name: 'service_account_json', maxCount: 1 },
-  ]),
-  (req: Request, res: Response) => {
-    const files = req.files as Record<string, Express.Multer.File[]> | undefined;
-    const f = files?.gcal_sa_file?.[0] || files?.service_account_json?.[0];
-    if (!f) {
-      res.status(400).json({ success: false, error: 'No file received' });
-      return;
-    }
-    try {
-      const parsed = JSON.parse(f.buffer.toString('utf-8'));
-      if (parsed.type !== 'service_account' || !parsed.client_email) {
-        res.status(400).json({
-          success: false,
-          error: 'Invalid Google service account JSON file (missing type=service_account or client_email).',
-        });
-        return;
-      }
-      fs.writeFileSync(getServiceAccountPath(), JSON.stringify(parsed, null, 2), 'utf-8');
-      invalidateGcalCache();
-      logActivity('settings_updated', 'Google Calendar service account key uploaded');
-      res.json({ success: true, email: parsed.client_email, client_email: parsed.client_email });
-    } catch {
-      res.status(400).json({ success: false, error: 'Invalid JSON file' });
-    }
-  }
-);
-
-settingsRouter.post('/settings/gcal-service-account/delete', requireAdult, (_req: Request, res: Response) => {
-  const saPath = getServiceAccountPath();
-  if (fs.existsSync(saPath)) {
-    try {
-      fs.unlinkSync(saPath);
-    } catch {
-      // ignore
-    }
-  }
-  invalidateGcalCache();
-  res.json({ success: true });
 });
 
 settingsRouter.get('/api/activity_log', (req: Request, res: Response) => {

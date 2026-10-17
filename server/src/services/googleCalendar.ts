@@ -1,9 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
 import { AppSetting, db } from '../db';
-import { DATA_DIR } from '../config';
 import { getAppTimezone, getFamilyToday, addDays } from '../utils/time';
+import { parseIcsContent } from '../utils/icalParser';
 
 const NAMED_GOOGLE_COLORS: Record<string, string> = {
   lavender: '#7986cb',
@@ -24,78 +21,9 @@ const NAMED_GOOGLE_COLORS: Record<string, string> = {
   red: '#d50000',
 };
 
-const GCAL_EVENT_COLORS: Record<string, string> = {
-  '1': '#7986cb',
-  '2': '#33b679',
-  '3': '#8e24aa',
-  '4': '#e67c73',
-  '5': '#f6bf26',
-  '6': '#f4511e',
-  '7': '#039be5',
-  '8': '#616161',
-  '9': '#3f51b5',
-  '10': '#0b8043',
-  '11': '#d50000',
-};
-
 export function isGoogleCalendarFeatureEnabled(): boolean {
   const val = (process.env.ENABLE_GOOGLE_CALENDAR ?? 'true').trim().toLowerCase();
   return !['0', 'false', 'no', 'off'].includes(val);
-}
-
-export function getServiceAccountPath(): string {
-  return path.join(DATA_DIR, 'gcal_service_account.json');
-}
-
-export function getServiceAccountEmail(): string | null {
-  const saPath = getServiceAccountPath();
-  if (!fs.existsSync(saPath)) return null;
-  try {
-    const data = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
-    return data.client_email || null;
-  } catch {
-    return null;
-  }
-}
-
-async function getServiceAccountAccessToken(): Promise<string | null> {
-  const saPath = getServiceAccountPath();
-  if (!fs.existsSync(saPath)) return null;
-  try {
-    const sa = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
-    if (!sa.client_email || !sa.private_key) return null;
-    const now = Math.floor(Date.now() / 1000);
-    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-    const claim = Buffer.from(
-      JSON.stringify({
-        iss: sa.client_email,
-        scope: 'https://www.googleapis.com/auth/calendar.readonly',
-        aud: sa.token_uri || 'https://oauth2.googleapis.com/token',
-        exp: now + 3600,
-        iat: now,
-      })
-    ).toString('base64url');
-    const sign = crypto.createSign('RSA-SHA256');
-    sign.update(`${header}.${claim}`);
-    const signature = sign.sign(sa.private_key, 'base64url');
-    const assertion = `${header}.${claim}.${signature}`;
-
-    const res = await fetch(sa.token_uri || 'https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion,
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { access_token?: string };
-    return json.access_token || null;
-  } catch (err) {
-    console.error('[GCal] Service account token error:', err);
-    return null;
-  }
 }
 
 function normalizeColorValue(val: string | null | undefined): string | null {
@@ -133,8 +61,6 @@ function layoutDayEvents(events: any[]): any[] {
   return sorted;
 }
 
-import { parseIcsContent } from '../utils/icalParser';
-
 let cachedGcalResult: {
   timestamp: number;
   events: any[];
@@ -163,9 +89,8 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
   const embedUrl = (AppSetting.get('gcal_embed_url', '') || AppSetting.get('google_calendar_embed_url', '') || '').trim();
   const explicitEnabled = (AppSetting.get('google_calendar_enabled', '') || '').toLowerCase();
   const isExplicitlyDisabled = explicitEnabled === 'false' || explicitEnabled === '0' || explicitEnabled === 'off';
-  
-  const calendarIdsRaw = (AppSetting.get('google_calendar_id', '') || '').trim();
-  const hasAnyConfig = Boolean(icalUrl || embedUrl || calendarIdsRaw);
+
+  const hasAnyConfig = Boolean(icalUrl || embedUrl);
   const enabled = featureEnabled && hasAnyConfig && !isExplicitlyDisabled;
 
   const hourLabels = Array.from({ length: 24 }, (_, h) => {
@@ -208,14 +133,13 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
     };
   }
 
-  const daysAhead = Math.max(14, Number(AppSetting.get('google_calendar_days_ahead', '60')) || 60);
   const tz = getAppTimezone();
   const colorRules = parseManualColorRules(AppSetting.get('google_calendar_color_rules', '') || '');
   const peopleColors = (db.prepare('SELECT name, color FROM person').all() as Array<{ name: string; color: string }>).map(
     (p) => ({ name: p.name.toLowerCase(), color: p.color || '#3b82f6' })
   );
 
-  // 1. If iCal URL is provided, fetch and parse directly (No GCP required!)
+  // If iCal URL is provided, fetch and parse directly
   if (icalUrl) {
     try {
       let fetchUrl = icalUrl;
@@ -291,6 +215,12 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
         });
       }
 
+      allEvents.sort((a, b) => {
+        if (a.start_date_iso !== b.start_date_iso) return a.start_date_iso.localeCompare(b.start_date_iso);
+        if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+        return a.start_time_sort.localeCompare(b.start_time_sort);
+      });
+
       const todayEvents = allEvents.filter((e) => e.start_date_iso === localToday);
       const weekColumns = buildWeekColumns(weekDates, localToday, allEvents);
       const nowIso = new Date().toISOString();
@@ -336,197 +266,29 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
     }
   }
 
-  const apiKey = (AppSetting.get('google_calendar_api_key', '') || '').trim();
-  const maxResults = Math.max(1, Number(AppSetting.get('google_calendar_max_results', '20')) || 20);
-
-  const calendarIds = calendarIdsRaw
-    .split(/[\r\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (calendarIds.length === 0) {
-    return {
-      featureEnabled,
-      enabled,
-      events: [],
-      today_events: [],
-      weekColumns: buildWeekColumns(weekDates, localToday, []),
-      hourLabels,
-      embed_url: embedUrl,
-      ical_url: icalUrl,
-      error: 'No Calendar ID configured in Settings.',
-      last_sync: null,
-    };
-  }
-
-  const accessToken = await getServiceAccountAccessToken();
-  if (!accessToken && !apiKey) {
-    return {
-      featureEnabled,
-      enabled,
-      events: [],
-      today_events: [],
-      weekColumns: buildWeekColumns(weekDates, localToday, []),
-      hourLabels,
-      embed_url: embedUrl,
-      ical_url: icalUrl,
-      error: 'Upload a Google Service Account JSON file or configure an API key in Settings.',
-      last_sync: null,
-    };
-  }
-
-  const timeMin = new Date(`${localToday}T00:00:00Z`).toISOString();
-  const timeMax = new Date(`${addDays(localToday, daysAhead)}T23:59:59Z`).toISOString();
-
-  const allEvents: any[] = [];
-  let lastError: string | null = null;
-
-  for (const calId of calendarIds) {
-    try {
-      const params = new URLSearchParams({
-        singleEvents: 'true',
-        orderBy: 'startTime',
-        timeMin,
-        timeMax,
-        maxResults: String(maxResults),
-      });
-      if (!accessToken && apiKey) {
-        params.set('key', apiKey);
-      }
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params.toString()}`;
-      const headers: Record<string, string> = {};
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
-      }
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-      if (!res.ok) {
-        lastError = `Google Calendar HTTP ${res.status}`;
-        continue;
-      }
-      const data = (await res.json()) as { items?: any[] };
-      for (const item of data.items || []) {
-        const title = String(item.summary || 'Untitled event');
-        const startRaw = item.start?.dateTime || item.start?.date;
-        const endRaw = item.end?.dateTime || item.end?.date;
-        if (!startRaw) continue;
-        const allDay = Boolean(item.start?.date && !item.start?.dateTime);
-
-        let color = '#3b82f6';
-        if (item.colorId && GCAL_EVENT_COLORS[String(item.colorId)]) {
-          color = GCAL_EVENT_COLORS[String(item.colorId)];
-        }
-        const titleLower = title.toLowerCase();
-        for (const p of peopleColors) {
-          if (titleLower.includes(p.name)) {
-            color = p.color;
-            break;
-          }
-        }
-        for (const r of colorRules) {
-          if (titleLower.includes(r.keyword)) {
-            color = r.color;
-            break;
-          }
-        }
-
-        let startDateIso = String(startRaw).slice(0, 10);
-        let startMinutes = 0;
-        let durationMinutes = 60;
-        let startTimeDisplay = 'All day';
-        let endTimeDisplay = '';
-        let startTimeSort = '00:00';
-
-        if (!allDay) {
-          const startDt = new Date(startRaw);
-          const endDt = endRaw ? new Date(endRaw) : new Date(startDt.getTime() + 3600000);
-          const parts = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          }).formatToParts(startDt);
-          const get = (t: string) => parts.find((p) => p.type === t)?.value || '00';
-          startDateIso = `${get('year')}-${get('month')}-${get('day')}`;
-          const h = Number(get('hour')) % 24;
-          const m = Number(get('minute'));
-          startMinutes = h * 60 + m;
-          durationMinutes = Math.max(30, Math.round((endDt.getTime() - startDt.getTime()) / 60000));
-          startTimeSort = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-          startTimeDisplay = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            hour: 'numeric',
-            minute: '2-digit',
-          }).format(startDt);
-          endTimeDisplay = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            hour: 'numeric',
-            minute: '2-digit',
-          }).format(endDt);
-        }
-
-        const [y, mo, da] = startDateIso.split('-').map(Number);
-        const dateObj = new Date(Date.UTC(y, mo - 1, da));
-        const weekdayShort = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(dateObj);
-        const dateLabel = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(dateObj);
-
-        allEvents.push({
-          id: item.id,
-          title,
-          location: item.location || '',
-          description: item.description || '',
-          all_day: allDay,
-          start_date_iso: startDateIso,
-          weekday_short: weekdayShort,
-          date_label: dateLabel,
-          start_time_display: startTimeDisplay,
-          end_time_display: endTimeDisplay,
-          start_time_sort: startTimeSort,
-          start_minutes: startMinutes,
-          duration_minutes: durationMinutes,
-          top_px: Math.round((startMinutes / 60) * 48),
-          height_px: Math.max(22, Math.round((durationMinutes / 60) * 48)),
-          color,
-        });
-      }
-    } catch (err: any) {
-      lastError = err?.message || 'Failed to fetch Google Calendar';
-    }
-  }
-
-  allEvents.sort((a, b) => {
-    if (a.start_date_iso !== b.start_date_iso) return a.start_date_iso.localeCompare(b.start_date_iso);
-    if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
-    return a.start_time_sort.localeCompare(b.start_time_sort);
-  });
-
-  const todayEvents = allEvents.filter((e) => e.start_date_iso === localToday);
-  const weekColumns = buildWeekColumns(weekDates, localToday, allEvents);
+  // Embed-only mode (no iCal URL specified)
   const nowIso = new Date().toISOString();
-
   cachedGcalResult = {
     timestamp: Date.now(),
-    events: allEvents,
-    today_events: todayEvents,
-    weekColumns,
+    events: [],
+    today_events: [],
+    weekColumns: buildWeekColumns(weekDates, localToday, []),
     embed_url: embedUrl,
-    ical_url: icalUrl,
-    error: allEvents.length === 0 ? lastError : null,
+    ical_url: '',
+    error: null,
     last_sync: nowIso,
   };
 
   return {
     featureEnabled,
-    enabled,
-    events: allEvents,
-    today_events: todayEvents,
-    weekColumns,
+    enabled: true,
+    events: [],
+    today_events: [],
+    weekColumns: cachedGcalResult.weekColumns,
     hourLabels,
     embed_url: embedUrl,
-    ical_url: icalUrl,
-    error: cachedGcalResult.error,
+    ical_url: '',
+    error: null,
     last_sync: nowIso,
   };
 }
