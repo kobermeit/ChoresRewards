@@ -1,35 +1,29 @@
 import { AppSetting } from '../db';
 
 export function getAppTimezone(): string {
-  const tz = (AppSetting.get('timezone', 'UTC') || 'UTC').trim();
+  const tz = (
+    AppSetting.get('timezone') ||
+    AppSetting.get('app_timezone') ||
+    process.env.TZ ||
+    'Australia/Brisbane'
+  ).trim();
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return tz;
   } catch {
-    return 'UTC';
+    return 'Australia/Brisbane';
   }
 }
 
 export function getConfiguredTimezone(): string | null {
-  const stored = (AppSetting.get('timezone') || '').trim();
-  if (!stored) {
-    const envTz = (process.env.TZ || '').trim();
-    if (envTz) {
-      try {
-        Intl.DateTimeFormat(undefined, { timeZone: envTz });
-        return envTz;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: stored });
-    return stored;
-  } catch {
-    return null;
-  }
+  return getAppTimezone();
+}
+
+export function getDailyResetHour(): number {
+  const raw = AppSetting.get('daily_reset_hour', '0');
+  const parsed = parseInt(String(raw ?? '0'), 10);
+  if (Number.isNaN(parsed) || parsed < 0 || parsed > 23) return 0;
+  return parsed;
 }
 
 export function formatDateInTz(date: Date, tz: string | null): string {
@@ -84,8 +78,13 @@ export function getLocalNowNaive(tz: string | null = getAppTimezone()): {
 }
 
 export function getFamilyToday(): string {
-  const tz = getConfiguredTimezone();
-  return formatDateInTz(new Date(), tz);
+  const tz = getAppTimezone();
+  const resetHour = getDailyResetHour();
+  const { dateStr, hour } = getLocalNowNaive(tz);
+  if (resetHour > 0 && hour < resetHour) {
+    return addDays(dateStr, -1);
+  }
+  return dateStr;
 }
 
 export function addDays(dateIso: string, days: number): string {

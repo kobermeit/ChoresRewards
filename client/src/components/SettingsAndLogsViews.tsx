@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
+import { SetupWizard } from './SetupWizard';
 
 // ============================================================================
 // 1. SETTINGS VIEW
@@ -8,12 +9,13 @@ import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 export const SettingsView: React.FC = () => {
   const { data, refresh, setActiveView, showToast, playSound } = useApp();
   const [tab, setTab] = useState<
-    'general' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz'
+    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz'
   >('general');
   const [settingsData, setSettingsData] = useState<any>(null);
 
   // General state
-  const [tz, setTz] = useState('Australia/Sydney');
+  const [tz, setTz] = useState('Australia/Brisbane');
+  const [dailyResetHour, setDailyResetHour] = useState('0');
   const [rewardSys, setRewardSys] = useState<'points' | 'cash'>('points');
   const [weatherLoc, setWeatherLoc] = useState('');
   const [masterPin, setMasterPin] = useState('');
@@ -52,7 +54,8 @@ export const SettingsView: React.FC = () => {
       const res = await apiGet<any>('settings_data');
       if (res?.success) {
         setSettingsData(res);
-        setTz(res.timezone || 'Australia/Sydney');
+        setTz(res.timezone || 'Australia/Brisbane');
+        setDailyResetHour(String(res.daily_reset_hour ?? 0));
         setRewardSys(res.reward_system || 'points');
         setWeatherLoc(res.weather?.location_name || '');
         if (res.gotify) {
@@ -94,6 +97,7 @@ export const SettingsView: React.FC = () => {
     e.preventDefault();
     try {
       await apiPost('save_timezone', { timezone: tz });
+      await apiPost('save_reset_hour', { daily_reset_hour: parseInt(dailyResetHour, 10) || 0 });
       await apiPost('save_reward_system', { reward_system: rewardSys });
       if (weatherLoc.trim()) {
         await apiPost('save_weather_settings', { location_name: weatherLoc.trim() });
@@ -107,6 +111,17 @@ export const SettingsView: React.FC = () => {
       await loadSettings();
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', { type: 'error' });
+    }
+  };
+
+  const handleResetDailyChoresNow = async () => {
+    try {
+      await apiPost('reset_daily_chores_now', {});
+      showToast('Daily chores reset for today! 🧹');
+      await refresh();
+      await loadSettings();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reset chores', { type: 'error' });
     }
   };
 
@@ -251,7 +266,8 @@ export const SettingsView: React.FC = () => {
       {/* Settings Sub-Navigation */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
         {[
-          { id: 'general', label: '🌐 General & PIN' },
+          { id: 'general', label: '🌐 General & Reset' },
+          { id: 'setup', label: '🪄 Setup Wizard' },
           { id: 'family', label: '👨‍👩‍👧‍👦 Family Members' },
           { id: 'chores', label: '🧹 All Chores' },
           { id: 'extra', label: '⚡ Extra Chores' },
@@ -280,23 +296,97 @@ export const SettingsView: React.FC = () => {
         ))}
       </div>
 
+      {/* SETUP WIZARD TAB */}
+      {tab === 'setup' && (
+        <SetupWizard
+          embedded
+          onSaved={() => {
+            loadSettings();
+          }}
+        />
+      )}
+
       {/* 1. GENERAL TAB */}
       {tab === 'general' && (
-        <form onSubmit={handleSaveGeneral} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 640 }}>
-          <h3 style={{ marginTop: 0 }}>🌐 General & Security Settings</h3>
+        <form onSubmit={handleSaveGeneral} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
+          <h3 style={{ marginTop: 0 }}>🌐 General, Reset Time & Security Settings</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 4 }}>Timezone</label>
-              <input
-                type="text"
-                value={tz}
-                onChange={(e) => setTz(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>
+                  Household Timezone
+                </label>
+                <input
+                  type="text"
+                  value={tz}
+                  onChange={(e) => setTz(e.target.value)}
+                  placeholder="Australia/Brisbane"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>
+                  Daily Chore Reset Time
+                </label>
+                <select
+                  value={dailyResetHour}
+                  onChange={(e) => setDailyResetHour(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
+                >
+                  <option value="0">12:00 AM (Midnight — Recommended)</option>
+                  <option value="1">1:00 AM</option>
+                  <option value="2">2:00 AM</option>
+                  <option value="3">3:00 AM</option>
+                  <option value="4">4:00 AM</option>
+                  <option value="5">5:00 AM</option>
+                  <option value="6">6:00 AM</option>
+                </select>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'rgba(59,130,246,0.1)',
+                border: '1px solid rgba(59,130,246,0.28)',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Manual Daily Chore Reset</div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.8 }}>
+                  Un-ticks all daily chores for today ({data?.current_date || 'today'}). Last automatic reset:{' '}
+                  {settingsData?.last_daily_reset || data?.current_date || 'today'}.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleResetDailyChoresNow}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 10,
+                  background: '#3b82f6',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🔄 Reset Today's Chores Now
+              </button>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 4 }}>Reward System</label>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>
+                Reward System
+              </label>
               <select
                 value={rewardSys}
                 onChange={(e) => setRewardSys(e.target.value as any)}

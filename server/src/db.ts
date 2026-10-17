@@ -292,6 +292,12 @@ export function initDatabase() {
         JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
       );
     }
+    if (!AppSetting.get('timezone')) {
+      AppSetting.set('timezone', AppSetting.get('app_timezone') || 'Australia/Brisbane');
+    }
+    if (!AppSetting.get('daily_reset_hour')) {
+      AppSetting.set('daily_reset_hour', '0');
+    }
   } catch (err) {
     console.error('[startup] Error seeding migrated household data:', err);
   }

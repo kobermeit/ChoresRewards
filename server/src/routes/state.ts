@@ -268,12 +268,16 @@ function handleSetupPost(req: Request, res: Response) {
       errors.push('Add at least one family member.');
     }
 
-    let hasValidAdmin = false;
+    // Support both initial setup and re-running Setup Wizard from Settings (updating existing people)
+    const existingPeople = db.prepare('SELECT * FROM person').all() as Array<any>;
+    const existingHasAdminWithPin = existingPeople.some((ep) => Boolean(ep.is_admin && ep.pin));
+
+    let hasValidAdmin = existingHasAdminWithPin;
     for (const p of peopleInput) {
       if (p.is_admin) {
         if (p.pin && /^\d{4}$/.test(p.pin)) {
           hasValidAdmin = true;
-        } else {
+        } else if (!existingHasAdminWithPin) {
           errors.push(`${p.name} is marked as an adult but needs a valid 4-digit PIN.`);
         }
       }
@@ -288,23 +292,46 @@ function handleSetupPost(req: Request, res: Response) {
     }
 
     let firstAdminPinHash: string | null = null;
-    peopleInput.forEach((p, idx) => {
-      const pinHash = p.is_admin && p.pin ? hashPin(p.pin) : null;
+    peopleInput.forEach((p: any, idx: number) => {
+      const pinHash = p.is_admin && p.pin && /^\d{4}$/.test(p.pin) ? hashPin(p.pin) : null;
       if (pinHash && !firstAdminPinHash) {
         firstAdminPinHash = pinHash;
       }
-      db.prepare(
-        `INSERT INTO person (name, points, bonus_points, avatar, color, "order", pin, is_admin, age)
-         VALUES (?, 0, 0, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        p.name,
-        p.avatar || 'default_avatar.png',
-        p.color || '#3b82f6',
-        idx,
-        pinHash,
-        p.is_admin ? 1 : 0,
-        p.age !== null && p.age !== undefined && !Number.isNaN(Number(p.age)) ? Number(p.age) : null
-      );
+      const matchExisting =
+        (p.id && existingPeople.find((ep) => ep.id === Number(p.id))) ||
+        existingPeople.find((ep) => ep.name.trim().toLowerCase() === p.name.trim().toLowerCase());
+
+      const ageVal =
+        p.age !== null && p.age !== undefined && p.age !== '' && !Number.isNaN(Number(p.age))
+          ? Number(p.age)
+          : null;
+
+      if (matchExisting) {
+        db.prepare(
+          `UPDATE person SET name = ?, color = ?, "order" = ?, is_admin = ?, age = ?, pin = COALESCE(?, pin) WHERE id = ?`
+        ).run(
+          p.name,
+          p.color || matchExisting.color || '#3b82f6',
+          idx,
+          p.is_admin ? 1 : 0,
+          ageVal,
+          pinHash,
+          matchExisting.id
+        );
+      } else {
+        db.prepare(
+          `INSERT INTO person (name, points, bonus_points, avatar, color, "order", pin, is_admin, age)
+           VALUES (?, 0, 0, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          p.name,
+          p.avatar || 'default_avatar.png',
+          p.color || '#3b82f6',
+          idx,
+          pinHash,
+          p.is_admin ? 1 : 0,
+          ageVal
+        );
+      }
     });
 
     if (firstAdminPinHash) {
@@ -322,7 +349,13 @@ function handleSetupPost(req: Request, res: Response) {
       body.bonus_once_per_day === 'true' ||
       body.bonus_once_per_day === 'on';
     AppSetting.set('bonus_once_per_day', oncePerDay ? 'true' : 'false');
-    AppSetting.set('timezone', String(body.timezone || process.env.TZ || 'UTC'));
+    const tzVal = String(body.timezone || process.env.TZ || 'Australia/Brisbane').trim();
+    AppSetting.set('timezone', tzVal);
+    AppSetting.set('app_timezone', tzVal);
+    if (body.daily_reset_hour !== undefined) {
+      const hr = Math.max(0, Math.min(23, parseInt(String(body.daily_reset_hour ?? '0'), 10) || 0));
+      AppSetting.set('daily_reset_hour', String(hr));
+    }
 
     if (req.session) {
       req.session.authenticated = true;

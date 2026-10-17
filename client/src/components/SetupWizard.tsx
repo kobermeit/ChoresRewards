@@ -1,38 +1,88 @@
-import React, { useState } from 'react';
-import { apiPost } from '../api';
+import React, { useState, useEffect } from 'react';
+import { apiGet, apiPost } from '../api';
 import { useApp } from '../context/AppContext';
 
 interface MemberDraft {
+  id?: number;
   name: string;
   color: string;
   age: string;
   is_admin: boolean;
   pin: string;
+  has_pin?: boolean;
 }
 
 const DEFAULT_COLORS = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
 
-export const SetupWizard: React.FC = () => {
-  const { refresh, showToast } = useApp();
-  const [members, setMembers] = useState<MemberDraft[]>([
-    { name: '', color: '#3b82f6', age: '', is_admin: true, pin: '' },
-    { name: '', color: '#ec4899', age: '7', is_admin: false, pin: '' },
-  ]);
-  const [rewardSystem, setRewardSystem] = useState<'points' | 'cash'>('points');
+export const SetupWizard: React.FC<{ embedded?: boolean; onSaved?: () => void }> = ({
+  embedded = false,
+  onSaved,
+}) => {
+  const { data, refresh, showToast } = useApp();
+  const [members, setMembers] = useState<MemberDraft[]>(() => {
+    if (data?.family?.length) {
+      return data.family.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color || '#3b82f6',
+        age: p.age !== null && p.age !== undefined ? String(p.age) : '',
+        is_admin: Boolean(p.is_admin),
+        pin: '',
+        has_pin: Boolean(p.has_pin),
+      }));
+    }
+    return [
+      { name: '', color: '#3b82f6', age: '', is_admin: true, pin: '' },
+      { name: '', color: '#ec4899', age: '7', is_admin: false, pin: '' },
+    ];
+  });
+  const [rewardSystem, setRewardSystem] = useState<'points' | 'cash'>(data?.reward_system || 'points');
   const [bonusMode, setBonusMode] = useState<'static' | 'range' | 'none'>('static');
   const [bonusStatic, setBonusStatic] = useState('10');
   const [bonusMin, setBonusMin] = useState('2');
   const [bonusMax, setBonusMax] = useState('8');
   const [bonusOncePerDay, setBonusOncePerDay] = useState(true);
+  const [dailyResetHour, setDailyResetHour] = useState('0');
   const [timezone, setTimezone] = useState(() => {
+    if (data?.timezone) return data.timezone;
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Australia/Adelaide';
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Australia/Brisbane';
     } catch {
-      return 'Australia/Adelaide';
+      return 'Australia/Brisbane';
     }
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    apiGet<any>('settings')
+      .then((res) => {
+        if (res?.success) {
+          if (res.reward_system) setRewardSystem(res.reward_system);
+          if (res.bonus_mode) setBonusMode(res.bonus_mode);
+          if (res.bonus_static !== undefined) setBonusStatic(String(res.bonus_static));
+          if (res.bonus_min !== undefined) setBonusMin(String(res.bonus_min));
+          if (res.bonus_max !== undefined) setBonusMax(String(res.bonus_max));
+          if (res.bonus_once_per_day !== undefined) setBonusOncePerDay(Boolean(res.bonus_once_per_day));
+          if (res.timezone) setTimezone(res.timezone);
+          if (res.daily_reset_hour !== undefined) setDailyResetHour(String(res.daily_reset_hour));
+          if (res.family?.length) {
+            setMembers(
+              res.family.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                color: p.color || '#3b82f6',
+                age: p.age !== null && p.age !== undefined ? String(p.age) : '',
+                is_admin: Boolean(p.is_admin),
+                pin: '',
+                has_pin: Boolean(p.has_pin),
+              }))
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const addMemberRow = () => {
     setMembers((prev) => [
@@ -60,6 +110,7 @@ export const SetupWizard: React.FC = () => {
     setError(null);
     const cleaned = members
       .map((m) => ({
+        id: m.id,
         name: m.name.trim(),
         color: m.color,
         age: m.age ? parseInt(m.age, 10) : null,
@@ -84,13 +135,15 @@ export const SetupWizard: React.FC = () => {
         bonus_max: bonusMax,
         bonus_once_per_day: bonusOncePerDay,
         timezone,
+        daily_reset_hour: parseInt(dailyResetHour, 10) || 0,
       });
 
       if (!res?.success) {
         setError(res?.error || (res?.errors && res.errors[0]) || 'Failed to complete setup.');
       } else {
-        showToast('Welcome to Chores & Rewards! 🎉');
+        showToast(embedded ? 'Household setup updated! 🎉' : 'Welcome to Chores & Rewards! 🎉');
         await refresh();
+        onSaved?.();
       }
     } catch (err: any) {
       setError(err?.message || 'Error saving setup');
@@ -100,24 +153,24 @@ export const SetupWizard: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 820, margin: '36px auto', padding: '0 20px' }}>
+    <div style={{ maxWidth: embedded ? '100%' : 820, margin: embedded ? '0' : '36px auto', padding: embedded ? '0' : '0 20px' }}>
       <div
         style={{
           background: 'var(--cr-surface-1)',
           border: '1px solid var(--cr-surface-border)',
           borderRadius: 20,
-          padding: 32,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.35)',
+          padding: embedded ? 24 : 32,
+          boxShadow: embedded ? 'none' : '0 20px 50px rgba(0,0,0,0.35)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-          <img src="./static/images/mascot-transp.png" alt="Mascot" style={{ width: 72, height: 72 }} />
+          <img src="./static/images/mascot-transp.png" alt="Mascot" style={{ width: 64, height: 64 }} />
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--cr-text-primary)' }}>
-              Welcome to Chores & Rewards
+            <h1 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--cr-text-primary)' }}>
+              {embedded ? 'Household Setup Wizard' : 'Welcome to Chores & Rewards'}
             </h1>
             <p style={{ margin: '4px 0 0', color: 'var(--cr-text-secondary)' }}>
-              Set up your family members, adult PIN, and reward preferences to get started.
+              Configure family members, adult PINs, daily reset time, timezone, and reward preferences.
             </p>
           </div>
         </div>
@@ -235,18 +288,18 @@ export const SetupWizard: React.FC = () => {
                     <input
                       type="password"
                       maxLength={4}
-                      placeholder="4-digit PIN"
+                      placeholder={m.has_pin ? 'Keep PIN (••••)' : '4-digit PIN'}
                       value={m.pin}
                       onChange={(e) => updateMember(idx, { pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                       style={{
-                        width: 115,
+                        width: 130,
                         padding: '10px',
                         borderRadius: 8,
                         border: '1px solid #3b82f6',
                         background: 'var(--cr-surface-1)',
                         color: 'var(--cr-text-primary)',
                         textAlign: 'center',
-                        letterSpacing: 3,
+                        letterSpacing: 2,
                         fontWeight: 700,
                       }}
                     />
@@ -273,8 +326,8 @@ export const SetupWizard: React.FC = () => {
             </div>
           </div>
 
-          {/* Reward System & Timezone */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {/* Reward System, Timezone & Daily Reset Time */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
             <div
               style={{
                 background: 'var(--cr-surface-2)',
@@ -318,7 +371,7 @@ export const SetupWizard: React.FC = () => {
                 type="text"
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                placeholder="Australia/Adelaide"
+                placeholder="Australia/Brisbane"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -328,6 +381,39 @@ export const SetupWizard: React.FC = () => {
                   border: '1px solid var(--cr-surface-border)',
                 }}
               />
+            </div>
+
+            <div
+              style={{
+                background: 'var(--cr-surface-2)',
+                padding: 16,
+                borderRadius: 12,
+                border: '1px solid var(--cr-surface-border)',
+              }}
+            >
+              <label style={{ display: 'block', fontWeight: 700, marginBottom: 8, color: 'var(--cr-text-primary)' }}>
+                4. Daily Chore Reset Time
+              </label>
+              <select
+                value={dailyResetHour}
+                onChange={(e) => setDailyResetHour(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: 'var(--cr-surface-1)',
+                  color: 'var(--cr-text-primary)',
+                  border: '1px solid var(--cr-surface-border)',
+                }}
+              >
+                <option value="0">12:00 AM (Midnight — Recommended)</option>
+                <option value="1">1:00 AM</option>
+                <option value="2">2:00 AM</option>
+                <option value="3">3:00 AM</option>
+                <option value="4">4:00 AM</option>
+                <option value="5">5:00 AM</option>
+                <option value="6">6:00 AM</option>
+              </select>
             </div>
           </div>
 
@@ -341,7 +427,7 @@ export const SetupWizard: React.FC = () => {
             }}
           >
             <label style={{ display: 'block', fontWeight: 700, marginBottom: 8, color: 'var(--cr-text-primary)' }}>
-              4. Daily All-Done Bonus Mode
+              5. Daily All-Done Bonus Mode
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               <select
@@ -413,7 +499,11 @@ export const SetupWizard: React.FC = () => {
               cursor: submitting ? 'wait' : 'pointer',
             }}
           >
-            {submitting ? 'Setting up…' : 'Complete Setup & Launch Hub 🚀'}
+            {submitting
+              ? 'Saving…'
+              : embedded
+                ? 'Save Household Setup ✨'
+                : 'Complete Setup & Launch Hub 🚀'}
           </button>
         </form>
       </div>

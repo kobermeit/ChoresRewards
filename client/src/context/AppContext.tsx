@@ -13,7 +13,8 @@ export type ActiveView =
   | 'dashboard'
   | 'settings'
   | 'activity_log'
-  | 'chore_history';
+  | 'chore_history'
+  | 'help';
 
 interface AppContextValue {
   data: BootstrapData | null;
@@ -31,6 +32,8 @@ interface AppContextValue {
   activeView: ActiveView;
   setActiveView: (v: ActiveView) => void;
   scrollToSection: (sectionId: string) => void;
+  selectedChorePersonId: number | null;
+  setSelectedChorePersonId: (personId: number | null) => void;
   screensaverOpen: boolean;
   setScreensaverOpen: (open: boolean) => void;
   visualTimerOpen: boolean;
@@ -69,6 +72,7 @@ export const AppProvider: React.FC<{
   }, []);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [selectedChorePersonId, setSelectedChorePersonId] = useState<number | null>(null);
   const [screensaverOpen, setScreensaverOpen] = useState(false);
   const [visualTimerOpen, setVisualTimerOpen] = useState(false);
   const [playWidgetOpen, setPlayWidgetOpen] = useState(false);
@@ -100,6 +104,23 @@ export const AppProvider: React.FC<{
         }
       })
       .catch(() => {});
+
+    // 60-second background heartbeat + page focus check so midnight chore reset rolls over automatically on wall tablets
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        refresh();
+      }
+    }, 60 * 1000);
+    const onVisChange = () => {
+      if (!document.hidden) {
+        refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -212,6 +233,8 @@ export const AppProvider: React.FC<{
         activeView,
         setActiveView,
         scrollToSection,
+        selectedChorePersonId,
+        setSelectedChorePersonId,
         screensaverOpen,
         setScreensaverOpen,
         visualTimerOpen,

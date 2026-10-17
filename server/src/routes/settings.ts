@@ -6,13 +6,14 @@ import crypto from 'crypto';
 import { db, AppSetting, logActivity, roundPoints } from '../db';
 import { DATA_DIR, STATIC_DIR, UPLOADS_DIR } from '../config';
 import { requireAdult, checkPinHash, hashPin } from './auth';
-import { getFamilyToday, getLocalNowNaive, getAppTimezone, addDays } from '../utils/time';
+import { getFamilyToday, getLocalNowNaive, getAppTimezone, getDailyResetHour, addDays } from '../utils/time';
 import {
   getExtraChores,
   saveExtraChores,
   normaliseExtraChore,
   loadQuizQuestions,
   saveQuizQuestions,
+  resetDailyChores,
 } from '../services/chores';
 import {
   getGoogleCalendarData,
@@ -157,7 +158,7 @@ function screensaverPhotoUrls(list: Array<{ filename: string; uploaded_at?: numb
 
 export const settingsRouter = Router();
 
-settingsRouter.get('/api/settings', (_req: Request, res: Response) => {
+function handleGetSettings(_req: Request, res: Response) {
   const family = (db.prepare('SELECT * FROM person ORDER BY "order", id').all() as Array<any>).map((p) => ({
     id: p.id,
     name: p.name,
@@ -183,7 +184,17 @@ settingsRouter.get('/api/settings', (_req: Request, res: Response) => {
     bonus_max: AppSetting.get('bonus_max', '8') || '8',
     bonus_once_per_day: (AppSetting.get('bonus_once_per_day', 'true') || 'true').toLowerCase() === 'true',
     quiz_questions_enabled: (AppSetting.get('quiz_questions_enabled', 'true') || 'true').toLowerCase() === 'true',
-    timezone: AppSetting.get('timezone', process.env.TZ || 'UTC') || 'UTC',
+    timezone: getAppTimezone(),
+    daily_reset_hour: getDailyResetHour(),
+    last_daily_reset: AppSetting.get('last_daily_reset', '') || '',
+    weather: {
+      location_name: AppSetting.get('weather_location_name', '') || '',
+    },
+    gotify: {
+      enabled: Boolean(AppSetting.get('gotify_url', '')),
+      url: AppSetting.get('gotify_url', '') || '',
+      token: AppSetting.get('gotify_token', '') || '',
+    },
     gotify_url: AppSetting.get('gotify_url', '') || '',
     gotify_token: AppSetting.get('gotify_token', '') || '',
     gotify_notify_people: (AppSetting.get('gotify_notify_people', '') || '').split(',').filter(Boolean),
@@ -211,7 +222,10 @@ settingsRouter.get('/api/settings', (_req: Request, res: Response) => {
     quiz_questions: loadQuizQuestions(),
     extra_chores: getExtraChores(),
   });
-});
+}
+
+settingsRouter.get('/api/settings', handleGetSettings);
+settingsRouter.get('/api/settings_data', handleGetSettings);
 
 function handleSettingsPost(req: Request, res: Response) {
   try {
@@ -290,8 +304,16 @@ function handleSettingsPost(req: Request, res: Response) {
     }
 
     if ('timezone' in data && !('bonus_mode' in data)) {
-      AppSetting.set('timezone', String(data.timezone || 'UTC').trim());
-      logActivity('settings_updated', `Timezone updated to ${data.timezone}`);
+      const tzVal = String(data.timezone || 'Australia/Brisbane').trim();
+      AppSetting.set('timezone', tzVal);
+      AppSetting.set('app_timezone', tzVal);
+      logActivity('settings_updated', `Timezone updated to ${tzVal}`);
+    }
+
+    if ('daily_reset_hour' in data) {
+      const hr = Math.max(0, Math.min(23, parseInt(String(data.daily_reset_hour ?? '0'), 10) || 0));
+      AppSetting.set('daily_reset_hour', String(hr));
+      logActivity('settings_updated', `Daily chore reset hour set to ${String(hr).padStart(2, '0')}:00`);
     }
 
     if ('google_calendar_settings' in data) {
@@ -352,6 +374,52 @@ function handleSettingsPost(req: Request, res: Response) {
 
 settingsRouter.post('/settings', formParser.none(), requireAdult, handleSettingsPost);
 settingsRouter.post('/api/settings', formParser.none(), requireAdult, handleSettingsPost);
+
+settingsRouter.post('/api/save_timezone', (req: Request, res: Response) => {
+  const tzVal = String(req.body?.timezone || 'Australia/Brisbane').trim();
+  AppSetting.set('timezone', tzVal);
+  AppSetting.set('app_timezone', tzVal);
+  logActivity('settings_updated', `Timezone updated to ${tzVal}`);
+  res.json({ success: true, timezone: tzVal });
+});
+
+settingsRouter.post('/api/save_reward_system', (req: Request, res: Response) => {
+  const sys = String(req.body?.reward_system || 'points').trim();
+  AppSetting.setRewardSystem(sys);
+  logActivity('settings_updated', `Reward system changed to ${sys}`);
+  res.json({ success: true, reward_system: sys });
+});
+
+settingsRouter.post('/api/save_weather_settings', (req: Request, res: Response) => {
+  const loc = String(req.body?.location_name || '').trim();
+  AppSetting.set('weather_location_name', loc);
+  res.json({ success: true, location_name: loc });
+});
+
+settingsRouter.post('/api/save_pin_settings', (req: Request, res: Response) => {
+  const pin = String(req.body?.pin || '').trim();
+  if (pin && /^\d{4}$/.test(pin)) {
+    AppSetting.set('master_pin', hashPin(pin));
+    logActivity('settings_updated', 'Master PIN updated');
+  }
+  res.json({ success: true });
+});
+
+settingsRouter.post('/api/save_reset_hour', (req: Request, res: Response) => {
+  const hr = Math.max(0, Math.min(23, parseInt(String(req.body?.daily_reset_hour ?? '0'), 10) || 0));
+  AppSetting.set('daily_reset_hour', String(hr));
+  logActivity('settings_updated', `Daily chore reset hour set to ${String(hr).padStart(2, '0')}:00`);
+  res.json({ success: true, daily_reset_hour: hr });
+});
+
+settingsRouter.post('/api/reset_daily_chores_now', (_req: Request, res: Response) => {
+  const today = getFamilyToday();
+  db.prepare('UPDATE chore SET completed = 0, due_date = ? WHERE is_daily = 1 AND deleted = 0').run(today);
+  resetDailyChores();
+  AppSetting.set('last_daily_reset', today);
+  logActivity('daily_chores_reset', 'Manual daily chores reset triggered from Settings');
+  res.json({ success: true, date: today });
+});
 
 settingsRouter.post('/settings/notification', formParser.none(), requireAdult, (req: Request, res: Response) => {
   const data = req.body || {};
