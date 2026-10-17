@@ -12060,3 +12060,18 @@ body.dash-layout-dragging {
     60% { transform: translateY(60vh) scaleX(1.2) rotate(20deg); }
     100% { transform: translateY(100vh) scaleX(0.8) rotate(-20deg); opacity: 0; }
 }
+
+/* === v1.1.0 Compact SideNav & Tablet Kanban Overrides === */
+#side-nav-toggle { left: 48px; height: 50px; }
+body.side-nav-body-collapsed #side-nav-toggle { left: 0; }
+#side-nav { width: 48px; padding: 8px 0 14px; gap: 5px; }
+#side-nav.side-nav-collapsed { transform: translateX(-48px); }
+.side-nav-btn, a.side-nav-link.side-nav-btn, #side-nav #adult-lock-btn { width: 38px; height: 38px; min-width: 38px; min-height: 38px; font-size: 1.05rem; line-height: 38px; border-radius: 9px; }
+.side-nav-btn::after, a.side-nav-link.side-nav-btn::after { left: 54px; font-size: 0.82rem; padding: 4px 10px; }
+.side-nav-divider { width: 26px; margin: 4px 0; }
+body { padding-left: 54px; }
+body.side-nav-body-collapsed { padding-left: 8px; }
+#kanban .column { flex: 1 1 210px !important; min-width: 205px !important; max-width: 380px; }
+@media (min-width: 600px) and (max-width: 1024px) {
+  #kanban .column { flex: 1 1 195px !important; min-width: 190px !important; max-width: 340px; }
+}

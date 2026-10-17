@@ -11,6 +11,7 @@ import { MealAndShoppingSection } from './components/MealAndShoppingSection';
 import { NotesSection, CalendarSection } from './components/CalendarAndNotesSection';
 import { OrganiseSection } from './components/OrganiseSection';
 import { SettingsView, ActivityLogView, ChoreHistoryView } from './components/SettingsAndLogsViews';
+import { HelpView } from './components/HelpTooltipAndView';
 import { Overlays } from './components/Overlays';
 
 const MainShell: React.FC<{
@@ -82,6 +83,10 @@ const MainShell: React.FC<{
         ) : activeView === 'chore_history' ? (
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
             <ChoreHistoryView />
+          </div>
+        ) : activeView === 'help' ? (
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
+            <HelpView />
           </div>
         ) : (
           <>

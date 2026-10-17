@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { DashboardStickyNote } from '../types';
+import { SectionHelpTip } from './HelpTooltipAndView';
 
 const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
@@ -10,6 +11,7 @@ export const DashboardSection: React.FC = () => {
     data,
     refresh,
     scrollToSection,
+    setSelectedChorePersonId,
     setScreensaverOpen,
     setVisualTimerOpen,
     openPlayGame,
@@ -39,7 +41,18 @@ export const DashboardSection: React.FC = () => {
   if (!data) return null;
 
   const todayIso = data.current_date;
-  const todayMeals = data.meal_planner?.plan?.[todayIso] || { breakfast: '', lunch: '', dinner: '' };
+  const rawTodayMeals: any = data.meal_planner?.plan?.[todayIso];
+  const todayMealCards: Array<{ label: string; name: string }> = Array.isArray(rawTodayMeals)
+    ? rawTodayMeals.map((m: any) => ({
+        label: m.audience && m.audience !== 'Everyone' ? m.audience : 'Dinner',
+        name: m.title || '',
+      })).filter((m) => m.name)
+    : [
+        rawTodayMeals?.breakfast ? { label: 'Breakfast', name: rawTodayMeals.breakfast } : null,
+        rawTodayMeals?.lunch ? { label: 'Lunch', name: rawTodayMeals.lunch } : null,
+        rawTodayMeals?.dinner ? { label: 'Dinner', name: rawTodayMeals.dinner } : null,
+      ].filter(Boolean) as Array<{ label: string; name: string }>;
+
   const activeRewards = (data.rewards || [])
     .filter((r) => !r.completed)
     .sort((a, b) => b.points_required - a.points_required)
@@ -78,6 +91,14 @@ export const DashboardSection: React.FC = () => {
     <section className="rewards-section dashboard-section" id="dashboard-section">
       <h2 className="section-title dashboard-section-title">
         <i className="fas fa-gauge-high" style={{ color: '#38bdf8' }} /> <span>Today at a Glance</span>
+        <SectionHelpTip
+          title="Today at a Glance"
+          tips={[
+            "Tap any family member in Today's Tasks to open their full-screen Chore Grid.",
+            'Tap Meals Today or Top Rewards to jump straight to that section.',
+            'Use Arrange to customize tile sizes on your tablet.',
+          ]}
+        />
         <span className="dash-layout-actions">
           <button type="button" className="dash-arrange-btn" id="dash-arrange-btn" title="Rearrange and resize dashboard cards">
             <i className="fas fa-up-down-left-right" /> Arrange
@@ -94,7 +115,10 @@ export const DashboardSection: React.FC = () => {
           className="dashboard-card dash-tile"
           data-dash-id="tasks"
           style={{ '--dash-cols': 4, '--dash-rows': 12 } as React.CSSProperties}
-          onClick={() => scrollToSection('kanban')}
+          onClick={() => {
+            setSelectedChorePersonId(null);
+            scrollToSection('kanban');
+          }}
         >
           <h3 className="dashboard-card-title">
             <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Today's Tasks">
@@ -109,7 +133,17 @@ export const DashboardSection: React.FC = () => {
             const done = pChores.filter((c) => c.completed);
 
             return (
-              <div key={person.id} className="dash-person-row">
+              <div
+                key={person.id}
+                className="dash-person-row"
+                style={{ cursor: 'pointer', borderRadius: 8, padding: '6px 6px' }}
+                title={`View ${person.name}'s chores in full grid`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedChorePersonId(person.id);
+                  scrollToSection('chores-section-root');
+                }}
+              >
                 <img className="dash-person-avatar" src={resolveAvatarUrl(person.avatar)} alt={person.name} />
                 <div className="dash-person-info">
                   <div className="dash-person-name">{person.name}</div>
@@ -159,25 +193,13 @@ export const DashboardSection: React.FC = () => {
             </button>
             <i className="fas fa-utensils" style={{ color: '#fb923c' }} /> Meals Today
           </h3>
-          {todayMeals.breakfast && (
-            <div className="dash-meal-row">
-              <span className="dash-meal-label">Breakfast</span>
-              <span className="dash-meal-name">{todayMeals.breakfast}</span>
+          {todayMealCards.map((m, idx) => (
+            <div key={idx} className="dash-meal-row">
+              <span className="dash-meal-label">{m.label}</span>
+              <span className="dash-meal-name">{m.name}</span>
             </div>
-          )}
-          {todayMeals.lunch && (
-            <div className="dash-meal-row">
-              <span className="dash-meal-label">Lunch</span>
-              <span className="dash-meal-name">{todayMeals.lunch}</span>
-            </div>
-          )}
-          {todayMeals.dinner && (
-            <div className="dash-meal-row">
-              <span className="dash-meal-label">Dinner</span>
-              <span className="dash-meal-name">{todayMeals.dinner}</span>
-            </div>
-          )}
-          {!todayMeals.breakfast && !todayMeals.lunch && !todayMeals.dinner && (
+          ))}
+          {todayMealCards.length === 0 && (
             <p className="dash-empty-hint">No meals planned for today yet.</p>
           )}
         </div>

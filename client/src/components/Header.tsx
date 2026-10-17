@@ -207,29 +207,36 @@ export const Header: React.FC = () => {
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          rowGap: '0.6rem',
+          gap: '0.6rem 1rem',
           background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
-          padding: '0.75rem 1.5rem',
+          padding: headerMinimized ? '0.35rem 1rem' : '0.55rem 1.25rem',
           borderRadius: '14px 14px 0 0',
           borderBottom: '1px solid var(--cr-surface-border)',
+          transition: 'padding 0.2s ease',
         }}
       >
         <div
-          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flexShrink: 0 }}
           onClick={() => setActiveView('dashboard')}
         >
           <img
             src="./static/images/mascot-transp.png"
             alt="Chores Reward Icon"
-            style={{ height: 70, width: 70, marginRight: 10 }}
+            style={{
+              height: headerMinimized ? 36 : 48,
+              width: headerMinimized ? 36 : 48,
+              marginRight: 8,
+              transition: 'height 0.2s, width 0.2s',
+            }}
           />
           <h2
             style={{
               color: 'var(--cr-text-primary)',
               margin: 0,
-              fontSize: '1.4rem',
+              fontSize: headerMinimized ? '1.05rem' : '1.22rem',
               textTransform: 'none',
               letterSpacing: 0,
+              whiteSpace: 'nowrap',
             }}
           >
             Chores and Rewards
@@ -241,333 +248,381 @@ export const Header: React.FC = () => {
           id="clock-widget"
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            alignItems: 'baseline',
+            gap: 8,
             color: 'var(--cr-text-primary)',
             flexShrink: 0,
             lineHeight: 1.05,
-            padding: '0 8px',
+            padding: '0 4px',
           }}
         >
           <div
             id="clock-time"
-            style={{ fontSize: '2.6em', fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: '0.01em' }}
+            style={{
+              fontSize: headerMinimized ? '1.35em' : '1.75em',
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              letterSpacing: '0.01em',
+            }}
           >
             {clockTime}
           </div>
-          <div
-            id="clock-date"
-            style={{ fontSize: '1.05em', opacity: 0.75, whiteSpace: 'nowrap', fontWeight: 600 }}
-          >
-            {clockDate}
-          </div>
+          {!headerMinimized && (
+            <div
+              id="clock-date"
+              style={{ fontSize: '0.9em', opacity: 0.75, whiteSpace: 'nowrap', fontWeight: 600 }}
+            >
+              {clockDate}
+            </div>
+          )}
         </div>
 
         {/* Weather Widget */}
-        <div
-          id="weather-widget"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            color: 'var(--cr-text-primary)',
-            flexShrink: 0,
-            padding: '0 6px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {!headerMinimized && (
+          <div
+            id="weather-widget"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: 'var(--cr-text-primary)',
+              flexShrink: 0,
+              padding: '0 4px',
+            }}
+          >
             <i
               id="weather-icon"
               className={`fas ${weatherCurrent.icon}`}
-              style={{ fontSize: '2.9em', color: weatherCurrent.color, flexShrink: 0 }}
+              style={{ fontSize: '1.85em', color: weatherCurrent.color, flexShrink: 0 }}
             />
-            <div style={{ lineHeight: 1.1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <span id="weather-temp" style={{ fontSize: '2.3em', fontWeight: 800, whiteSpace: 'nowrap' }}>
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span id="weather-temp" style={{ fontSize: '1.45em', fontWeight: 800, whiteSpace: 'nowrap' }}>
                   {weatherCurrent.temp}°
                 </span>
                 <span
                   id="weather-hilo"
-                  style={{ fontSize: '1.05em', opacity: 0.8, fontWeight: 600, whiteSpace: 'nowrap' }}
+                  style={{ fontSize: '0.82em', opacity: 0.8, fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
                   {weatherCurrent.hilo}
                 </span>
               </div>
               <div
                 id="weather-desc"
-                style={{ fontSize: '1.05em', opacity: 0.8, whiteSpace: 'nowrap', fontWeight: 600 }}
+                style={{ fontSize: '0.8em', opacity: 0.8, whiteSpace: 'nowrap', fontWeight: 600 }}
               >
                 {weatherCurrent.desc}
               </div>
             </div>
-          </div>
-          <button
-            type="button"
-            id="weather-expand-btn"
-            onClick={() => setWeatherExpanded((prev) => !prev)}
-            title="Show 7-day forecast"
-            aria-expanded={weatherExpanded}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--cr-text-secondary)',
-              cursor: 'pointer',
-              fontSize: '0.9em',
-              padding: '2px 0 0',
-              margin: 0,
-              lineHeight: 1,
-              opacity: 0.55,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'opacity 0.15s',
-            }}
-          >
-            <i
-              className="fas fa-chevron-down"
-              id="weather-expand-icon"
+            <button
+              type="button"
+              id="weather-expand-btn"
+              onClick={() => setWeatherExpanded((prev) => !prev)}
+              title="Show 7-day forecast"
+              aria-expanded={weatherExpanded}
               style={{
-                transition: 'transform 0.25s',
-                transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                background: 'none',
+                border: 'none',
+                color: 'var(--cr-text-secondary)',
+                cursor: 'pointer',
+                fontSize: '0.85em',
+                padding: '2px 4px',
+                margin: 0,
+                lineHeight: 1,
+                opacity: 0.7,
               }}
-            />
-          </button>
-        </div>
+            >
+              <i
+                className="fas fa-chevron-down"
+                id="weather-expand-icon"
+                style={{
+                  transition: 'transform 0.25s',
+                  transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Header Actions */}
-        <nav className="header-nav-actions">
-          {/* Notification Bell */}
-          <div className="header-notif-wrap" id="header-notif-wrap">
-            <button
-              type="button"
-              className="header-notif-btn"
-              id="header-notif-btn"
-              onClick={() => {
-                setNotifOpen((p) => !p);
-                setQuickAddOpen(false);
-              }}
-              title="Notifications"
-              aria-haspopup="true"
-              aria-expanded={notifOpen}
-            >
-              <i className="fas fa-bell" />
-              {visibleAlerts.length > 0 && (
-                <span className="header-notif-badge" id="header-notif-badge">
-                  {visibleAlerts.length}
-                </span>
+        {!headerMinimized && (
+          <nav
+            className="header-nav-actions"
+            style={{
+              width: 'auto',
+              marginLeft: 'auto',
+              paddingTop: 0,
+              borderTop: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Notification Bell */}
+            <div className="header-notif-wrap" id="header-notif-wrap">
+              <button
+                type="button"
+                className="header-notif-btn"
+                id="header-notif-btn"
+                onClick={() => {
+                  setNotifOpen((p) => !p);
+                  setQuickAddOpen(false);
+                }}
+                title="Notifications"
+                aria-haspopup="true"
+                aria-expanded={notifOpen}
+              >
+                <i className="fas fa-bell" />
+                {visibleAlerts.length > 0 && (
+                  <span className="header-notif-badge" id="header-notif-badge">
+                    {visibleAlerts.length}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="header-notif-panel" id="header-notif-panel">
+                  <div className="header-notif-head">
+                    <span>Notifications</span>
+                    <span className="header-notif-head-meta">{visibleAlerts.length} alerts</span>
+                  </div>
+                  <div className="header-notif-body">
+                    {visibleAlerts.map((a, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setNotifOpen(false);
+                          if (a.target) scrollToSection(a.target);
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 10,
+                          background:
+                            a.severity === 'overdue' ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.16)',
+                          border: `1px solid ${a.severity === 'overdue' ? '#ef4444' : '#f59e0b'}`,
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700 }}>{a.title}</div>
+                        <div style={{ opacity: 0.8 }}>{a.detail}</div>
+                      </div>
+                    ))}
+                    {notifs.recent.slice(0, 6).map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          padding: '6px 8px',
+                          borderBottom: '1px solid var(--cr-surface-border)',
+                          fontSize: '0.82rem',
+                        }}
+                      >
+                        <div>{r.description}</div>
+                        <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>{r.date_label}</div>
+                      </div>
+                    ))}
+                    {visibleAlerts.length === 0 && notifs.recent.length === 0 && (
+                      <p className="header-notif-empty">No notifications</p>
+                    )}
+                  </div>
+                  <a
+                    href="#activity"
+                    className="header-notif-footer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setNotifOpen(false);
+                      setActiveView('activity_log');
+                    }}
+                  >
+                    View activity log <i className="fas fa-chevron-right" />
+                  </a>
+                </div>
               )}
-            </button>
-            {notifOpen && (
-              <div className="header-notif-panel" id="header-notif-panel">
-                <div className="header-notif-head">
-                  <span>Notifications</span>
-                  <span className="header-notif-head-meta">{visibleAlerts.length} alerts</span>
-                </div>
-                <div className="header-notif-body">
-                  {visibleAlerts.map((a, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => {
-                        setNotifOpen(false);
-                        if (a.target) scrollToSection(a.target);
-                      }}
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: 10,
-                        background:
-                          a.severity === 'overdue' ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.16)',
-                        border: `1px solid ${a.severity === 'overdue' ? '#ef4444' : '#f59e0b'}`,
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        marginBottom: 6,
-                      }}
-                    >
-                      <div style={{ fontWeight: 700 }}>{a.title}</div>
-                      <div style={{ opacity: 0.8 }}>{a.detail}</div>
-                    </div>
-                  ))}
-                  {notifs.recent.slice(0, 6).map((r) => (
-                    <div
-                      key={r.id}
-                      style={{
-                        padding: '6px 8px',
-                        borderBottom: '1px solid var(--cr-surface-border)',
-                        fontSize: '0.82rem',
-                      }}
-                    >
-                      <div>{r.description}</div>
-                      <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>{r.date_label}</div>
-                    </div>
-                  ))}
-                  {visibleAlerts.length === 0 && notifs.recent.length === 0 && (
-                    <p className="header-notif-empty">No notifications</p>
-                  )}
-                </div>
-                <a
-                  href="#activity"
-                  className="header-notif-footer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setNotifOpen(false);
-                    setActiveView('activity_log');
+            </div>
+
+            {/* Quick Add Dropdown */}
+            <div
+              className={`header-quick-add-wrap${quickAddOpen ? ' is-open' : ''}`}
+              id="header-quick-add-wrap"
+            >
+              <button
+                type="button"
+                className="header-quick-add-btn"
+                id="header-quick-add-btn"
+                aria-haspopup="true"
+                aria-expanded={quickAddOpen}
+                title="Quick Add"
+                onClick={() => {
+                  setQuickAddOpen((p) => !p);
+                  setNotifOpen(false);
+                }}
+              >
+                <i className="fas fa-plus" />
+                <span>Quick Add</span>
+                <i className="fas fa-chevron-down quick-add-chevron" />
+              </button>
+              <div className="header-quick-add-menu" id="header-quick-add-menu">
+                <button
+                  type="button"
+                  className="header-quick-add-item"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    if (!adultMode) {
+                      openAdultPinModal(() => scrollToSection('add-chores-section'));
+                    } else {
+                      scrollToSection('add-chores-section');
+                    }
                   }}
                 >
-                  View activity log <i className="fas fa-chevron-right" />
-                </a>
+                  <i className="fas fa-tasks" style={{ color: '#e100ff' }} />
+                  <span>Add Chore</span>
+                </button>
+                <button
+                  type="button"
+                  className="header-quick-add-item"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    scrollToSection('shopping-list-section');
+                  }}
+                >
+                  <i className="fas fa-cart-shopping" style={{ color: '#10b981' }} />
+                  <span>Add Shopping</span>
+                </button>
+                <button
+                  type="button"
+                  className="header-quick-add-item"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    scrollToSection('notes-kanban-section');
+                  }}
+                >
+                  <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} />
+                  <span>New Note</span>
+                </button>
+                <button
+                  type="button"
+                  className="header-quick-add-item admin-only"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    if (!adultMode) {
+                      openAdultPinModal(() => scrollToSection('organise-section'));
+                    } else {
+                      scrollToSection('organise-section');
+                    }
+                  }}
+                >
+                  <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} />
+                  <span>Add Organise</span>
+                </button>
+                <button
+                  type="button"
+                  className="header-quick-add-item admin-only"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    if (!adultMode) {
+                      openAdultPinModal(() => scrollToSection('create-reward-section'));
+                    } else {
+                      scrollToSection('create-reward-section');
+                    }
+                  }}
+                >
+                  <i className="fas fa-gift" style={{ color: '#a78bfa' }} />
+                  <span>Create Reward</span>
+                </button>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Quick Add Dropdown */}
-          <div
-            className={`header-quick-add-wrap${quickAddOpen ? ' is-open' : ''}`}
-            id="header-quick-add-wrap"
-          >
-            <button
-              type="button"
-              className="header-quick-add-btn"
-              id="header-quick-add-btn"
-              aria-haspopup="true"
-              aria-expanded={quickAddOpen}
-              title="Quick Add"
-              onClick={() => {
-                setQuickAddOpen((p) => !p);
-                setNotifOpen(false);
+            <a
+              href="#activity_log"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveView('activity_log');
               }}
             >
-              <i className="fas fa-plus" />
-              <span>Quick Add</span>
-              <i className="fas fa-chevron-down quick-add-chevron" />
+              <i className="fas fa-history" /> Activity Log
+            </a>
+
+            <a
+              href="#help"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveView('help');
+              }}
+              title="Help & Guide"
+            >
+              <i className="fas fa-circle-question" /> Help
+            </a>
+
+            <a
+              href="#settings"
+              className="admin-only flex-admin-only"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveView('settings');
+              }}
+            >
+              <i className="fas fa-cog" /> Settings
+            </a>
+
+            <button id="theme-toggle-btn" onClick={toggleTheme} title="Toggle light/dark mode">
+              <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`} />
             </button>
-            <div className="header-quick-add-menu" id="header-quick-add-menu">
-              <button
-                type="button"
-                className="header-quick-add-item"
-                onClick={() => {
-                  setQuickAddOpen(false);
-                  if (!adultMode) {
-                    openAdultPinModal(() => scrollToSection('add-chores-section'));
-                  } else {
-                    scrollToSection('add-chores-section');
-                  }
-                }}
-              >
-                <i className="fas fa-tasks" style={{ color: '#e100ff' }} />
-                <span>Add Chore</span>
-              </button>
-              <button
-                type="button"
-                className="header-quick-add-item"
-                onClick={() => {
-                  setQuickAddOpen(false);
-                  scrollToSection('shopping-list-section');
-                }}
-              >
-                <i className="fas fa-cart-shopping" style={{ color: '#10b981' }} />
-                <span>Add Shopping</span>
-              </button>
-              <button
-                type="button"
-                className="header-quick-add-item"
-                onClick={() => {
-                  setQuickAddOpen(false);
-                  scrollToSection('notes-kanban-section');
-                }}
-              >
-                <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} />
-                <span>New Note</span>
-              </button>
-              <button
-                type="button"
-                className="header-quick-add-item admin-only"
-                onClick={() => {
-                  setQuickAddOpen(false);
-                  if (!adultMode) {
-                    openAdultPinModal(() => scrollToSection('organise-section'));
-                  } else {
-                    scrollToSection('organise-section');
-                  }
-                }}
-              >
-                <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} />
-                <span>Add Organise</span>
-              </button>
-              <button
-                type="button"
-                className="header-quick-add-item admin-only"
-                onClick={() => {
-                  setQuickAddOpen(false);
-                  if (!adultMode) {
-                    openAdultPinModal(() => scrollToSection('create-reward-section'));
-                  } else {
-                    scrollToSection('create-reward-section');
-                  }
-                }}
-              >
-                <i className="fas fa-gift" style={{ color: '#a78bfa' }} />
-                <span>Create Reward</span>
-              </button>
-            </div>
-          </div>
 
-          <a
-            href="#activity_log"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveView('activity_log');
-            }}
-          >
-            <i className="fas fa-history" /> Activity Log
-          </a>
+            <button
+              id="adult-lock-btn"
+              className={adultMode ? 'unlocked' : 'locked'}
+              onClick={handleLockClick}
+              title={adultMode ? 'Adult mode unlocked — tap to lock' : 'Tap to unlock adult mode'}
+            >
+              <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
+            </button>
 
-          <a
-            href="#settings"
-            className="admin-only flex-admin-only"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveView('settings');
-            }}
-          >
-            <i className="fas fa-cog" /> Settings
-          </a>
-
-          <button id="theme-toggle-btn" onClick={toggleTheme} title="Toggle light/dark mode">
-            <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`} />
-          </button>
-
-          <button
-            id="adult-lock-btn"
-            className={adultMode ? 'unlocked' : 'locked'}
-            onClick={handleLockClick}
-            title={adultMode ? 'Adult mode unlocked — tap to lock' : 'Tap to unlock adult mode'}
-          >
-            <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
-          </button>
-        </nav>
-
-        <button
-          className="mute-toggle"
-          id="mute-toggle"
-          onClick={toggleMute}
-          title={muted ? 'Unmute All Sounds' : 'Mute All Sounds'}
-          style={{
-            background: 'var(--cr-header-control-bg)',
-            border: 'none',
-            color: muted ? '#ef4444' : 'var(--cr-text-primary)',
-            padding: 10,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            fontSize: '1.2em',
-          }}
-        >
-          <i className={`fas ${muted ? 'fa-volume-mute' : 'fa-volume-up'}`} id="mute-icon" />
-        </button>
+            <button
+              className="mute-toggle"
+              id="mute-toggle"
+              onClick={toggleMute}
+              title={muted ? 'Unmute All Sounds' : 'Mute All Sounds'}
+              style={{
+                background: 'var(--cr-header-control-bg)',
+                border: 'none',
+                color: muted ? '#ef4444' : 'var(--cr-text-primary)',
+                width: 36,
+                height: 36,
+                minHeight: 0,
+                padding: 0,
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '0.95em',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <i className={`fas ${muted ? 'fa-volume-mute' : 'fa-volume-up'}`} id="mute-icon" />
+            </button>
+          </nav>
+        )}
 
         <button
           id="header-collapse-toggle"
           title={headerMinimized ? 'Expand header' : 'Minimize header'}
           onClick={toggleMinimizeHeader}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 32,
+            height: 32,
+            minHeight: 0,
+            padding: 0,
+            borderRadius: 8,
+            border: '1px solid rgba(148,163,184,0.2)',
+            background: 'rgba(255,255,255,0.06)',
+            color: 'var(--cr-text-secondary)',
+            cursor: 'pointer',
+            marginLeft: headerMinimized ? 'auto' : 0,
+          }}
         >
           <i className={`fas ${headerMinimized ? 'fa-chevron-down' : 'fa-chevron-up'}`} />
         </button>

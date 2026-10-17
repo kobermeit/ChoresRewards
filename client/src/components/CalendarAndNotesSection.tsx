@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
+import { SectionHelpTip } from './HelpTooltipAndView';
 
 const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
 
@@ -146,6 +147,14 @@ export const NotesSection: React.FC = () => {
         onClick={() => setSectionCollapsed((p) => !p)}
       >
         <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} /> <span>Notes</span>
+        <SectionHelpTip
+          title="Sticky Notes & Text Pads"
+          tips={[
+            'Create colour-coded lists for to-dos, school reminders, or family packing lists.',
+            'Tick off notes as you complete them and use "Clear Checked" to archive them.',
+            'Expand "Text Pads" below for longer freeform scratchpads with 1-click copy.',
+          ]}
+        />
         <i className="fas fa-chevron-down section-chevron" />
       </h2>
 

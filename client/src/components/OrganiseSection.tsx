@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
+import { SectionHelpTip } from './HelpTooltipAndView';
 
 export const OrganiseSection: React.FC = () => {
   const { showToast } = useApp();
@@ -181,13 +182,18 @@ export const OrganiseSection: React.FC = () => {
           style={{ cursor: 'pointer' }}
         >
           <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} /> Organise
+          <SectionHelpTip
+            title="Organise (Vehicles, Bills & Renewals)"
+            tips={[
+              'Keep cars, registration, insurance, and recurring household renewals in one place.',
+              'Tap any vehicle card to update odometer kilometres or log service history.',
+              'Click "+12m Renew" on bills/policies to roll the due date forward by a year.',
+            ]}
+          />
           <i className="fas fa-chevron-down section-chevron" />
         </h2>
         <div className="organise-body">
           <div className="organise-toolbar">
-            <p className="org-subtitle">
-              Keep cars, documents and service details in one place. Tap a widget to update kilometres, services or renewals.
-            </p>
             <div className="org-toolbar-actions">
               {(['all', 'cars', 'bills'] as const).map((t) => (
                 <button

@@ -171,6 +171,14 @@ export const SideNav: React.FC = () => {
         >
           <i className="fas fa-chart-bar" />
         </button>
+        <button
+          type="button"
+          className={`side-nav-btn side-nav-link ${activeView === 'help' ? 'side-nav-active' : ''}`}
+          title="Help & Guide"
+          onClick={() => setActiveView('help')}
+        >
+          <i className="fas fa-circle-question" />
+        </button>
         {adultMode && (
           <button
             type="button"
