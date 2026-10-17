@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { DB_PATH, UPLOADS_DIR } from './config';
@@ -197,6 +198,67 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[startup] Error checking stale uploads:', err);
+  }
+
+  // Auto-seed household data migrated from http://homeassistant.local:8081 if DB is empty
+  try {
+    const countRow = db.prepare('SELECT COUNT(id) as cnt FROM person').get() as { cnt: number };
+    if (countRow.cnt === 0) {
+      console.log('[startup] Seeding migrated household data (Sarah, Abby, Gee)...');
+      const pinHash = bcrypt.hashSync('1234', 10);
+
+      const insPerson = db.prepare(
+        'INSERT INTO person (id, name, points, bonus_points, avatar, color, "order", is_admin, pin_hash) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)'
+      );
+      insPerson.run(1, 'Sarah', 0, 'default_avatar.png', '#04201a', 0, 1, pinHash);
+      insPerson.run(2, 'Abby', 56, 'default_avatar.png', '#53234c', 1, 0, null);
+      insPerson.run(3, 'Gee', 6, 'default_avatar.png', '#3e1688', 2, 0, null);
+
+      const insStreak = db.prepare(
+        'INSERT INTO person_streak (person_id, current_streak, longest_streak, last_completed_date) VALUES (?, ?, ?, ?)'
+      );
+      insStreak.run(1, 0, 0, null);
+      insStreak.run(2, 2, 2, null);
+      insStreak.run(3, 1, 1, null);
+
+      const insChore = db.prepare(
+        'INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, deleted, icon, is_extra) VALUES (?, ?, ?, ?, 0, 1, 0, ?, 0)'
+      );
+      insChore.run('Make bed', 2, 'Abby', 1.0, '🛏️');
+      insChore.run('Brush teeth: Morning', 2, 'Abby', 0.0, '🦷');
+      insChore.run('Brush teeth: before bed', 2, 'Abby', 0.0, '🦷');
+      insChore.run('Brush Teeth before bed', 3, 'Gee', 1.0, '🦷');
+
+      AppSetting.set('person_ages_json', JSON.stringify({ '1': 37, '2': 6 }));
+      AppSetting.set('app_timezone', 'Australia/Brisbane');
+      AppSetting.set('reward_system', 'points');
+      AppSetting.set(
+        'meal_suggestions_json',
+        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
+      );
+      AppSetting.set(
+        'meal_ingredients_json',
+        JSON.stringify({
+          'sausage & veg': [
+            { name: 'Beef sausages', qty: '1', store: 'Aldi' },
+            { name: 'Potato', qty: '3', store: 'fruit an vege' },
+            { name: 'Broccoli', qty: '1', store: 'fruit an vege' },
+            { name: 'Carrot', qty: '2', store: 'fruit an vege' },
+          ],
+        })
+      );
+      AppSetting.set(
+        'shopping_stores_json',
+        JSON.stringify([
+          { icon: '/static/images/rewards/store_aldi.svg', id: 'aldi', name: 'Aldi' },
+          { icon: '/static/images/rewards/store_woolworths.svg', id: 'woolworths', name: 'Woolworths' },
+          { icon: '🛒', id: 'coles-7129', name: 'coles' },
+          { icon: '🛒', id: 'fruit-an-vege-4537', name: 'fruit an vege' },
+        ])
+      );
+    }
+  } catch (err) {
+    console.error('[startup] Error seeding migrated household data:', err);
   }
 }
 
