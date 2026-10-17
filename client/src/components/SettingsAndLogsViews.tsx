@@ -47,6 +47,8 @@ export const SettingsView: React.FC = () => {
 
   // Calendar state
   const [calEnabled, setCalEnabled] = useState(false);
+  const [calIcalUrl, setCalIcalUrl] = useState('');
+  const [calEmbedUrl, setCalEmbedUrl] = useState('');
   const [calApiKey, setCalApiKey] = useState('');
   const [calIdsText, setCalIdsText] = useState('');
 
@@ -70,13 +72,15 @@ export const SettingsView: React.FC = () => {
           setGotifyUrl(res.gotify.url || '');
           setGotifyToken(res.gotify.token || '');
         }
-        if (res.google_calendar) {
-          setCalEnabled(Boolean(res.google_calendar.enabled));
-          setCalApiKey(res.google_calendar.api_key || '');
-          const ids = (res.google_calendar.calendars || []).map((c: any) =>
+        if (res.google_calendar || res.gcal_ical_url) {
+          setCalEnabled(Boolean(res.google_calendar_enabled ?? res.google_calendar?.enabled));
+          setCalIcalUrl(res.gcal_ical_url || '');
+          setCalEmbedUrl(res.gcal_embed_url || '');
+          setCalApiKey(res.google_calendar_api_key || res.google_calendar?.api_key || '');
+          const ids = (res.google_calendar?.calendars || []).map((c: any) =>
             typeof c === 'string' ? c : c.id
           );
-          setCalIdsText(ids.join('\n'));
+          setCalIdsText(res.google_calendar_id || ids.join('\n'));
         }
       }
     } catch {
@@ -280,19 +284,16 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveCalendar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const calendars = calIdsText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((id) => ({ id, color: '#3b82f6' }));
-    await apiPost('save_google_calendar_settings', {
-      feature_enabled: calEnabled,
-      enabled: calEnabled,
+    await apiPost('save_calendar_settings', {
+      google_calendar_enabled: calEnabled,
+      gcal_ical_url: calIcalUrl.trim(),
+      gcal_embed_url: calEmbedUrl.trim(),
       api_key: calApiKey.trim(),
-      calendars,
+      calendar_id: calIdsText.trim(),
     });
-    showToast('Saved Google Calendar settings');
+    showToast('Saved Google Calendar settings & synced!');
     await refresh();
+    await loadSettings();
   };
 
   const handleSaveScreensaver = async (e: React.FormEvent) => {
@@ -1020,36 +1021,103 @@ export const SettingsView: React.FC = () => {
 
       {/* 7. GOOGLE CALENDAR TAB */}
       {tab === 'calendar' && (
-        <form onSubmit={handleSaveCalendar} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 640 }}>
-          <h3 style={{ marginTop: 0 }}>📅 Google Calendar Integration</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <form onSubmit={handleSaveCalendar} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>📅 Google Calendar Integration</h3>
+            <button
+              type="button"
+              onClick={async () => {
+                await apiPost('sync_calendar', {});
+                showToast('Calendar synced with Google!');
+                await refresh();
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                background: 'rgba(56, 189, 248, 0.15)',
+                color: '#38bdf8',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <i className="fas fa-rotate" /> Sync Now
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.95rem', fontWeight: 600 }}>
               <input type="checkbox" checked={calEnabled} onChange={(e) => setCalEnabled(e.target.checked)} />
-              Enable Google Calendar on Dashboard
+              Enable Google Calendar Sync
             </label>
+
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>Google API Key</label>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
+                Secret Address in iCal Format (.ics URL) <span style={{ color: '#38bdf8', fontWeight: 500 }}>— Recommended (Zero Setup)</span>
+              </label>
               <input
-                type="password"
-                placeholder="AIzaSy..."
-                value={calApiKey}
-                onChange={(e) => setCalApiKey(e.target.value)}
+                type="url"
+                placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+                value={calIcalUrl}
+                onChange={(e) => setCalIcalUrl(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
               />
+              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
+                In Google Calendar, go to Family Calendar Settings &rarr; "Integrate calendar" &rarr; copy "Secret address in iCal format".
+              </span>
             </div>
+
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>
-                Calendar IDs (one per line, e.g. family@group.calendar.google.com)
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
+                Google Calendar Embed URL (Optional)
               </label>
-              <textarea
-                rows={4}
-                value={calIdsText}
-                onChange={(e) => setCalIdsText(e.target.value)}
-                style={{ width: '100%', padding: 10, borderRadius: 10 }}
+              <input
+                type="url"
+                placeholder="https://calendar.google.com/calendar/embed?src=..."
+                value={calEmbedUrl}
+                onChange={(e) => setCalEmbedUrl(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
               />
+              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
+                Provides an interactive full Google Calendar view on the Calendar page.
+              </span>
             </div>
-            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>
-              Save Calendar Settings
+
+            <details style={{ marginTop: 6, fontSize: '0.84rem' }}>
+              <summary style={{ cursor: 'pointer', color: '#94a3b8', fontWeight: 600 }}>
+                ⚙️ Advanced (Google Cloud API Key / Service Account)
+              </summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>Google API Key</label>
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={calApiKey}
+                    onChange={(e) => setCalApiKey(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4 }}>
+                    Calendar IDs (one per line)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={calIdsText}
+                    onChange={(e) => setCalIdsText(e.target.value)}
+                    style={{ width: '100%', padding: 10, borderRadius: 10 }}
+                  />
+                </div>
+              </div>
+            </details>
+
+            <button type="submit" className="btn-primary" style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 700 }}>
+              💾 Save Calendar Settings
             </button>
           </div>
         </form>

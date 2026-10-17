@@ -8,7 +8,8 @@ import { DashboardSection } from './components/DashboardSection';
 import { ChoresKanbanSection } from './components/ChoresKanbanSection';
 import { RewardsSection, RedeemedRewardsSection } from './components/RewardsSection';
 import { MealAndShoppingSection } from './components/MealAndShoppingSection';
-import { NotesSection, CalendarSection } from './components/CalendarAndNotesSection';
+import { NotesSection } from './components/CalendarAndNotesSection';
+import { CalendarView } from './components/CalendarView';
 import { OrganiseSection } from './components/OrganiseSection';
 import { SettingsView, ActivityLogView, ChoreHistoryView } from './components/SettingsAndLogsViews';
 import { HelpView } from './components/HelpTooltipAndView';
@@ -88,6 +89,8 @@ const MainShell: React.FC<{
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
             <HelpView />
           </div>
+        ) : activeView === 'calendar' ? (
+          <CalendarView />
         ) : (
           <>
             <DashboardSection />
@@ -95,7 +98,6 @@ const MainShell: React.FC<{
             <RewardsSection />
             <RedeemedRewardsSection />
             <MealAndShoppingSection />
-            <CalendarSection />
             <NotesSection />
             <OrganiseSection />
           </>

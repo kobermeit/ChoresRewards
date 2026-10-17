@@ -235,8 +235,12 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         feature_enabled: gcal.featureEnabled,
         enabled: gcal.enabled,
         events: gcal.events,
+        today_events: gcal.today_events || [],
         week_columns: gcal.weekColumns,
         hour_labels: gcal.hourLabels,
+        embed_url: gcal.embed_url || '',
+        ical_url: gcal.ical_url || '',
+        last_sync: gcal.last_sync || null,
         error: gcal.error,
       },
       notion: {

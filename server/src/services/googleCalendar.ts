@@ -133,26 +133,63 @@ function layoutDayEvents(events: any[]): any[] {
   return sorted;
 }
 
-let cachedGcalResult: { timestamp: number; events: any[]; weekColumns: any[]; error: string | null } | null = null;
+import { parseIcsContent } from '../utils/icalParser';
+
+let cachedGcalResult: {
+  timestamp: number;
+  events: any[];
+  today_events: any[];
+  weekColumns: any[];
+  embed_url: string;
+  ical_url: string;
+  error: string | null;
+  last_sync: string | null;
+} | null = null;
 
 export async function getGoogleCalendarData(forceRefresh = false): Promise<{
   featureEnabled: boolean;
   enabled: boolean;
   events: any[];
+  today_events: any[];
   weekColumns: any[];
   hourLabels: string[];
+  embed_url: string;
+  ical_url: string;
   error: string | null;
+  last_sync: string | null;
 }> {
   const featureEnabled = isGoogleCalendarFeatureEnabled();
-  const enabled = featureEnabled && (AppSetting.get('google_calendar_enabled', 'false') || 'false').toLowerCase() === 'true';
+  const icalUrl = (AppSetting.get('gcal_ical_url', '') || AppSetting.get('google_calendar_ical_url', '') || '').trim();
+  const embedUrl = (AppSetting.get('gcal_embed_url', '') || AppSetting.get('google_calendar_embed_url', '') || '').trim();
+  const explicitEnabled = (AppSetting.get('google_calendar_enabled', '') || '').toLowerCase();
+  const isExplicitlyDisabled = explicitEnabled === 'false' || explicitEnabled === '0' || explicitEnabled === 'off';
+  
+  const calendarIdsRaw = (AppSetting.get('google_calendar_id', '') || '').trim();
+  const hasAnyConfig = Boolean(icalUrl || embedUrl || calendarIdsRaw);
+  const enabled = featureEnabled && hasAnyConfig && !isExplicitlyDisabled;
+
   const hourLabels = Array.from({ length: 24 }, (_, h) => {
     const suffix = h < 12 ? 'AM' : 'PM';
     const hr = h % 12 === 0 ? 12 : h % 12;
     return `${hr} ${suffix}`;
   });
 
+  const localToday = getFamilyToday();
+  const weekDates = Array.from({ length: 7 }, (_, idx) => addDays(localToday, idx));
+
   if (!enabled) {
-    return { featureEnabled, enabled: false, events: [], weekColumns: [], hourLabels, error: null };
+    return {
+      featureEnabled,
+      enabled: false,
+      events: [],
+      today_events: [],
+      weekColumns: buildWeekColumns(weekDates, localToday, []),
+      hourLabels,
+      embed_url: embedUrl,
+      ical_url: icalUrl,
+      error: null,
+      last_sync: null,
+    };
   }
 
   const refreshMinutes = Math.max(1, Number(AppSetting.get('google_calendar_refresh_minutes', '15')) || 15);
@@ -161,37 +198,164 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
       featureEnabled,
       enabled,
       events: cachedGcalResult.events,
+      today_events: cachedGcalResult.today_events,
       weekColumns: cachedGcalResult.weekColumns,
       hourLabels,
+      embed_url: cachedGcalResult.embed_url,
+      ical_url: cachedGcalResult.ical_url,
       error: cachedGcalResult.error,
+      last_sync: cachedGcalResult.last_sync,
     };
   }
 
-  const calendarIdsRaw = (AppSetting.get('google_calendar_id', '') || '').trim();
-  const apiKey = (AppSetting.get('google_calendar_api_key', '') || '').trim();
-  const daysAhead = Math.max(1, Number(AppSetting.get('google_calendar_days_ahead', '14')) || 14);
-  const maxResults = Math.max(1, Number(AppSetting.get('google_calendar_max_results', '20')) || 20);
+  const daysAhead = Math.max(14, Number(AppSetting.get('google_calendar_days_ahead', '60')) || 60);
+  const tz = getAppTimezone();
   const colorRules = parseManualColorRules(AppSetting.get('google_calendar_color_rules', '') || '');
   const peopleColors = (db.prepare('SELECT name, color FROM person').all() as Array<{ name: string; color: string }>).map(
     (p) => ({ name: p.name.toLowerCase(), color: p.color || '#3b82f6' })
   );
+
+  // 1. If iCal URL is provided, fetch and parse directly (No GCP required!)
+  if (icalUrl) {
+    try {
+      let fetchUrl = icalUrl;
+      if (fetchUrl.startsWith('webcal://')) {
+        fetchUrl = 'https://' + fetchUrl.slice(9);
+      }
+      const res = await fetch(fetchUrl, {
+        headers: { 'User-Agent': 'ChoresRewards-CalendarSync/1.0' },
+        signal: AbortSignal.timeout(12000),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Google Calendar returned HTTP ${res.status} (${res.statusText})`);
+      }
+
+      const icsText = await res.text();
+      const icsEvents = parseIcsContent(icsText, tz);
+
+      const allEvents: any[] = [];
+      for (const item of icsEvents) {
+        let color = item.color || '#3b82f6';
+        const titleLower = item.summary.toLowerCase();
+        for (const p of peopleColors) {
+          if (titleLower.includes(p.name)) {
+            color = p.color;
+            break;
+          }
+        }
+        for (const r of colorRules) {
+          if (titleLower.includes(r.keyword)) {
+            color = r.color;
+            break;
+          }
+        }
+
+        const [y, mo, da] = item.start_date_iso.split('-').map(Number);
+        const dateObj = new Date(Date.UTC(y, mo - 1, da));
+        const weekdayShort = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(dateObj);
+        const dateLabel = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(dateObj);
+
+        let startMinutes = 0;
+        let durationMinutes = 60;
+        if (!item.all_day && item.start_time) {
+          const [h, m] = item.start_time.split(':').map(Number);
+          startMinutes = (h || 0) * 60 + (m || 0);
+          if (item.end_time) {
+            const [eh, em] = item.end_time.split(':').map(Number);
+            durationMinutes = Math.max(15, ((eh || 0) * 60 + (em || 0)) - startMinutes);
+          }
+        }
+
+        allEvents.push({
+          id: item.id,
+          title: item.summary,
+          summary: item.summary,
+          location: item.location || '',
+          description: item.description || '',
+          all_day: item.all_day,
+          start_date_iso: item.start_date_iso,
+          end_date_iso: item.end_date_iso || item.start_date_iso,
+          weekday_short: weekdayShort,
+          date_label: dateLabel,
+          time_display: item.time_display,
+          start_time_display: item.all_day ? 'All day' : item.time_display.split(' - ')[0],
+          end_time_display: item.all_day ? '' : (item.time_display.split(' - ')[1] || ''),
+          start_time_sort: item.start_time_sort,
+          start_minutes: startMinutes,
+          duration_minutes: durationMinutes,
+          top_px: Math.round((startMinutes / 60) * 48),
+          height_px: Math.max(22, Math.round((durationMinutes / 60) * 48)),
+          color,
+          emoji: item.emoji || '📅',
+        });
+      }
+
+      const todayEvents = allEvents.filter((e) => e.start_date_iso === localToday);
+      const weekColumns = buildWeekColumns(weekDates, localToday, allEvents);
+      const nowIso = new Date().toISOString();
+
+      cachedGcalResult = {
+        timestamp: Date.now(),
+        events: allEvents,
+        today_events: todayEvents,
+        weekColumns,
+        embed_url: embedUrl,
+        ical_url: icalUrl,
+        error: null,
+        last_sync: nowIso,
+      };
+
+      return {
+        featureEnabled,
+        enabled: true,
+        events: allEvents,
+        today_events: todayEvents,
+        weekColumns,
+        hourLabels,
+        embed_url: embedUrl,
+        ical_url: icalUrl,
+        error: null,
+        last_sync: nowIso,
+      };
+    } catch (err: any) {
+      console.error('[GCal iCal Sync Error]:', err);
+      const lastError = err?.message || 'Failed to fetch calendar from iCal URL';
+      return {
+        featureEnabled,
+        enabled: true,
+        events: cachedGcalResult?.events || [],
+        today_events: cachedGcalResult?.today_events || [],
+        weekColumns: cachedGcalResult?.weekColumns || buildWeekColumns(weekDates, localToday, []),
+        hourLabels,
+        embed_url: embedUrl,
+        ical_url: icalUrl,
+        error: lastError,
+        last_sync: cachedGcalResult?.last_sync || null,
+      };
+    }
+  }
+
+  const apiKey = (AppSetting.get('google_calendar_api_key', '') || '').trim();
+  const maxResults = Math.max(1, Number(AppSetting.get('google_calendar_max_results', '20')) || 20);
 
   const calendarIds = calendarIdsRaw
     .split(/[\r\n,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const localToday = getFamilyToday();
-  const weekDates = Array.from({ length: 7 }, (_, idx) => addDays(localToday, idx));
-
   if (calendarIds.length === 0) {
     return {
       featureEnabled,
       enabled,
       events: [],
+      today_events: [],
       weekColumns: buildWeekColumns(weekDates, localToday, []),
       hourLabels,
+      embed_url: embedUrl,
+      ical_url: icalUrl,
       error: 'No Calendar ID configured in Settings.',
+      last_sync: null,
     };
   }
 
@@ -201,15 +365,18 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
       featureEnabled,
       enabled,
       events: [],
+      today_events: [],
       weekColumns: buildWeekColumns(weekDates, localToday, []),
       hourLabels,
+      embed_url: embedUrl,
+      ical_url: icalUrl,
       error: 'Upload a Google Service Account JSON file or configure an API key in Settings.',
+      last_sync: null,
     };
   }
 
   const timeMin = new Date(`${localToday}T00:00:00Z`).toISOString();
   const timeMax = new Date(`${addDays(localToday, daysAhead)}T23:59:59Z`).toISOString();
-  const tz = getAppTimezone();
 
   const allEvents: any[] = [];
   let lastError: string | null = null;
@@ -335,21 +502,32 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
     return a.start_time_sort.localeCompare(b.start_time_sort);
   });
 
+  const todayEvents = allEvents.filter((e) => e.start_date_iso === localToday);
   const weekColumns = buildWeekColumns(weekDates, localToday, allEvents);
+  const nowIso = new Date().toISOString();
+
   cachedGcalResult = {
     timestamp: Date.now(),
     events: allEvents,
+    today_events: todayEvents,
     weekColumns,
+    embed_url: embedUrl,
+    ical_url: icalUrl,
     error: allEvents.length === 0 ? lastError : null,
+    last_sync: nowIso,
   };
 
   return {
     featureEnabled,
     enabled,
     events: allEvents,
+    today_events: todayEvents,
     weekColumns,
     hourLabels,
+    embed_url: embedUrl,
+    ical_url: icalUrl,
     error: cachedGcalResult.error,
+    last_sync: nowIso,
   };
 }
 

@@ -34,7 +34,6 @@ export const SideNav: React.FC = () => {
       'meal-planner-section',
       'shopping-list-section',
       'meal-library-section',
-      'events-section',
       'notes-kanban-section',
       'organise-section',
     ];
@@ -159,12 +158,9 @@ export const SideNav: React.FC = () => {
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'events-section' ? 'side-nav-active' : ''}`}
-          title="Family Events"
-          onClick={() => {
-            setActiveSection('events-section');
-            scrollToSection('events-section');
-          }}
+          className={`side-nav-btn ${activeView === 'calendar' ? 'side-nav-active' : ''}`}
+          title="Family Calendar"
+          onClick={() => setActiveView('calendar')}
         >
           <i className="fas fa-calendar-alt" />
         </button>

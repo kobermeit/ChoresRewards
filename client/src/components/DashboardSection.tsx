@@ -17,6 +17,7 @@ export const DashboardSection: React.FC = () => {
     openPlayGame,
     formatRewardValue,
     showToast,
+    setActiveView,
   } = useApp();
 
   const [screensaverMedia, setScreensaverMedia] = useState<Array<{ filename: string; url: string; type: string }>>([]);
@@ -41,6 +42,7 @@ export const DashboardSection: React.FC = () => {
   if (!data) return null;
 
   const todayIso = data.current_date;
+  const todayEvents = data.google_calendar?.today_events || [];
   const rawTodayMeals: any = data.meal_planner?.plan?.[todayIso];
   const todayMealCards: Array<{ label: string; name: string }> = Array.isArray(rawTodayMeals)
     ? rawTodayMeals.map((m: any) => ({
@@ -201,6 +203,87 @@ export const DashboardSection: React.FC = () => {
           ))}
           {todayMealCards.length === 0 && (
             <p className="dash-empty-hint">No meals planned for today yet.</p>
+          )}
+        </div>
+
+        {/* 3. What's on Today (Google Calendar) */}
+        <div
+          className="dashboard-card dash-tile"
+          data-dash-id="calendar-today"
+          style={{ '--dash-cols': 4, '--dash-rows': 8 } as React.CSSProperties}
+          onClick={() => setActiveView('calendar')}
+        >
+          <h3 className="dashboard-card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move What's on Today">
+                <i className="fas fa-grip-vertical" />
+              </button>
+              <i className="fas fa-calendar-day" style={{ color: '#38bdf8' }} /> What&apos;s on Today
+            </span>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontWeight: 600 }}>
+              Full &rarr;
+            </span>
+          </h3>
+
+          {todayEvents.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center', gap: 4 }}>
+              <span style={{ fontSize: '1.6rem' }}>☀️</span>
+              <p className="dash-empty-hint" style={{ margin: 0 }}>
+                No events scheduled for today.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {todayEvents.slice(0, 4).map((ev) => (
+                <div
+                  key={ev.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    borderLeft: `3px solid ${ev.color || '#38bdf8'}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '1.1rem' }}>{ev.emoji || '📅'}</span>
+                    <span
+                      style={{
+                        fontSize: '0.86rem',
+                        fontWeight: 600,
+                        color: '#f8fafc',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {ev.title}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: ev.all_day ? '#4ade80' : '#38bdf8',
+                      background: 'rgba(0,0,0,0.25)',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {ev.time_display || 'All Day'}
+                  </span>
+                </div>
+              ))}
+              {todayEvents.length > 4 && (
+                <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600, textAlign: 'center' }}>
+                  +{todayEvents.length - 4} more events on calendar
+                </div>
+              )}
+            </div>
           )}
         </div>
 

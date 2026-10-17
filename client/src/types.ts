@@ -209,6 +209,27 @@ export interface ShoppingPurchaseLogItem {
   purchased_at: string;
 }
 
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  summary: string;
+  location?: string;
+  description?: string;
+  all_day: boolean;
+  start_date_iso: string;
+  end_date_iso?: string;
+  weekday_short?: string;
+  date_label?: string;
+  time_display?: string;
+  start_time_display?: string;
+  end_time_display?: string;
+  start_time_sort?: string;
+  start_minutes?: number;
+  duration_minutes?: number;
+  color?: string;
+  emoji?: string;
+}
+
 export interface BootstrapData {
   success: boolean;
   app_version?: string;
@@ -274,9 +295,13 @@ export interface BootstrapData {
   google_calendar: {
     feature_enabled: boolean;
     enabled: boolean;
-    events: any[];
+    events: CalendarEvent[];
+    today_events: CalendarEvent[];
     week_columns: any[];
     hour_labels: string[];
+    embed_url?: string;
+    ical_url?: string;
+    last_sync?: string | null;
     error: string | null;
   };
   notion?: {

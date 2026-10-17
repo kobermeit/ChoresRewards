@@ -204,6 +204,8 @@ function handleGetSettings(_req: Request, res: Response) {
     gotify_notify_rewards_redeemed: AppSetting.get('gotify_notify_rewards_redeemed', 'false') === 'true',
     google_calendar_feature_enabled: isGoogleCalendarFeatureEnabled(),
     google_calendar_enabled: (AppSetting.get('google_calendar_enabled', 'false') || 'false').toLowerCase() === 'true',
+    gcal_ical_url: AppSetting.get('gcal_ical_url', '') || AppSetting.get('google_calendar_ical_url', '') || '',
+    gcal_embed_url: AppSetting.get('gcal_embed_url', '') || AppSetting.get('google_calendar_embed_url', '') || '',
     google_calendar_api_key: AppSetting.get('google_calendar_api_key', '') || '',
     google_calendar_id: AppSetting.get('google_calendar_id', '') || '',
     google_calendar_color_rules: AppSetting.get('google_calendar_color_rules', '') || '',
@@ -419,6 +421,50 @@ settingsRouter.post('/api/reset_daily_chores_now', (_req: Request, res: Response
   AppSetting.set('last_daily_reset', today);
   logActivity('daily_chores_reset', 'Manual daily chores reset triggered from Settings');
   res.json({ success: true, date: today });
+});
+
+settingsRouter.post('/api/save_calendar_settings', requireAdult, async (req: Request, res: Response) => {
+  const data = req.body || {};
+  if (data.gcal_ical_url !== undefined || data.ical_url !== undefined) {
+    AppSetting.set('gcal_ical_url', String(data.gcal_ical_url ?? data.ical_url ?? '').trim());
+  }
+  if (data.gcal_embed_url !== undefined || data.embed_url !== undefined) {
+    AppSetting.set('gcal_embed_url', String(data.gcal_embed_url ?? data.embed_url ?? '').trim());
+  }
+  if (data.google_calendar_enabled !== undefined || data.enabled !== undefined) {
+    const en = data.google_calendar_enabled ?? data.enabled;
+    AppSetting.set('google_calendar_enabled', en ? 'true' : 'false');
+  }
+  if (data.refresh_minutes !== undefined || data.google_calendar_refresh_minutes !== undefined) {
+    const mins = Math.max(1, Number(data.refresh_minutes ?? data.google_calendar_refresh_minutes) || 15);
+    AppSetting.set('google_calendar_refresh_minutes', String(mins));
+  }
+  invalidateGcalCache();
+  logActivity('settings_updated', 'Google Calendar configuration updated');
+  const fresh = await getGoogleCalendarData(true);
+  res.json({
+    success: true,
+    calendar: {
+      enabled: fresh.enabled,
+      events: fresh.events,
+      today_events: fresh.today_events,
+      error: fresh.error,
+      last_sync: fresh.last_sync,
+    },
+  });
+});
+
+settingsRouter.post('/api/sync_calendar', async (_req: Request, res: Response) => {
+  invalidateGcalCache();
+  const fresh = await getGoogleCalendarData(true);
+  res.json({
+    success: !fresh.error,
+    events: fresh.events,
+    today_events: fresh.today_events,
+    week_columns: fresh.weekColumns,
+    error: fresh.error,
+    last_sync: fresh.last_sync,
+  });
 });
 
 settingsRouter.post('/settings/notification', formParser.none(), requireAdult, (req: Request, res: Response) => {

@@ -25,7 +25,8 @@ export type ActiveView =
   | 'settings'
   | 'activity_log'
   | 'chore_history'
-  | 'help';
+  | 'help'
+  | 'calendar';
 
 interface AppContextValue {
   data: BootstrapData | null;
