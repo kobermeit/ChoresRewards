@@ -208,7 +208,7 @@ export function initDatabase() {
       const pinHash = bcrypt.hashSync('1234', 10);
 
       const insPerson = db.prepare(
-        'INSERT INTO person (id, name, points, bonus_points, avatar, color, "order", is_admin, pin_hash) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)'
+        'INSERT INTO person (id, name, points, bonus_points, avatar, color, "order", is_admin, pin) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)'
       );
       insPerson.run(1, 'Sarah', 0, 'default_avatar.png', '#04201a', 0, 1, pinHash);
       insPerson.run(2, 'Abby', 56, 'default_avatar.png', '#53234c', 1, 0, null);
