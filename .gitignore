@@ -12,9 +12,14 @@ venv/
 env/
 .venv/
 
+# Node / TypeScript
+node_modules/
+
 # Flask / SQLite database
 instance/
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
