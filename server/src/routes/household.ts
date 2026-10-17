@@ -779,152 +779,340 @@ householdRouter.post('/api/recipes/import', (req: Request, res: Response) => {
   }
 });
 
-// Notion Database Sync endpoint
+// Helper to parse ingredient strings into structured { name, qty, store }
+function parseNotionIngredientLine(line: string): { name: string; qty: string; store: string } {
+  const clean = line.replace(/^[-*•☐☑\d+.]\s*/, '').trim();
+  if (!clean) return { name: '', qty: '', store: 'aldi' };
+
+  // Match e.g. "500g Chicken breast", "2 cups Tomato passata", "1 tbsp Olive oil", "2 cloves Garlic", "1/2 tsp Salt"
+  const match = clean.match(/^((?:\d+(?:[\/.]\d+)?|\d+\s+\d+\/\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tsp?|cloves?|cans?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|pkg|pack|heads?)?)\s+(.*)$/i);
+  if (match && match[1] && match[2]) {
+    return {
+      qty: match[1].trim(),
+      name: match[2].trim().charAt(0).toUpperCase() + match[2].trim().slice(1),
+      store: 'aldi',
+    };
+  }
+  return {
+    qty: '',
+    name: clean.charAt(0).toUpperCase() + clean.slice(1),
+    store: 'aldi',
+  };
+}
+
+// Helper to fetch all children blocks recursively expanding column_list and columns
+async function fetchNotionBlocksExpanded(blockId: string, token: string): Promise<any[]> {
+  const fetchChildren = async (id: string): Promise<any[]> => {
+    const list: any[] = [];
+    let cursor: string | undefined = undefined;
+    do {
+      const url = new URL(`https://api.notion.com/v1/blocks/${id}/children`);
+      url.searchParams.set('page_size', '100');
+      if (cursor) url.searchParams.set('start_cursor', cursor);
+
+      const resp = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Notion-Version': '2022-06-28',
+        },
+      });
+      if (!resp.ok) break;
+      const data = (await resp.json()) as any;
+      if (Array.isArray(data?.results)) list.push(...data.results);
+      cursor = data?.has_more ? data.next_cursor : undefined;
+    } while (cursor);
+    return list;
+  };
+
+  const topBlocks = await fetchChildren(blockId);
+  const flattened: any[] = [];
+
+  for (const blk of topBlocks) {
+    if (blk.type === 'column_list' && blk.has_children) {
+      try {
+        const columns = await fetchChildren(blk.id);
+        for (const col of columns) {
+          if (col.type === 'column' && col.has_children) {
+            const colItems = await fetchChildren(col.id);
+            flattened.push(...colItems);
+          } else {
+            flattened.push(col);
+          }
+        }
+      } catch {
+        flattened.push(blk);
+      }
+    } else {
+      flattened.push(blk);
+    }
+  }
+
+  return flattened;
+}
+
+// Notion Settings Endpoints
+householdRouter.get('/api/settings/notion', (_req: Request, res: Response) => {
+  const token = AppSetting.get('notion_api_token', '') || '';
+  const rawDbId = AppSetting.get('notion_database_id', '') || '';
+  res.json({
+    success: true,
+    configured: Boolean(token && rawDbId),
+    has_token: Boolean(token),
+    database_id: rawDbId,
+    masked_token: token ? `${token.slice(0, 7)}••••••••${token.slice(-4)}` : '',
+  });
+});
+
+householdRouter.post('/api/settings/notion', (req: Request, res: Response) => {
+  try {
+    const token = req.body?.notion_token !== undefined ? String(req.body.notion_token).trim() : null;
+    const rawDbId = req.body?.database_id !== undefined ? String(req.body.database_id).trim() : null;
+
+    if (token !== null && token !== '') AppSetting.set('notion_api_token', token);
+    if (rawDbId !== null) AppSetting.set('notion_database_id', rawDbId);
+
+    logActivity('settings_updated', 'Updated Notion Recipe integration settings');
+    res.json({ success: true, message: 'Notion settings saved successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Failed to save settings' });
+  }
+});
+
+householdRouter.post('/api/settings/test_notion', async (req: Request, res: Response) => {
+  try {
+    const token = String(req.body?.notion_token || AppSetting.get('notion_api_token', '') || '').trim();
+    const rawDbId = String(req.body?.database_id || AppSetting.get('notion_database_id', '') || '').trim();
+
+    if (!token) {
+      res.status(400).json({ success: false, error: 'Please enter a Notion Integration Token.' });
+      return;
+    }
+    if (!rawDbId) {
+      res.status(400).json({ success: false, error: 'Please enter a Notion Database ID or URL.' });
+      return;
+    }
+
+    const matchId = rawDbId.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    const dbId = matchId ? matchId[1].replace(/-/g, '') : rawDbId.replace(/-/g, '');
+
+    const dbResp = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+      },
+    });
+
+    if (!dbResp.ok) {
+      const errText = await dbResp.text();
+      res.status(400).json({
+        success: false,
+        error: `Notion returned status ${dbResp.status}: ${errText.slice(0, 180)}`,
+      });
+      return;
+    }
+
+    const dbData = (await dbResp.json()) as any;
+    const titleArr = dbData?.title || [];
+    const dbTitle = titleArr.map((t: any) => t?.plain_text || '').join('') || 'Untitled Database';
+
+    res.json({
+      success: true,
+      database_title: dbTitle,
+      message: `Connected successfully to Notion database "${dbTitle}"!`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Connection test failed' });
+  }
+});
+
+// Comprehensive Notion Database Sync endpoint
 householdRouter.post('/api/recipes/sync_notion', async (req: Request, res: Response) => {
   try {
     const token = String(req.body?.notion_token ?? AppSetting.get('notion_api_token', '') ?? '').trim();
     const rawDbId = String(req.body?.database_id ?? AppSetting.get('notion_database_id', '') ?? '').trim();
-    if (req.body?.notion_token !== undefined) AppSetting.set('notion_api_token', token);
-    if (req.body?.database_id !== undefined) AppSetting.set('notion_database_id', rawDbId);
+    if (req.body?.notion_token !== undefined && String(req.body.notion_token).trim()) {
+      AppSetting.set('notion_api_token', token);
+    }
+    if (req.body?.database_id !== undefined && String(req.body.database_id).trim()) {
+      AppSetting.set('notion_database_id', rawDbId);
+    }
 
     if (!token || !rawDbId) {
       res.status(400).json({
         success: false,
-        error: 'Provide both a Notion Integration Token and Notion Database ID.',
+        error: 'Notion integration is not configured. Go to Settings -> Integrations to enter your Notion Token and Database ID.',
       });
       return;
     }
 
     // Extract 32-char hex ID if user pasted a full Notion URL
     const matchId = rawDbId.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    const dbId = matchId ? matchId[1] : rawDbId;
+    const dbId = matchId ? matchId[1].replace(/-/g, '') : rawDbId.replace(/-/g, '');
 
-    const queryResp = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ page_size: 50 }),
-    });
+    // Query database with pagination support
+    const allPages: any[] = [];
+    let queryCursor: string | undefined = undefined;
 
-    if (!queryResp.ok) {
-      const errText = await queryResp.text();
-      res.status(400).json({
-        success: false,
-        error: `Notion API returned ${queryResp.status}: ${errText.slice(0, 200)}`,
+    do {
+      const queryResp = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          page_size: 100,
+          ...(queryCursor ? { start_cursor: queryCursor } : {}),
+        }),
       });
-      return;
-    }
 
-    const queryData = (await queryResp.json()) as any;
-    const pages = Array.isArray(queryData?.results) ? queryData.results : [];
+      if (!queryResp.ok) {
+        const errText = await queryResp.text();
+        res.status(400).json({
+          success: false,
+          error: `Notion API error (${queryResp.status}): ${errText.slice(0, 200)}`,
+        });
+        return;
+      }
+
+      const queryData = (await queryResp.json()) as any;
+      if (Array.isArray(queryData?.results)) {
+        allPages.push(...queryData.results);
+      }
+      queryCursor = queryData?.has_more ? queryData.next_cursor : undefined;
+    } while (queryCursor);
+
     let syncedCount = 0;
 
     const extractRichText = (arr: any[]): string =>
       Array.isArray(arr) ? arr.map((t: any) => t?.plain_text || '').join('') : '';
 
-    for (const page of pages) {
+    for (const page of allPages) {
       const props = page.properties || {};
+
+      // 1. Title / Name
       let title = '';
-      let ingredientsText = '';
-      let instructionsText = '';
-      let imageUrl: string | null =
-        page.cover?.external?.url || page.cover?.file?.url || null;
-
-      for (const [propName, propVal] of Object.entries<any>(props)) {
-        const lower = propName.toLowerCase();
-        if (propVal?.type === 'title') {
-          title = extractRichText(propVal.title).trim();
-        } else if (propVal?.type === 'rich_text') {
-          const txt = extractRichText(propVal.rich_text).trim();
-          if (lower.includes('ingred')) ingredientsText += (ingredientsText ? '\n' : '') + txt;
-          else if (lower.includes('instruct') || lower.includes('method') || lower.includes('step') || lower.includes('direct')) {
-            instructionsText += (instructionsText ? '\n' : '') + txt;
-          }
-        } else if (propVal?.type === 'multi_select' && lower.includes('ingred')) {
-          const names = (propVal.multi_select || []).map((m: any) => m.name).filter(Boolean);
-          ingredientsText += (ingredientsText ? '\n' : '') + names.join('\n');
-        } else if (propVal?.type === 'files' && !imageUrl && propVal.files?.length > 0) {
-          imageUrl = propVal.files[0]?.external?.url || propVal.files[0]?.file?.url || null;
-        }
+      const nameProp = props['Name'] || Object.values(props).find((p: any) => p?.type === 'title');
+      if (nameProp?.type === 'title') {
+        title = extractRichText(nameProp.title).trim();
       }
-
       if (!title) continue;
 
-      // Also fetch page blocks if ingredients or instructions were written in the page body
-      if (!ingredientsText || !instructionsText) {
-        try {
-          const blocksResp = await fetch(`https://api.notion.com/v1/blocks/${page.id}/children?page_size=100`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Notion-Version': '2022-06-28',
-            },
-          });
-          if (blocksResp.ok) {
-            const blocksData = (await blocksResp.json()) as any;
-            let currentSection: 'ing' | 'inst' = 'inst';
-            const ingLines: string[] = [];
-            const instLines: string[] = [];
-
-            for (const blk of blocksData.results || []) {
-              const bType = blk.type;
-              const rich = blk[bType]?.rich_text;
-              const line = extractRichText(rich).trim();
-              if (!line && bType === 'image') {
-                if (!imageUrl) {
-                  imageUrl = blk.image?.external?.url || blk.image?.file?.url || null;
-                }
-                continue;
-              }
-              if (!line) continue;
-              if (bType.startsWith('heading_')) {
-                if (line.toLowerCase().includes('ingred')) currentSection = 'ing';
-                else if (
-                  line.toLowerCase().includes('method') ||
-                  line.toLowerCase().includes('instruct') ||
-                  line.toLowerCase().includes('step') ||
-                  line.toLowerCase().includes('direct')
-                ) {
-                  currentSection = 'inst';
-                }
-                continue;
-              }
-              if (currentSection === 'ing' || bType === 'to_do' || bType === 'bulleted_list_item') {
-                if (!ingredientsText && currentSection === 'ing') ingLines.push(line);
-                else if (!ingredientsText && bType === 'to_do') ingLines.push(line);
-                else instLines.push(line);
-              } else {
-                instLines.push(line);
-              }
-            }
-            if (!ingredientsText && ingLines.length > 0) ingredientsText = ingLines.join('\n');
-            if (!instructionsText && instLines.length > 0) instructionsText = instLines.join('\n');
-          }
-        } catch {
-          // ignore block fetch error
-        }
+      // 2. Cover / Image
+      let imageUrl: string | null = page.cover?.external?.url || page.cover?.file?.url || null;
+      if (!imageUrl && props['Image']?.type === 'files' && props['Image'].files?.length > 0) {
+        imageUrl = props['Image'].files[0]?.external?.url || props['Image'].files[0]?.file?.url || null;
       }
 
-      const parsedIngs = ingredientsText
-        .split(/\r?\n|,/)
-        .map((l) => l.replace(/^[-*•☐☑]\s*/, '').trim())
-        .filter(Boolean)
-        .map((name) => ({ name, qty: '', store: 'aldi' }));
+      // 3. Servings
+      let servings = '';
+      if (props['Servings']?.type === 'number' && props['Servings'].number != null) {
+        servings = `${props['Servings'].number} servings`;
+      }
+
+      // 4. Prep Time / Cuisine / Type tags
+      const mealType = props['Type']?.type === 'select' ? props['Type'].select?.name : '';
+      const cuisine = props['Cuisine']?.type === 'select' ? props['Cuisine'].select?.name : '';
+      const tags = (props['Tags']?.type === 'multi_select' ? props['Tags'].multi_select : [])
+        .map((t: any) => t?.name)
+        .filter(Boolean);
+      const metaParts = [mealType, cuisine, tags.slice(0, 2).join(', ')].filter(Boolean);
+      const prepTime = metaParts.length > 0 ? metaParts.join(' • ') : '25 mins';
+
+      // 5. Ingredients and Directions from Body Blocks
+      let ingredients: Array<{ name: string; qty: string; store: string }> = [];
+      let instructionsText = '';
+
+      try {
+        const blocks = await fetchNotionBlocksExpanded(page.id, token);
+        let currentSection: 'ingredients' | 'directions' | 'notes' | 'none' = 'none';
+        const parsedIngs: Array<{ name: string; qty: string; store: string }> = [];
+        const dirSteps: string[] = [];
+        const notesLines: string[] = [];
+
+        for (const blk of blocks) {
+          const bType = blk.type;
+          const rich = blk[bType]?.rich_text;
+          const line = extractRichText(rich).trim();
+
+          // Image block check
+          if (!line && bType === 'image' && !imageUrl) {
+            imageUrl = blk.image?.external?.url || blk.image?.file?.url || null;
+            continue;
+          }
+
+          if (bType.startsWith('heading_')) {
+            const lower = line.toLowerCase();
+            if (lower.includes('ingred')) {
+              currentSection = 'ingredients';
+            } else if (
+              lower.includes('direct') ||
+              lower.includes('step') ||
+              lower.includes('method') ||
+              lower.includes('instruct')
+            ) {
+              currentSection = 'directions';
+            } else if (lower.includes('note')) {
+              currentSection = 'notes';
+            } else {
+              currentSection = 'none';
+            }
+            continue;
+          }
+
+          if (!line) continue;
+
+          if (currentSection === 'ingredients') {
+            const item = parseNotionIngredientLine(line);
+            if (item.name) parsedIngs.push(item);
+          } else if (currentSection === 'directions') {
+            dirSteps.push(line);
+          } else if (currentSection === 'notes') {
+            notesLines.push(line);
+          } else {
+            // If outside a detected heading, infer based on block type
+            if (bType === 'bulleted_list_item' || bType === 'to_do') {
+              const item = parseNotionIngredientLine(line);
+              if (item.name) parsedIngs.push(item);
+            } else if (bType === 'numbered_list_item') {
+              dirSteps.push(line);
+            } else {
+              dirSteps.push(line);
+            }
+          }
+        }
+
+        ingredients = parsedIngs;
+        if (dirSteps.length > 0) {
+          instructionsText = dirSteps.map((s, idx) => `${idx + 1}. ${s}`).join('\n\n');
+        }
+        if (notesLines.length > 0) {
+          instructionsText += (instructionsText ? '\n\nNotes:\n' : '') + notesLines.map((n) => `• ${n}`).join('\n');
+        }
+      } catch {
+        // block read error fallback
+      }
 
       upsertRecipe({
         title,
         image_url: imageUrl,
-        ingredients: parsedIngs,
+        ingredients,
         instructions: instructionsText,
+        servings,
+        prep_time: prepTime,
         notion_id: page.id,
       });
       syncedCount++;
     }
 
     logActivity('settings_updated', `Synced ${syncedCount} recipe(s) from Notion`);
-    res.json({ success: true, synced_count: syncedCount, recipes: getAllRecipes() });
+    res.json({
+      success: true,
+      synced_count: syncedCount,
+      recipes: getAllRecipes(),
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Notion sync failed' });
   }

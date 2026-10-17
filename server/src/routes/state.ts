@@ -221,6 +221,11 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         hour_labels: gcal.hourLabels,
         error: gcal.error,
       },
+      notion: {
+        configured: Boolean(AppSetting.get('notion_api_token', '')) && Boolean(AppSetting.get('notion_database_id', '')),
+        database_id: AppSetting.get('notion_database_id', '') || '',
+        has_token: Boolean(AppSetting.get('notion_api_token', '')),
+      },
     });
   } catch (err: any) {
     console.error('[bootstrap] Error:', err);

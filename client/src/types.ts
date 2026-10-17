@@ -275,4 +275,9 @@ export interface BootstrapData {
     hour_labels: string[];
     error: string | null;
   };
+  notion?: {
+    configured: boolean;
+    database_id: string;
+    has_token: boolean;
+  };
 }

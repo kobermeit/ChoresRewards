@@ -472,9 +472,13 @@ export const MealAndShoppingSection: React.FC = () => {
   const handleSyncNotion = async () => {
     setNotionSyncing(true);
     try {
-      const res = await apiPost<{ success: boolean; synced: number; error?: string }>('recipes/sync_notion', {});
+      const res = await apiPost<{ success: boolean; synced_count?: number; synced?: number; error?: string }>(
+        'recipes/sync_notion',
+        {}
+      );
       if (res.success) {
-        showToast(`Synced ${res.synced} recipes from Notion!`, { type: 'success' });
+        const count = res.synced_count ?? res.synced ?? 0;
+        showToast(`✨ Synced ${count} recipes from Notion!`, { type: 'success' });
         await refresh();
       } else {
         showToast(res.error || 'Notion sync failed', { type: 'error' });
@@ -1249,32 +1253,54 @@ export const MealAndShoppingSection: React.FC = () => {
         className={`meal-planner-section collapsible-section${libraryCollapsed ? ' collapsed' : ''}`}
         id="meal-library-section"
       >
-        <h2
-          className="section-title section-toggle meal-planner-title"
-          onClick={() => setLibraryCollapsed((p) => !p)}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginBottom: 12,
+          }}
         >
-          <i className="fas fa-book-open" /> <span>Meal Library & Recipes</span>
-          <SectionHelpTip
-            title="Meal Library & Notion Sync"
-            text="Build recipes with ingredients, prep time, servings, and method. Use 'Sync from Notion' to pull recipes directly from your Notion recipe database, or use the webhook API for your Discord/Google Apps Script recipe bot."
-          />
-          <i className="fas fa-chevron-down section-chevron" />
-        </h2>
+          <h2
+            className="section-title section-toggle meal-planner-title"
+            onClick={() => setLibraryCollapsed((p) => !p)}
+            style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <i className="fas fa-book-open" /> <span>Meal Library & Recipes</span>
+            <SectionHelpTip
+              title="Meal Library & Notion Sync"
+              text="Build recipes with ingredients, prep time, servings, and method. Use 'Sync from Notion' to pull recipes directly from your Notion recipe database, or use the webhook API for your Discord/Google Apps Script recipe bot."
+            />
+            <i className="fas fa-chevron-down section-chevron" />
+          </h2>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
           <button
             type="button"
-            className="edit-btn"
-            onClick={handleSyncNotion}
+            className="btn-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSyncNotion();
+            }}
             disabled={notionSyncing}
             style={{
-              background: 'rgba(99,102,241,0.18)',
-              borderColor: 'rgba(99,102,241,0.45)',
+              padding: '6px 14px',
+              borderRadius: 8,
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(99, 102, 241, 0.22)',
+              border: '1px solid rgba(99, 102, 241, 0.45)',
               color: '#c7d2fe',
+              cursor: notionSyncing ? 'not-allowed' : 'pointer',
             }}
+            title="Sync recipes directly from Notion database"
           >
-            <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />{' '}
-            {notionSyncing ? 'Syncing Notion Recipes…' : 'Sync from Notion'}
+            <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />
+            <span>{notionSyncing ? 'Syncing...' : 'Sync from Notion'}</span>
           </button>
         </div>
 

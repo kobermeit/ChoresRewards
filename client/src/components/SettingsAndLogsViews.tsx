@@ -9,9 +9,16 @@ import { SetupWizard } from './SetupWizard';
 export const SettingsView: React.FC = () => {
   const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme } = useApp();
   const [tab, setTab] = useState<
-    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz'
+    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
   >('general');
   const [settingsData, setSettingsData] = useState<any>(null);
+
+  // Notion state
+  const [notionToken, setNotionToken] = useState('');
+  const [notionDbId, setNotionDbId] = useState('');
+  const [notionStatus, setNotionStatus] = useState<{ configured: boolean; message?: string } | null>(null);
+  const [testingNotion, setTestingNotion] = useState(false);
+  const [savingNotion, setSavingNotion] = useState(false);
 
   // General state
   const [tz, setTz] = useState('Australia/Brisbane');
@@ -87,11 +94,65 @@ export const SettingsView: React.FC = () => {
     } catch {
       // ignore
     }
+
+    try {
+      const nRes = await apiGet<any>('settings/notion');
+      if (nRes?.success) {
+        setNotionDbId(nRes.database_id || '');
+        setNotionStatus({ configured: Boolean(nRes.configured) });
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const handleSaveNotion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingNotion(true);
+    try {
+      const res = await apiPost<any>('settings/notion', {
+        notion_token: notionToken.trim() || undefined,
+        database_id: notionDbId.trim(),
+      });
+      if (res.success) {
+        showToast('Saved Notion settings');
+        setNotionStatus({ configured: Boolean(notionDbId.trim()) });
+        await refresh();
+      } else {
+        showToast(res.error || 'Failed to save Notion settings', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save', { type: 'error' });
+    } finally {
+      setSavingNotion(false);
+    }
+  };
+
+  const handleTestNotion = async () => {
+    setTestingNotion(true);
+    try {
+      const res = await apiPost<any>('settings/test_notion', {
+        notion_token: notionToken.trim() || undefined,
+        database_id: notionDbId.trim() || undefined,
+      });
+      if (res.success) {
+        showToast(`✅ ${res.message || 'Connected to Notion!'}`, { type: 'success' });
+        setNotionStatus({ configured: true, message: res.message });
+      } else {
+        showToast(`❌ ${res.error || 'Connection failed'}`, { type: 'error' });
+        setNotionStatus({ configured: false, message: res.error });
+      }
+    } catch (err: any) {
+      showToast(`❌ ${err.message || 'Connection test failed'}`, { type: 'error' });
+      setNotionStatus({ configured: false, message: err.message });
+    } finally {
+      setTestingNotion(false);
+    }
+  };
 
   const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,6 +337,7 @@ export const SettingsView: React.FC = () => {
           { id: 'calendar', label: '📅 Google Calendar' },
           { id: 'screensaver', label: '🖼️ Screensaver' },
           { id: 'quiz', label: '🧠 Brain Quiz' },
+          { id: 'notion', label: '📖 Notion Recipes' },
         ].map((t) => (
           <button
             key={t.id}
@@ -1028,6 +1090,119 @@ export const SettingsView: React.FC = () => {
             Age-matched questions shown when a child finishes all their daily chores.
           </p>
         </div>
+      )}
+
+      {/* 10. NOTION TAB */}
+      {tab === 'notion' && (
+        <form onSubmit={handleSaveNotion} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>📖 Notion Recipe Integration</h3>
+            {notionStatus?.configured ? (
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(34, 197, 94, 0.18)',
+                  color: '#4ade80',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                }}
+              >
+                ✓ Configured
+              </span>
+            ) : (
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(234, 179, 8, 0.18)',
+                  color: '#facc15',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                }}
+              >
+                Not Configured
+              </span>
+            )}
+          </div>
+
+          <p style={{ fontSize: '0.88rem', color: 'var(--cr-text-secondary)', lineHeight: 1.5, margin: '0 0 16px' }}>
+            Connect your Notion recipe database to sync recipes, ingredients, servings, and cooking directions directly into the Meal Planner with a single click.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '0.86rem', fontWeight: 700 }}>
+                Notion Integration Token <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="password"
+                value={notionToken}
+                onChange={(e) => setNotionToken(e.target.value)}
+                placeholder="secret_..."
+                className="modern-input"
+                autoComplete="off"
+              />
+              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>
+                Create an internal integration at <strong>notion.so/my-integrations</strong> and paste the secret token here.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '0.86rem', fontWeight: 700 }}>
+                Notion Database ID or URL <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={notionDbId}
+                onChange={(e) => setNotionDbId(e.target.value)}
+                placeholder="e.g. 1a2b3c4d5e6f... or full Notion database URL"
+                className="modern-input"
+              />
+              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>
+                Copy the 32-character ID from your Notion database URL (or paste the entire database URL).
+              </span>
+            </div>
+
+            {/* Guide notice */}
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                fontSize: '0.82rem',
+                color: '#c7d2fe',
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>💡 Important:</strong> In Notion, open your recipe database, click the <strong>•••</strong> menu at top right → <strong>Connections</strong> → <strong>Add connection</strong>, and select your integration.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className="btn-cancel"
+                disabled={testingNotion}
+                onClick={handleTestNotion}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <i className={testingNotion ? 'fas fa-spinner fa-spin' : 'fas fa-plug'} />
+                {testingNotion ? 'Testing...' : 'Test Connection'}
+              </button>
+
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={savingNotion}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <i className="fas fa-check" />
+                {savingNotion ? 'Saving...' : 'Save Notion Settings'}
+              </button>
+            </div>
+          </div>
+        </form>
       )}
     </div>
   );
