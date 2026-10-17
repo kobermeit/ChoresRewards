@@ -7,7 +7,7 @@ import { SetupWizard } from './SetupWizard';
 // 1. SETTINGS VIEW
 // ============================================================================
 export const SettingsView: React.FC = () => {
-  const { data, refresh, setActiveView, showToast, playSound } = useApp();
+  const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme } = useApp();
   const [tab, setTab] = useState<
     'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz'
   >('general');
@@ -309,8 +309,59 @@ export const SettingsView: React.FC = () => {
       {/* 1. GENERAL TAB */}
       {tab === 'general' && (
         <form onSubmit={handleSaveGeneral} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
-          <h3 style={{ marginTop: 0 }}>🌐 General, Reset Time & Security Settings</h3>
+          <h3 style={{ marginTop: 0 }}>🌐 General, Theme & Security Settings</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Dark Mode Toggle */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>
+                  <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'}`} style={{ marginRight: 8, color: '#fbbf24' }} />
+                  Dark Mode
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.75 }}>
+                  Currently {theme === 'dark' ? 'Enabled (Dark)' : 'Disabled (Light)'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                  color: theme === 'dark' ? '#93c5fd' : 'inherit',
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{theme === 'dark' ? 'ON' : 'OFF'}</span>
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: theme === 'dark' ? '#3b82f6' : '#94a3b8',
+                    display: 'inline-block',
+                  }}
+                />
+              </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>

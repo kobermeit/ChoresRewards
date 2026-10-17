@@ -78,7 +78,8 @@ export function initDatabase() {
       assigned_to_id INTEGER REFERENCES person(id),
       assigned_to VARCHAR(50),
       completed BOOLEAN DEFAULT 0,
-      date_completed DATETIME
+      date_completed DATETIME,
+      is_recurring BOOLEAN DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS activity_log (
@@ -183,6 +184,7 @@ export function initDatabase() {
   ensureColumn('chore', 'icon', 'VARCHAR(20)');
   ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
   ensureColumn('chore', 'extra_id', 'VARCHAR(32)');
+  ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');
 
   const orgNewCols: Array<[string, string]> = [
     ['photo_filename', 'VARCHAR(255)'],

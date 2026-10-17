@@ -29,7 +29,6 @@ export const rewardsRouter = Router();
 
 rewardsRouter.post(
   '/add_reward',
-  requireAdult,
   rewardUpload.fields([
     { name: 'reward_image_file', maxCount: 1 },
     { name: 'image', maxCount: 1 },
@@ -60,24 +59,28 @@ rewardsRouter.post(
         finalImageUrl = imageUrlInput;
       }
 
-      const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+      const isEveryone = !assignedTo || assignedTo.toLowerCase() === 'everyone' || assignedTo.toLowerCase() === 'all';
+      const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any);
+      const finalAssignee = isEveryone ? 'Everyone' : (person ? person.name : assignedTo);
+      const isRecurring = data.is_recurring === undefined || data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1';
+
       const info = db
         .prepare(
-          `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed)
-           VALUES (?, ?, ?, ?, ?, ?, 0)`
+          `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, is_recurring)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?)`
         )
-        .run(title, pointsRequired, finalImageUrl, description, person ? person.id : null, assignedTo);
+        .run(title, pointsRequired, finalImageUrl, description, person ? person.id : null, finalAssignee, isRecurring ? 1 : 0);
 
       logActivity(
         'reward_added',
-        `Reward '${title}' (${pointsRequired} pts) was added for ${assignedTo}`,
-        assignedTo
+        `Reward '${title}' (${pointsRequired} pts) was added for ${finalAssignee}`,
+        finalAssignee
       );
 
       if (AppSetting.get('gotify_notify_rewards_added', 'false') === 'true') {
         sendGotifyNotification(
           'New Reward Added',
-          `Reward '${title}' (${pointsRequired} points) was added for ${assignedTo}.`,
+          `Reward '${title}' (${pointsRequired} points) was added for ${finalAssignee}.`,
           4
         ).catch(() => {});
       }
@@ -98,7 +101,7 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post('/edit_reward', requireAdult, (req: Request, res: Response) => {
+rewardsRouter.post('/edit_reward', (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const rewardId = Number(data.reward_id ?? data.id);
@@ -116,15 +119,17 @@ rewardsRouter.post('/edit_reward', requireAdult, (req: Request, res: Response) =
     const description = data.description !== undefined ? String(data.description).trim() : reward.description;
     const pointsRequired =
       data.points_required !== undefined ? roundPoints(data.points_required) : reward.points_required;
-    const assignedTo =
-      data.assigned_to !== undefined && String(data.assigned_to).trim()
-        ? String(data.assigned_to).trim()
-        : reward.assigned_to;
+    const rawAssignedTo = data.assigned_to !== undefined ? String(data.assigned_to).trim() : reward.assigned_to;
+    const isEveryone = !rawAssignedTo || rawAssignedTo.toLowerCase() === 'everyone' || rawAssignedTo.toLowerCase() === 'all';
+    const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(rawAssignedTo) as any);
+    const assignedTo = isEveryone ? 'Everyone' : (person ? person.name : rawAssignedTo);
+    const isRecurring = data.is_recurring !== undefined
+      ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1' ? 1 : 0)
+      : (reward.is_recurring !== 0 ? 1 : 0);
 
-    const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
     db.prepare(
-      'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ? WHERE id = ?'
-    ).run(title, description, pointsRequired, assignedTo, person ? person.id : reward.assigned_to_id, rewardId);
+      'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ? WHERE id = ?'
+    ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, rewardId);
 
     res.json({ success: true });
   } catch (err: any) {
@@ -134,7 +139,6 @@ rewardsRouter.post('/edit_reward', requireAdult, (req: Request, res: Response) =
 
 rewardsRouter.post(
   '/edit_reward_image',
-  requireAdult,
   rewardUpload.single('image'),
   (req: Request, res: Response) => {
     try {
@@ -167,7 +171,7 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post('/delete_reward', requireAdult, (req: Request, res: Response) => {
+rewardsRouter.post('/delete_reward', (req: Request, res: Response) => {
   try {
     const rewardId = Number(req.body?.reward_id);
     if (!rewardId) {
@@ -187,49 +191,65 @@ rewardsRouter.post('/delete_reward', requireAdult, (req: Request, res: Response)
   }
 });
 
-rewardsRouter.post('/complete_reward', requireAdult, (req: Request, res: Response) => {
+rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
   try {
-    const { reward_id, assigned_to_id } = req.body || {};
+    const { reward_id, assigned_to_id, person_id, person_name } = req.body || {};
     const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(Number(reward_id)) as any;
     if (!reward) {
       res.status(404).json({ success: false, error: 'Reward not found' });
       return;
     }
-    if (reward.completed) {
-      res.status(409).json({ success: false, error: 'This reward was already redeemed' });
+
+    const isRecurring = reward.is_recurring !== 0 && reward.is_recurring !== false;
+    if (!isRecurring && reward.completed) {
+      res.status(409).json({ success: false, error: 'This one-time reward was already redeemed' });
       return;
     }
 
     let person: any = null;
-    if (reward.assigned_to_id) {
+    const targetPersonId = person_id || assigned_to_id;
+    if (targetPersonId) {
+      person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(targetPersonId));
+    }
+    if (!person && person_name) {
+      person = db.prepare('SELECT * FROM person WHERE name = ?').get(String(person_name).trim());
+    }
+    if (!person && reward.assigned_to_id) {
       person = db.prepare('SELECT * FROM person WHERE id = ?').get(reward.assigned_to_id);
     }
-    if (!person && reward.assigned_to) {
+    if (!person && reward.assigned_to && reward.assigned_to.toLowerCase() !== 'everyone' && reward.assigned_to.toLowerCase() !== 'all') {
       person = db.prepare('SELECT * FROM person WHERE name = ?').get(reward.assigned_to);
     }
-    if (!person && assigned_to_id) {
-      person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(assigned_to_id));
-    }
     if (!person) {
-      res.status(404).json({ success: false, error: 'Assigned person not found' });
+      res.status(404).json({ success: false, error: 'Please choose which family member is redeeming this reward' });
       return;
     }
 
     const currentPoints = roundPoints(person.points);
     const requiredPoints = roundPoints(reward.points_required);
     if (currentPoints < requiredPoints) {
-      res.status(400).json({ success: false, error: `${person.name} does not have enough points` });
+      res.status(400).json({ success: false, error: `${person.name} does not have enough points (${currentPoints} / ${requiredPoints} required)` });
       return;
     }
 
     const { isoNaive } = getLocalNowNaive(getAppTimezone());
-    const claimInfo = db
-      .prepare('UPDATE reward SET completed = 1, date_completed = ? WHERE id = ? AND completed = 0')
-      .run(isoNaive, reward.id);
 
-    if (claimInfo.changes === 0) {
-      res.status(409).json({ success: false, error: 'This reward was already redeemed' });
-      return;
+    if (isRecurring) {
+      // Create a redemption record in the reward table so it shows in Redeemed Rewards history,
+      // while the primary template reward remains completed = 0 in Available Rewards!
+      db.prepare(
+        `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, date_completed, is_recurring)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1)`
+      ).run(reward.title, reward.points_required, reward.image_url, reward.description, person.id, person.name, isoNaive);
+    } else {
+      const claimInfo = db
+        .prepare('UPDATE reward SET completed = 1, date_completed = ?, assigned_to_id = ?, assigned_to = ? WHERE id = ? AND completed = 0')
+        .run(isoNaive, person.id, person.name, reward.id);
+
+      if (claimInfo.changes === 0) {
+        res.status(409).json({ success: false, error: 'This reward was already redeemed' });
+        return;
+      }
     }
 
     const newPoints = roundPoints(currentPoints - requiredPoints);
@@ -253,6 +273,7 @@ rewardsRouter.post('/complete_reward', requireAdult, (req: Request, res: Respons
       success: true,
       message: `Reward "${reward.title}" has been completed by ${person.name}`,
       new_points: newPoints,
+      assigned_to: person.name,
     });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });

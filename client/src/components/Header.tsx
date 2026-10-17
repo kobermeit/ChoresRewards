@@ -191,6 +191,27 @@ export const Header: React.FC = () => {
   };
 
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
+  const notifWrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifWrapRef.current && !notifWrapRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [notifOpen]);
 
   return (
     <header className={`dashboard-header-sticky${headerExpanded ? ' header-expanded' : ''}`}>
@@ -338,7 +359,7 @@ export const Header: React.FC = () => {
           </div>
         )}
 
-        {/* Header Actions */}
+        {/* Header Actions: Notification Bell + Adult Lock */}
         {!headerMinimized && (
           <nav
             className="header-nav-actions"
@@ -349,20 +370,17 @@ export const Header: React.FC = () => {
               borderTop: 'none',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
+              gap: 10,
+              flexWrap: 'nowrap',
             }}
           >
             {/* Notification Bell */}
-            <div className="header-notif-wrap" id="header-notif-wrap">
+            <div className="header-notif-wrap" id="header-notif-wrap" ref={notifWrapRef}>
               <button
                 type="button"
                 className="header-notif-btn"
                 id="header-notif-btn"
-                onClick={() => {
-                  setNotifOpen((p) => !p);
-                  setQuickAddOpen(false);
-                }}
+                onClick={() => setNotifOpen((p) => !p)}
                 title="Notifications"
                 aria-haspopup="true"
                 aria-expanded={notifOpen}
@@ -435,134 +453,7 @@ export const Header: React.FC = () => {
               )}
             </div>
 
-            {/* Quick Add Dropdown */}
-            <div
-              className={`header-quick-add-wrap${quickAddOpen ? ' is-open' : ''}`}
-              id="header-quick-add-wrap"
-            >
-              <button
-                type="button"
-                className="header-quick-add-btn"
-                id="header-quick-add-btn"
-                aria-haspopup="true"
-                aria-expanded={quickAddOpen}
-                title="Quick Add"
-                onClick={() => {
-                  setQuickAddOpen((p) => !p);
-                  setNotifOpen(false);
-                }}
-              >
-                <i className="fas fa-plus" />
-                <span>Quick Add</span>
-                <i className="fas fa-chevron-down quick-add-chevron" />
-              </button>
-              <div className="header-quick-add-menu" id="header-quick-add-menu">
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('add-chores-section'));
-                    } else {
-                      scrollToSection('add-chores-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-tasks" style={{ color: '#e100ff' }} />
-                  <span>Add Chore</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    scrollToSection('shopping-list-section');
-                  }}
-                >
-                  <i className="fas fa-cart-shopping" style={{ color: '#10b981' }} />
-                  <span>Add Shopping</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    scrollToSection('notes-kanban-section');
-                  }}
-                >
-                  <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} />
-                  <span>New Note</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item admin-only"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('organise-section'));
-                    } else {
-                      scrollToSection('organise-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} />
-                  <span>Add Organise</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item admin-only"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('create-reward-section'));
-                    } else {
-                      scrollToSection('create-reward-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-gift" style={{ color: '#a78bfa' }} />
-                  <span>Create Reward</span>
-                </button>
-              </div>
-            </div>
-
-            <a
-              href="#activity_log"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveView('activity_log');
-              }}
-            >
-              <i className="fas fa-history" /> Activity Log
-            </a>
-
-            <a
-              href="#help"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveView('help');
-              }}
-              title="Help & Guide"
-            >
-              <i className="fas fa-circle-question" /> Help
-            </a>
-
-            <a
-              href="#settings"
-              className="admin-only flex-admin-only"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveView('settings');
-              }}
-            >
-              <i className="fas fa-cog" /> Settings
-            </a>
-
-            <button id="theme-toggle-btn" onClick={toggleTheme} title="Toggle light/dark mode">
-              <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`} />
-            </button>
-
+            {/* Parent Lock / Unlock */}
             <button
               id="adult-lock-btn"
               className={adultMode ? 'unlocked' : 'locked'}
@@ -570,30 +461,6 @@ export const Header: React.FC = () => {
               title={adultMode ? 'Adult mode unlocked — tap to lock' : 'Tap to unlock adult mode'}
             >
               <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
-            </button>
-
-            <button
-              className="mute-toggle"
-              id="mute-toggle"
-              onClick={toggleMute}
-              title={muted ? 'Unmute All Sounds' : 'Mute All Sounds'}
-              style={{
-                background: 'var(--cr-header-control-bg)',
-                border: 'none',
-                color: muted ? '#ef4444' : 'var(--cr-text-primary)',
-                width: 36,
-                height: 36,
-                minHeight: 0,
-                padding: 0,
-                borderRadius: '50%',
-                cursor: 'pointer',
-                fontSize: '0.95em',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <i className={`fas ${muted ? 'fa-volume-mute' : 'fa-volume-up'}`} id="mute-icon" />
             </button>
           </nav>
         )}

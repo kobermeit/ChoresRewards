@@ -84,6 +84,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       assigned_to: r.assigned_to,
       completed: Boolean(r.completed),
       date_completed: r.date_completed || null,
+      is_recurring: r.is_recurring !== 0 && r.is_recurring !== false,
     }));
 
     const weekStart = getMondayOfWeek(familyToday);

@@ -255,6 +255,10 @@ const VisualTimerModal: React.FC = () => {
           padding: 28,
           borderRadius: 24,
           textAlign: 'center',
+          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)',
+          color: 'var(--cr-text-primary, #fff)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -512,6 +516,10 @@ const KidsPlayWidgetModal: React.FC = () => {
           padding: 24,
           borderRadius: 24,
           textAlign: 'center',
+          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)',
+          color: 'var(--cr-text-primary, #fff)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,16 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
-import { Reward } from '../types';
-
-const INITIAL_REWARD_SUGGESTIONS = [
-  'Millhouse Canteen',
-  'MiniGolf',
-  '1 hour of ipad',
-  '1 hour of TV',
-  'A Movie',
-  'Baking Something Yum',
-];
+import { Reward, FamilyMember } from '../types';
+import { Modal } from './common/Modal';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -27,136 +19,244 @@ const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_cafe.svg', label: 'Café Treat' },
 ];
 
+const STANDARD_SUGGESTIONS = [
+  'Millhouse Canteen',
+  'MiniGolf',
+  '1 hour of ipad',
+  '1 hour of TV',
+  'A Movie',
+  'Baking Something Yum',
+  'Take Out Dinner',
+  'Ice Cream Treat',
+  'Gaming Session',
+];
+
 function getRewardIconClass(title: string): string {
-  if (title === 'Millhouse Canteen') return 'fa-utensils';
-  if (title === 'MiniGolf') return 'fa-golf-ball';
-  if (title === '1 hour of ipad') return 'fa-tablet-alt';
-  if (title === '1 hour of TV') return 'fa-tv';
-  if (title === 'A Movie') return 'fa-film';
-  if (title === 'Baking Something Yum') return 'fa-birthday-cake';
+  const lower = (title || '').toLowerCase();
+  if (lower.includes('canteen') || lower.includes('dinner') || lower.includes('treat')) return 'fa-utensils';
+  if (lower.includes('golf')) return 'fa-golf-ball';
+  if (lower.includes('ipad') || lower.includes('screen') || lower.includes('tablet')) return 'fa-tablet-alt';
+  if (lower.includes('tv')) return 'fa-tv';
+  if (lower.includes('movie')) return 'fa-film';
+  if (lower.includes('bake') || lower.includes('cake') || lower.includes('ice cream')) return 'fa-birthday-cake';
+  if (lower.includes('game') || lower.includes('gaming')) return 'fa-gamepad';
   return 'fa-gift';
 }
 
 export const RewardsSection: React.FC = () => {
-  const { data, refresh, adultMode, playSound, showToast } = useApp();
+  const { data, refresh, playSound, showToast } = useApp();
 
-  // Accordion states
+  // Accordion state
   const [availableCollapsed, setAvailableCollapsed] = useState(false);
-  const [createCollapsed, setCreateCollapsed] = useState(true);
 
-  // Suggestions
-  const [rewardSuggestions, setRewardSuggestions] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('rewardSuggestions');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_REWARD_SUGGESTIONS;
-  });
-  const [showSuggestionInput, setShowSuggestionInput] = useState(false);
-  const [newSuggestion, setNewSuggestion] = useState('');
-  const [suggestionEditMode, setSuggestionEditMode] = useState(false);
+  // Person filter state (null = All Family)
+  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
 
-  // Create reward state
-  const [title, setTitle] = useState('');
-  const [pointsRequired, setPointsRequired] = useState('');
-  const [assignedTo, setAssignedTo] = useState('');
-  const [description, setDescription] = useState('');
-  const [stockImageUrl, setStockImageUrl] = useState('');
-  const [stockImageLabel, setStockImageLabel] = useState('Choose a Stock Image');
+  // Add / Edit Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingReward, setEditingReward] = useState<Reward | null>(null);
+
+  // Form fields
+  const [formTitle, setFormTitle] = useState('');
+  const [formPoints, setFormPoints] = useState('');
+  const [formAssignedTo, setFormAssignedTo] = useState('Everyone');
+  const [formIsRecurring, setFormIsRecurring] = useState(true);
+  const [formDescription, setFormDescription] = useState('');
+  const [formStockImageUrl, setFormStockImageUrl] = useState('');
+  const [formStockLabel, setFormStockLabel] = useState('Choose a Stock Image');
   const [stockPickerOpen, setStockPickerOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [formImageUrl, setFormImageUrl] = useState('');
+  const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Edit reward modal state
-  const [editingReward, setEditingReward] = useState<Reward | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editPoints, setEditPoints] = useState('');
-  const [editAssignedTo, setEditAssignedTo] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editImageUrl, setEditImageUrl] = useState('');
+  // Picker modal for "Everyone" rewards when redeeming without a filtered person
+  const [redeemPickerReward, setRedeemPickerReward] = useState<Reward | null>(null);
 
-  // Redeemed celebration state
-  const [celebratingReward, setCelebratingReward] = useState<Reward | null>(null);
+  // Celebration modal state
+  const [celebratingReward, setCelebratingReward] = useState<{ title: string; personName: string } | null>(null);
 
   if (!data) return null;
 
-  const family = data.family || [];
-  const rewards = data.rewards || [];
+  const family: FamilyMember[] = data.family || [];
+  const rewards: Reward[] = data.rewards || [];
   const availableRewards = rewards.filter((r) => !r.completed);
   const isCash = data.reward_system === 'cash';
-  const selectedAssignee = assignedTo || family[0]?.name || '';
 
-  const saveSuggestions = (next: string[]) => {
-    setRewardSuggestions(next);
-    try {
-      localStorage.setItem('rewardSuggestions', JSON.stringify(next));
-    } catch {
-      // ignore
-    }
+  // Autocomplete unique suggestions from DB + standards
+  const allSuggestions = useMemo(() => {
+    const set = new Set<string>(STANDARD_SUGGESTIONS);
+    rewards.forEach((r) => {
+      if (r.title && r.title.trim()) set.add(r.title.trim());
+    });
+    return Array.from(set);
+  }, [rewards]);
+
+  const selectedPerson = selectedPersonId != null ? family.find((p) => p.id === selectedPersonId) || null : null;
+
+  // Filter available rewards by selected person
+  const filteredRewards = useMemo(() => {
+    if (!selectedPerson) return availableRewards;
+    return availableRewards.filter((r) => {
+      if (r.assigned_to === 'Everyone' || r.assigned_to === 'All' || !r.assigned_to) return true;
+      if (r.assigned_to_id != null && r.assigned_to_id === selectedPerson.id) return true;
+      if (r.assigned_to === selectedPerson.name) return true;
+      return false;
+    });
+  }, [availableRewards, selectedPerson]);
+
+  const openAddModal = () => {
+    setEditingReward(null);
+    setFormTitle('');
+    setFormPoints('10');
+    setFormAssignedTo(selectedPerson ? selectedPerson.name : 'Everyone');
+    setFormIsRecurring(true);
+    setFormDescription('');
+    setFormStockImageUrl('');
+    setFormStockLabel('Choose a Stock Image');
+    setStockPickerOpen(false);
+    setFormImageUrl('');
+    setFormImageFile(null);
+    setModalOpen(true);
   };
 
-  const handleCreateReward = async (e: React.FormEvent) => {
+  const openEditModal = (r: Reward) => {
+    setEditingReward(r);
+    setFormTitle(r.title);
+    setFormPoints(String(r.points_required));
+    setFormAssignedTo(r.assigned_to || 'Everyone');
+    setFormIsRecurring(r.is_recurring !== false);
+    setFormDescription(r.description || '');
+    setFormStockImageUrl(r.image_url && r.image_url.startsWith('./static/images/rewards/') ? r.image_url : '');
+    setFormStockLabel(
+      r.image_url && r.image_url.startsWith('./static/images/rewards/') ? 'Stock Image Selected' : 'Choose a Stock Image'
+    );
+    setStockPickerOpen(false);
+    setFormImageUrl(r.image_url && !r.image_url.startsWith('./static/images/rewards/') ? r.image_url : '');
+    setFormImageFile(null);
+    setModalOpen(true);
+  };
+
+  const handleSaveModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    if (!selectedAssignee) {
-      showToast('Please add a family member first', { type: 'error' });
-      return;
-    }
+    if (!formTitle.trim()) return;
 
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('title', title.trim());
-      fd.append('points_required', String(parseFloat(pointsRequired) || 10));
-      fd.append('assigned_to', selectedAssignee);
-      fd.append('description', description.trim());
-      if (imageFile) {
-        fd.append('image_file', imageFile);
-      } else if (imageUrl.trim()) {
-        fd.append('image_url', imageUrl.trim());
-      } else if (stockImageUrl) {
-        fd.append('stock_image_url', stockImageUrl);
+      const assignedPerson = family.find((p) => p.name === formAssignedTo);
+      const isEveryone = formAssignedTo === 'Everyone' || formAssignedTo === 'All';
+
+      if (editingReward) {
+        // Edit existing
+        await apiPost('edit_reward', {
+          reward_id: editingReward.id,
+          title: formTitle.trim(),
+          points_required: parseFloat(formPoints) || 10,
+          assigned_to: formAssignedTo,
+          person_id: isEveryone ? null : assignedPerson?.id || null,
+          is_recurring: formIsRecurring ? 1 : 0,
+          description: formDescription.trim(),
+        });
+
+        // Handle image edit if changed
+        let chosenImage = editingReward.image_url || '';
+        if (formStockImageUrl) {
+          chosenImage = formStockImageUrl;
+        } else if (formImageUrl.trim()) {
+          chosenImage = formImageUrl.trim();
+        }
+        if (chosenImage !== (editingReward.image_url || '')) {
+          await apiPost('edit_reward_image', {
+            reward_id: editingReward.id,
+            image_url: chosenImage,
+          });
+        }
+
+        showToast(`Updated reward "${formTitle.trim()}"`);
+      } else {
+        // Create new
+        const fd = new FormData();
+        fd.append('title', formTitle.trim());
+        fd.append('points_required', String(parseFloat(formPoints) || 10));
+        fd.append('assigned_to', formAssignedTo);
+        if (!isEveryone && assignedPerson) {
+          fd.append('person_id', String(assignedPerson.id));
+        }
+        fd.append('is_recurring', formIsRecurring ? '1' : '0');
+        fd.append('description', formDescription.trim());
+
+        if (formImageFile) {
+          fd.append('image_file', formImageFile);
+        } else if (formImageUrl.trim()) {
+          fd.append('image_url', formImageUrl.trim());
+        } else if (formStockImageUrl) {
+          fd.append('stock_image_url', formStockImageUrl);
+        }
+
+        const res = await apiPost<{ success: boolean; error?: string }>('add_reward', fd);
+        if (res.success === false) {
+          throw new Error(res.error || 'Failed to add reward');
+        }
+        showToast(`🎁 Created reward "${formTitle.trim()}"`);
       }
 
-      const res = await apiPost<{ success: boolean; error?: string }>('add_reward', fd);
-      if (res.success !== false) {
-        setTitle('');
-        setPointsRequired('');
-        setDescription('');
-        setImageUrl('');
-        setStockImageUrl('');
-        setStockImageLabel('Choose a Stock Image');
-        setImageFile(null);
-        showToast(`🎁 Created reward "${title.trim()}"`);
-        await refresh();
-      } else {
-        showToast(res.error || 'Failed to add reward', { type: 'error' });
-      }
+      setModalOpen(false);
+      await refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to add reward', { type: 'error' });
+      showToast(err.message || 'Failed to save reward', { type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleRedeemReward = async (reward: Reward) => {
-    if (!adultMode) {
-      showToast('Ask an adult to unlock first 🔒', { type: 'warning' });
+  const handleRedeemReward = async (reward: Reward, targetPerson?: FamilyMember) => {
+    const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
+
+    // Determine who is redeeming
+    let personToRedeem = targetPerson;
+    if (!personToRedeem) {
+      if (selectedPerson) {
+        personToRedeem = selectedPerson;
+      } else if (!isEveryone) {
+        personToRedeem = family.find((p) => p.name === reward.assigned_to);
+      }
+    }
+
+    // If it's an "Everyone" reward and we don't know who is redeeming, open the picker modal
+    if (isEveryone && !personToRedeem) {
+      setRedeemPickerReward(reward);
       return;
     }
+
+    if (!personToRedeem) {
+      showToast('Could not find family member to redeem', { type: 'error' });
+      return;
+    }
+
+    const currentPts = (personToRedeem.points || 0) + (personToRedeem.bonus_points || 0);
+    const reqPts = Number(reward.points_required || 1);
+    if (currentPts < reqPts) {
+      showToast(`${personToRedeem.name} needs ${reqPts - currentPts} more points to redeem this!`, { type: 'warning' });
+      return;
+    }
+
     try {
       const res = await apiPost<{ success: boolean; error?: string }>('complete_reward', {
         reward_id: reward.id,
+        person_id: personToRedeem.id,
+        assigned_to_id: personToRedeem.id,
+        person_name: personToRedeem.name,
       });
-      if (res.success) {
+
+      if (res.success !== false) {
         playSound();
-        setCelebratingReward(reward);
+        setRedeemPickerReward(null);
+        setCelebratingReward({
+          title: reward.title,
+          personName: personToRedeem.name,
+        });
         await refresh();
       } else {
-        showToast(res.error || 'Not enough points to redeem this reward', { type: 'error' });
+        showToast(res.error || 'Failed to redeem reward', { type: 'error' });
       }
     } catch (err: any) {
       showToast(err.message || 'Could not redeem reward', { type: 'error' });
@@ -164,11 +264,7 @@ export const RewardsSection: React.FC = () => {
   };
 
   const handleDeleteReward = async (reward: Reward) => {
-    if (!adultMode) {
-      showToast('Ask an adult to unlock first 🔒', { type: 'warning' });
-      return;
-    }
-    if (!window.confirm(`Are you sure you want to delete "${reward.title}" for ${reward.assigned_to}?`)) {
+    if (!window.confirm(`Are you sure you want to delete "${reward.title}"?`)) {
       return;
     }
     try {
@@ -180,220 +276,334 @@ export const RewardsSection: React.FC = () => {
     }
   };
 
-  const openEditModal = (r: Reward) => {
-    setEditingReward(r);
-    setEditTitle(r.title);
-    setEditPoints(String(r.points_required));
-    setEditAssignedTo(r.assigned_to);
-    setEditDescription(r.description || '');
-    setEditImageUrl(r.image_url || '');
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingReward) return;
-    try {
-      await apiPost('edit_reward', {
-        reward_id: editingReward.id,
-        title: editTitle.trim(),
-        points_required: parseFloat(editPoints) || 10,
-        assigned_to: editAssignedTo,
-        description: editDescription.trim(),
-      });
-      if (editImageUrl !== (editingReward.image_url || '')) {
-        await apiPost('edit_reward_image', {
-          reward_id: editingReward.id,
-          image_url: editImageUrl.trim(),
-        });
-      }
-      setEditingReward(null);
-      showToast('Reward updated');
-      await refresh();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update reward', { type: 'error' });
-    }
-  };
-
   return (
     <>
-      {/* Enhanced Rewards Section */}
+      {/* Autocomplete Datalist */}
+      <datalist id="reward-suggestions-datalist">
+        {allSuggestions.map((s, idx) => (
+          <option key={idx} value={s} />
+        ))}
+      </datalist>
+
+      {/* Available Rewards Section */}
       <section
         className={`rewards-section collapsible-section${availableCollapsed ? ' collapsed' : ''}`}
         id="rewards-section"
       >
-        <h2
-          className="section-title section-toggle"
-          onClick={() => setAvailableCollapsed((p) => !p)}
-        >
-          <i className="fas fa-trophy" style={{ color: '#a78bfa' }} /> <span>Available Rewards</span>
-          <i className="fas fa-chevron-down section-chevron" />
-        </h2>
+        <div className="rewards-header-row">
+          <h2
+            className="section-title section-toggle"
+            onClick={() => setAvailableCollapsed((p) => !p)}
+            style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
+            <span>Available Rewards</span>
+            <span
+              style={{
+                fontSize: '0.8rem',
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: 'rgba(167,139,250,0.2)',
+                color: '#c084fc',
+                fontWeight: 700,
+              }}
+            >
+              {filteredRewards.length}
+            </span>
+            <i className="fas fa-chevron-down section-chevron" />
+          </h2>
 
-        {availableRewards.length === 0 && (
-          <div className="empty-state">
-            <i className="fas fa-gift" style={{ fontSize: '3em', color: '#666', marginBottom: '1rem' }} />
-            <p>No rewards available yet</p>
-            <p className="subtitle">Create some amazing rewards below!</p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={openAddModal}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 10,
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <i className="fas fa-plus" /> Add Reward
+          </button>
+        </div>
+
+        {/* Person Filter Bar */}
+        <div
+          className="chore-user-filter-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginBottom: 16,
+            padding: '4px 0',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setSelectedPersonId(null)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '6px 16px',
+              borderRadius: 999,
+              border: selectedPerson === null ? '2px solid #60a5fa' : '1px solid rgba(148,163,184,0.28)',
+              background: selectedPerson === null ? 'rgba(59,130,246,0.22)' : 'rgba(15,23,42,0.45)',
+              color: selectedPerson === null ? '#93c5fd' : 'var(--cr-text-primary)',
+              fontWeight: 800,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            <i className="fas fa-users" /> All Family
+          </button>
+
+          {family.map((person) => {
+            const isSelected = selectedPerson?.id === person.id;
+            const pts = (person.points || 0) + (person.bonus_points || 0);
+            return (
+              <button
+                key={person.id}
+                type="button"
+                onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 14px 5px 6px',
+                  borderRadius: 999,
+                  border: isSelected
+                    ? `2px solid ${person.color || '#60a5fa'}`
+                    : '1px solid rgba(148,163,184,0.28)',
+                  background: isSelected
+                    ? person.color || 'rgba(59,130,246,0.28)'
+                    : 'rgba(15,23,42,0.45)',
+                  color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
+                }}
+              >
+                <img
+                  src={resolveAvatarUrl(person.avatar)}
+                  alt={person.name}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '1.5px solid rgba(0,0,0,0.35)',
+                  }}
+                />
+                <span>{person.name}</span>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    opacity: 0.85,
+                    padding: '1px 6px',
+                    borderRadius: 999,
+                    background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.12)',
+                    color: isSelected ? '#ffffff' : 'var(--cr-text-secondary)',
+                  }}
+                >
+                  {pts} pts
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Empty State */}
+        {filteredRewards.length === 0 && (
+          <div className="empty-state" style={{ padding: '32px 16px', textAlign: 'center' }}>
+            <i className="fas fa-gift" style={{ fontSize: '2.8em', color: '#666', marginBottom: '0.8rem' }} />
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>No rewards available</p>
+            <p className="subtitle" style={{ margin: '0 0 14px', fontSize: '0.9rem', color: 'var(--cr-text-secondary)' }}>
+              {selectedPerson ? `No rewards created for ${selectedPerson.name} or Everyone yet.` : 'Create some amazing rewards to motivate everyone!'}
+            </p>
+            <button type="button" className="btn-primary" onClick={openAddModal}>
+              <i className="fas fa-plus" /> Add First Reward
+            </button>
           </div>
         )}
 
-        <div className="rewards-grid">
-          {availableRewards.map((reward) => {
-            const person = family.find((p) => p.name === reward.assigned_to);
-            const currentPts = person ? Number((person.points || 0) + (person.bonus_points || 0)) : 0;
+        {/* Compact Modern Rewards Grid */}
+        <div className="rewards-grid-modern">
+          {filteredRewards.map((reward) => {
+            const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
+            const assignedPerson = !isEveryone ? family.find((p) => p.name === reward.assigned_to) : null;
+
+            // Target person for progress calculation
+            const targetPerson = assignedPerson || selectedPerson;
+            const currentPts = targetPerson ? (targetPerson.points || 0) + (targetPerson.bonus_points || 0) : 0;
             const reqPts = Number(reward.points_required || 1);
             const rawPercent = reqPts > 0 ? (currentPts / reqPts) * 100 : 0;
             const achievedPercent = Math.min(100, Math.round(rawPercent * 10) / 10);
-            const leftPercent = Math.max(0, Math.round((100 - achievedPercent) * 10) / 10);
+            const canRedeem = targetPerson ? currentPts >= reqPts : true;
 
             return (
-              <div
-                key={reward.id}
-                className="reward-card"
-                data-reward-id={reward.id}
-                data-assigned-to={reward.assigned_to}
-                data-title={reward.title}
-                data-points={reward.points_required}
-              >
-                {reward.image_url ? (
-                  <div className="reward-image-container" style={{ position: 'relative' }}>
-                    <img
-                      src={resolveAssetUrl(reward.image_url)}
-                      alt={reward.title}
-                      className="reward-image"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => adultMode && openEditModal(reward)}
-                    />
-                    <button
-                      type="button"
-                      className="edit-image-btn admin-only"
-                      style={{
-                        position: 'absolute',
-                        top: 10,
-                        left: 10,
-                        background: 'rgba(0,0,0,0.6)',
-                        border: 'none',
-                        borderRadius: '50%',
-                        padding: 8,
-                        cursor: 'pointer',
-                        zIndex: 2,
-                      }}
-                      onClick={() => openEditModal(reward)}
-                      title="Edit reward"
-                    >
-                      <i className="fas fa-pencil-alt" style={{ color: '#fff', fontSize: '1.2em' }} />
-                    </button>
-                    <div className="reward-overlay">
-                      <span className="reward-points-badge">
-                        {isCash ? (
-                          <>
-                            <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                            <span className="reward-points-value">${reqPts.toFixed(2)}</span>
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-award" style={{ color: '#fbbf24' }} />
-                            <span className="reward-points-value">{reqPts}</span>
-                          </>
-                        )}
-                      </span>
-                    </div>
+              <div key={reward.id} className="reward-card-modern">
+                {/* Header row: Visual + Title + Points Badge */}
+                <div className="reward-card-header">
+                  <div className="reward-card-title-group">
+                    {reward.image_url ? (
+                      <img
+                        src={resolveAssetUrl(reward.image_url)}
+                        alt={reward.title}
+                        className="reward-card-thumb"
+                      />
+                    ) : (
+                      <div className="reward-card-icon-box">
+                        <i className={`fas ${getRewardIconClass(reward.title)}`} />
+                      </div>
+                    )}
+                    <h3 className="reward-card-title" title={reward.title}>
+                      {reward.title}
+                    </h3>
                   </div>
-                ) : (
-                  <div className="reward-icon-container" style={{ position: 'relative' }}>
-                    <div className="reward-icon-large">
-                      <i className={`fas ${getRewardIconClass(reward.title)}`} />
-                    </div>
-                    <span className="reward-points-badge">
-                      {isCash ? (
-                        <>
-                          <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                          <span className="reward-points-value">${reqPts.toFixed(2)}</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-award" />
-                          <span className="reward-points-value">{reqPts}</span>
-                        </>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      className="edit-image-btn admin-only"
-                      style={{
-                        position: 'absolute',
-                        top: 10,
-                        left: 10,
-                        background: 'rgba(0,0,0,0.6)',
-                        border: 'none',
-                        borderRadius: '50%',
-                        padding: 8,
-                        cursor: 'pointer',
-                        zIndex: 2,
-                      }}
-                      onClick={() => openEditModal(reward)}
-                      title="Edit reward"
-                    >
-                      <i className="fas fa-pencil-alt" style={{ color: '#fff', fontSize: '1.2em' }} />
-                    </button>
-                  </div>
-                )}
 
-                <div className="reward-content">
-                  <h3 className="reward-title-modern">{reward.title}</h3>
-                  <div
-                    className="reward-points-badge"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 6 }}
-                  >
+                  <span className={`reward-points-pill${isCash ? ' cash' : ''}`}>
                     {isCash ? (
                       <>
-                        <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                        <span className="reward-points-value">${reqPts.toFixed(2)}</span>
+                        <i className="fas fa-money-bill-wave" />
+                        <span>${reqPts.toFixed(2)}</span>
                       </>
                     ) : (
                       <>
-                        <i className="fas fa-award" style={{ color: '#fbbf24' }} />
-                        <span className="reward-points-value">{reqPts}</span>
+                        <i className="fas fa-award" />
+                        <span>{reqPts} pts</span>
                       </>
                     )}
-                  </div>
-                  {reward.description && <p className="reward-description">{reward.description}</p>}
-                  <div className="reward-meta">
-                    <div className="reward-assignee">
-                      <img
-                        src={resolveAvatarUrl(person?.avatar)}
-                        alt={reward.assigned_to}
-                        className="assignee-avatar"
-                        title={reward.assigned_to}
-                      />
-                      <span className="assignee-name">{reward.assigned_to}</span>
-                    </div>
-                  </div>
+                  </span>
+                </div>
 
-                  {person && (
-                    <div className="reward-progress-container">
-                      <div className="reward-progress-bar-bg">
-                        <div className="reward-progress-bar-fill" style={{ width: `${achievedPercent}%` }} />
-                      </div>
-                      <div className="reward-progress-label">
-                        {achievedPercent}% achieved • {leftPercent}% left
-                      </div>
+                {/* Meta row: Assignee pill + Recurring badge */}
+                <div className="reward-card-meta">
+                  {isEveryone ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(168, 85, 247, 0.15)',
+                        color: '#c084fc',
+                        border: '1px solid rgba(168, 85, 247, 0.3)',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                      }}
+                    >
+                      🌟 Everyone
+                    </span>
+                  ) : (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <img
+                        src={resolveAvatarUrl(assignedPerson?.avatar)}
+                        alt={reward.assigned_to}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                        }}
+                      />
+                      <span style={{ fontWeight: 600, color: 'var(--cr-text-primary)', fontSize: '0.82rem' }}>
+                        {reward.assigned_to}
+                      </span>
                     </div>
                   )}
 
-                  <div className="reward-actions-modern admin-only">
+                  {reward.is_recurring !== false ? (
+                    <span
+                      title="Repeatable / recurring reward"
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--cr-text-secondary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      🔁 Recurring
+                    </span>
+                  ) : (
+                    <span
+                      title="One-time reward"
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--cr-text-secondary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      1-time
+                    </span>
+                  )}
+                </div>
+
+                {/* Optional description */}
+                {reward.description && (
+                  <p className="reward-card-desc" title={reward.description}>
+                    {reward.description}
+                  </p>
+                )}
+
+                {/* Progress bar (if assigned to someone or if a person is filtered) */}
+                {targetPerson && (
+                  <div>
+                    <div className="reward-progress-track">
+                      <div className="reward-progress-bar" style={{ width: `${achievedPercent}%` }} />
+                    </div>
+                    <div className="reward-progress-text">
+                      <span>{targetPerson.name}: {currentPts} / {reqPts} pts</span>
+                      <span>{achievedPercent}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions row: Redeem button + Edit / Delete icons side-by-side */}
+                <div className="reward-card-actions-row">
+                  <button
+                    type="button"
+                    className="btn-redeem-modern"
+                    onClick={() => handleRedeemReward(reward)}
+                    disabled={targetPerson ? !canRedeem : false}
+                    title={
+                      targetPerson && !canRedeem
+                        ? `Not enough points (${currentPts}/${reqPts})`
+                        : `Redeem "${reward.title}"`
+                    }
+                  >
+                    <i className="fas fa-check-circle" /> Redeem
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <button
                       type="button"
-                      className="btn-redeem"
-                      onClick={() => handleRedeemReward(reward)}
-                      aria-label="Redeem reward"
+                      className="reward-icon-btn"
+                      onClick={() => openEditModal(reward)}
+                      title="Edit reward"
+                      aria-label="Edit reward"
                     >
-                      <i className="fas fa-check-circle" /> Redeem
+                      <i className="fas fa-pencil-alt" />
                     </button>
                     <button
                       type="button"
-                      className="btn-delete"
+                      className="reward-icon-btn delete"
                       onClick={() => handleDeleteReward(reward)}
+                      title="Delete reward"
                       aria-label="Delete reward"
                     >
                       <i className="fas fa-trash-alt" />
@@ -406,365 +616,282 @@ export const RewardsSection: React.FC = () => {
         </div>
       </section>
 
-      {/* Create New Reward Section */}
-      <section
-        className={`add-rewards-modern collapsible-section${createCollapsed ? ' collapsed' : ''} admin-only`}
-        id="create-reward-section"
+      {/* Unified Add / Edit Reward Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingReward ? 'Edit Reward' : 'Add New Reward'}
+        icon={editingReward ? 'fas fa-pencil-alt' : 'fas fa-gift'}
+        maxWidth={520}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={submitting}
+              onClick={handleSaveModal}
+            >
+              {submitting ? 'Saving...' : editingReward ? 'Save Changes' : 'Create Reward'}
+            </button>
+          </div>
+        }
       >
-        <h2
-          className="section-title section-toggle"
-          onClick={() => setCreateCollapsed((p) => !p)}
-        >
-          <i className="fas fa-trophy" style={{ color: '#a78bfa' }} /> Create New Reward
-          <i className="fas fa-chevron-down section-chevron" />
-        </h2>
-
-        {/* Suggestions bar */}
-        <div className="chore-suggestions-bar">
-          <div className="chore-suggestions-header">
-            <span className="chore-suggestions-label">Quick Suggestions</span>
-            <div className="chore-suggestions-actions">
-              <button
-                type="button"
-                className="btn-suggestion-add"
-                title="Add a quick suggestion"
-                onClick={() => setShowSuggestionInput((p) => !p)}
-              >
-                <i className="fas fa-pencil-alt" />
-              </button>
-              {showSuggestionInput && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input
-                    type="text"
-                    placeholder="Add a quick suggestion..."
-                    className="modern-input suggestion-inline-input"
-                    value={newSuggestion}
-                    onChange={(e) => setNewSuggestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const trimmed = newSuggestion.trim();
-                        if (trimmed && !rewardSuggestions.includes(trimmed)) {
-                          saveSuggestions([...rewardSuggestions, trimmed]);
-                        }
-                        setNewSuggestion('');
-                        setShowSuggestionInput(false);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ whiteSpace: 'nowrap', padding: '0.55rem 0.9rem' }}
-                    onClick={() => {
-                      const trimmed = newSuggestion.trim();
-                      if (trimmed && !rewardSuggestions.includes(trimmed)) {
-                        saveSuggestions([...rewardSuggestions, trimmed]);
-                      }
-                      setNewSuggestion('');
-                      setShowSuggestionInput(false);
-                    }}
-                  >
-                    <i className="fas fa-plus" /> Add
-                  </button>
-                </div>
-              )}
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ padding: '0.55rem 0.9rem' }}
-                onClick={() => setSuggestionEditMode((p) => !p)}
-              >
-                {suggestionEditMode ? 'Done' : 'Edit'}
-              </button>
-            </div>
-          </div>
-          <div className="reward-suggestions">
-            {rewardSuggestions.map((s, idx) =>
-              suggestionEditMode ? (
-                <div key={idx} className="chore-suggestion-edit-item">
-                  <input
-                    type="text"
-                    value={s}
-                    className="modern-input"
-                    style={{ padding: '4px 8px', fontSize: '0.85rem', width: 120, height: 32 }}
-                    onChange={(e) => {
-                      const next = [...rewardSuggestions];
-                      next[idx] = e.target.value;
-                      saveSuggestions(next);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-suggestion-delete"
-                    onClick={() => saveSuggestions(rewardSuggestions.filter((_, i) => i !== idx))}
-                  >
-                    &times;
-                  </button>
-                </div>
-              ) : (
-                <button
-                  key={idx}
-                  type="button"
-                  className="chore-suggestion-chip"
-                  onClick={() => setTitle(s)}
-                >
-                  {s}
-                </button>
-              )
-            )}
-          </div>
-        </div>
-
-        <form onSubmit={handleCreateReward} id="add-reward-form" className="chore-form-card">
-          <div className="chore-field-group">
-            <label className="chore-field-label" htmlFor="reward-title">
-              <i className="fas fa-trophy" style={{ color: '#a78bfa' }} /> Reward Title
+        <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Title with Autocomplete */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
+              Reward Title <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <input
               type="text"
-              id="reward-title"
-              name="title"
-              placeholder="e.g., Trip to the Zoo, Movie Night..."
-              className="modern-input chore-title-input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              list="reward-suggestions-datalist"
+              placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
               required
-              autoComplete="off"
+              autoFocus
+              className="modern-input"
             />
           </div>
 
-          <div className="chore-meta-row">
-            <div className="chore-field-group">
-              <label className="chore-field-label" htmlFor="reward-points">
-                {isCash ? (
-                  <>
-                    <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} /> Cash Required
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-star" style={{ color: '#fbbf24' }} /> Points Required
-                  </>
-                )}
+          {/* Points & Assignee Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
+                {isCash ? 'Cost ($)' : 'Points Required'} <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 type="number"
-                id="reward-points"
-                name="points_required"
-                placeholder={isCash ? '10.00' : '100'}
                 min={isCash ? '0.01' : '1'}
                 step={isCash ? '0.01' : '1'}
-                className="modern-input"
-                value={pointsRequired}
-                onChange={(e) => setPointsRequired(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="chore-field-group">
-              <label className="chore-field-label">
-                <i className="fas fa-user-circle" /> Assign To
-              </label>
-              <div className="chore-assign-pills" id="reward-assignee-pills">
-                {family.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    className={`chore-assign-pill reward-assign-pill${selectedAssignee === person.name ? ' selected' : ''}`}
-                    onClick={() => setAssignedTo(person.name)}
-                  >
-                    <span className="pill-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
-                    <span className="pill-name">{person.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="chore-field-group">
-            <label className="chore-field-label" htmlFor="reward-description">
-              <i className="fas fa-align-left" /> Description{' '}
-              <span className="chore-days-hint">(optional)</span>
-            </label>
-            <textarea
-              id="reward-description"
-              name="description"
-              placeholder="Describe this amazing reward..."
-              rows={2}
-              className="modern-textarea"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-
-          <div className="chore-field-group reward-image-group">
-            <label className="chore-field-label">
-              <i className="fas fa-image" /> Reward Image{' '}
-              <span className="chore-days-hint">(optional)</span>
-            </label>
-            <div className="reward-image-options">
-              <button
-                type="button"
-                id="stock-picker-toggle"
-                onClick={() => setStockPickerOpen((p) => !p)}
-                className={`stock-picker-btn${stockImageUrl ? ' stock-picker-chosen' : ''}`}
-              >
-                <i className="fas fa-images" />
-                <span id="stock-picker-label">{stockImageLabel}</span>
-                <i
-                  className="fas fa-chevron-down"
-                  style={{ transform: stockPickerOpen ? 'rotate(180deg)' : '' }}
-                />
-              </button>
-              <span className="reward-image-or">or</span>
-              <input
-                type="text"
-                id="reward-image"
-                name="image_url"
-                placeholder="Paste image URL"
-                className="modern-input reward-url-input"
-                value={imageUrl}
-                onChange={(e) => {
-                  setImageUrl(e.target.value);
-                  setStockImageUrl('');
-                  setStockImageLabel('Choose a Stock Image');
-                }}
-              />
-              <span className="reward-image-or">or</span>
-              <label className="btn-upload-inline" style={{ cursor: 'pointer' }}>
-                <i className="fa-solid fa-upload" /> {imageFile ? imageFile.name : 'Upload'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    setImageFile(f);
-                    if (f) {
-                      setStockImageUrl('');
-                      setStockImageLabel('Choose a Stock Image');
-                      setImageUrl('');
-                    }
-                  }}
-                />
-              </label>
-            </div>
-            {stockPickerOpen && (
-              <div className="stock-image-picker" id="stock-image-picker" style={{ display: 'flex', marginTop: 10 }}>
-                {STOCK_REWARD_IMAGES.map((item) => (
-                  <div
-                    key={item.url}
-                    className={`stock-image-tile${stockImageUrl === item.url ? ' selected' : ''}`}
-                    onClick={() => {
-                      setStockImageUrl(item.url);
-                      setStockImageLabel(`✓ ${item.label}`);
-                      setImageUrl('');
-                      setImageFile(null);
-                      setStockPickerOpen(false);
-                    }}
-                  >
-                    <img src={item.url} alt={item.label} />
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button type="submit" disabled={submitting} className="btn-add-chore">
-            <i className="fas fa-plus" /> {submitting ? 'Creating...' : 'Create Reward'}
-          </button>
-        </form>
-      </section>
-
-      {/* Edit Reward Modal */}
-      {editingReward && (
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'var(--cr-modal-overlay)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setEditingReward(null)}
-        >
-          <div
-            style={{
-              background: 'var(--cr-modal-surface)',
-              maxWidth: 460,
-              width: '100%',
-              padding: 24,
-              borderRadius: 18,
-              color: 'var(--cr-text-primary)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0 }}>✏️ Edit Reward</h3>
-            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                placeholder="Title"
+                value={formPoints}
+                onChange={(e) => setFormPoints(e.target.value)}
                 required
                 className="modern-input"
               />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
+                Assign To
+              </label>
               <select
-                value={editAssignedTo}
-                onChange={(e) => setEditAssignedTo(e.target.value)}
+                value={formAssignedTo}
+                onChange={(e) => setFormAssignedTo(e.target.value)}
                 className="modern-input"
               >
+                <option value="Everyone">🌟 Everyone (All Family)</option>
                 {family.map((p) => (
                   <option key={p.id} value={p.name}>
                     {p.name}
                   </option>
                 ))}
               </select>
-              <input
-                type="number"
-                step="0.5"
-                value={editPoints}
-                onChange={(e) => setEditPoints(e.target.value)}
-                placeholder="Points Required"
-                className="modern-input"
-              />
-              <input
-                type="text"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="Description"
-                className="modern-input"
-              />
-              <input
-                type="text"
-                value={editImageUrl}
-                onChange={(e) => setEditImageUrl(e.target.value)}
-                placeholder="Image URL"
-                className="modern-input"
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setEditingReward(null)}
-                  className="btn-cancel"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Save Changes
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Reward Redeemed Celebration Modal */}
+          {/* Recurring Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 14px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <input
+              type="checkbox"
+              id="form-recurring-toggle"
+              checked={formIsRecurring}
+              onChange={(e) => setFormIsRecurring(e.target.checked)}
+              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#3b82f6' }}
+            />
+            <label
+              htmlFor="form-recurring-toggle"
+              style={{ cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, userSelect: 'none' }}
+            >
+              Repeatable / Recurring Reward
+              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--cr-text-secondary)', fontWeight: 400 }}>
+                Stays in Available Rewards after redemption so kids can earn it again.
+              </span>
+            </label>
+          </div>
+
+          {/* Description */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
+              Description <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+            </label>
+            <textarea
+              placeholder="Add details, rules, or fun notes..."
+              rows={2}
+              value={formDescription}
+              onChange={(e) => setFormDescription(e.target.value)}
+              className="modern-textarea"
+            />
+          </div>
+
+          {/* Image Picker */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
+              Reward Image <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+            </label>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setStockPickerOpen((p) => !p)}
+                className={`stock-picker-btn${formStockImageUrl ? ' stock-picker-chosen' : ''}`}
+                style={{ flex: 1, minWidth: 160 }}
+              >
+                <i className="fas fa-images" />
+                <span>{formStockLabel}</span>
+                <i className="fas fa-chevron-down" style={{ transform: stockPickerOpen ? 'rotate(180deg)' : '' }} />
+              </button>
+
+              <label className="btn-upload-inline" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <i className="fa-solid fa-upload" /> {formImageFile ? formImageFile.name : 'Upload File'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setFormImageFile(f);
+                    if (f) {
+                      setFormStockImageUrl('');
+                      setFormStockLabel('Choose a Stock Image');
+                      setFormImageUrl('');
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {stockPickerOpen && (
+              <div
+                className="stock-image-picker"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
+                  gap: 8,
+                  padding: 10,
+                  borderRadius: 10,
+                  background: 'rgba(0,0,0,0.25)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  maxHeight: 180,
+                  overflowY: 'auto',
+                }}
+              >
+                {STOCK_REWARD_IMAGES.map((item) => (
+                  <div
+                    key={item.url}
+                    className={`stock-image-tile${formStockImageUrl === item.url ? ' selected' : ''}`}
+                    onClick={() => {
+                      setFormStockImageUrl(item.url);
+                      setFormStockLabel(`✓ ${item.label}`);
+                      setFormImageUrl('');
+                      setFormImageFile(null);
+                      setStockPickerOpen(false);
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      padding: 6,
+                      borderRadius: 8,
+                      border: formStockImageUrl === item.url ? '2px solid #3b82f6' : '1px solid transparent',
+                      background: formStockImageUrl === item.url ? 'rgba(59,130,246,0.2)' : 'transparent',
+                    }}
+                  >
+                    <img src={item.url} alt={item.label} style={{ width: 34, height: 34, margin: '0 auto 4px' }} />
+                    <span style={{ fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
+
+      {/* Quick Redeem Picker Modal (for "Everyone" rewards when All Family filter is active) */}
+      <Modal
+        open={redeemPickerReward !== null}
+        onClose={() => setRedeemPickerReward(null)}
+        title="Redeem Reward"
+        icon="fas fa-gift"
+        maxWidth={440}
+        footer={
+          <button type="button" className="btn-cancel" onClick={() => setRedeemPickerReward(null)}>
+            Cancel
+          </button>
+        }
+      >
+        {redeemPickerReward && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--cr-text-secondary)' }}>
+              Who is redeeming <strong>"{redeemPickerReward.title}"</strong> ({redeemPickerReward.points_required} pts)?
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {family.map((person) => {
+                const pts = (person.points || 0) + (person.bonus_points || 0);
+                const req = Number(redeemPickerReward.points_required || 1);
+                const hasEnough = pts >= req;
+                return (
+                  <div
+                    key={person.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={resolveAvatarUrl(person.avatar)}
+                        alt={person.name}
+                        style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{person.name}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>
+                          {pts} points available
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-redeem-modern"
+                      disabled={!hasEnough}
+                      onClick={() => handleRedeemReward(redeemPickerReward, person)}
+                      style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                    >
+                      {hasEnough ? `Redeem (-${req})` : `Need ${req - pts} more`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Celebration Modal */}
       {celebratingReward && (
         <div
           className="modal-backdrop"
@@ -796,7 +923,7 @@ export const RewardsSection: React.FC = () => {
             <div style={{ fontSize: '3.6rem', marginBottom: 8 }}>🎁🎉🏆</div>
             <h2 style={{ margin: '0 0 8px' }}>Reward Redeemed!</h2>
             <p style={{ fontSize: '1.1rem', fontWeight: 700, color: '#4ade80' }}>
-              {celebratingReward.assigned_to} unlocked "{celebratingReward.title}"!
+              {celebratingReward.personName} unlocked "{celebratingReward.title}"!
             </p>
             <button
               type="button"
@@ -814,7 +941,7 @@ export const RewardsSection: React.FC = () => {
 };
 
 export const RedeemedRewardsSection: React.FC = () => {
-  const { data, refresh, adultMode, showToast } = useApp();
+  const { data, refresh, showToast } = useApp();
   const [collapsed, setCollapsed] = useState(true);
 
   if (!data) return null;
@@ -824,11 +951,7 @@ export const RedeemedRewardsSection: React.FC = () => {
   const isCash = data.reward_system === 'cash';
 
   const handleDeleteReward = async (reward: Reward) => {
-    if (!adultMode) {
-      showToast('Ask an adult to unlock first 🔒', { type: 'warning' });
-      return;
-    }
-    if (!window.confirm(`Are you sure you want to delete "${reward.title}"?`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${reward.title}" from history?`)) return;
     try {
       await apiPost('delete_reward', { reward_id: reward.id });
       showToast(`Deleted reward "${reward.title}"`);
@@ -846,116 +969,113 @@ export const RedeemedRewardsSection: React.FC = () => {
       <h2
         className="section-title section-toggle"
         onClick={() => setCollapsed((p) => !p)}
+        style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
       >
-        <i className="fas fa-trophy" style={{ color: '#a78bfa' }} /> Redeemed Rewards
+        <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
+        <span>Redeemed Rewards</span>
+        <span
+          style={{
+            fontSize: '0.8rem',
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: 'rgba(167,139,250,0.2)',
+            color: '#c084fc',
+            fontWeight: 700,
+          }}
+        >
+          {redeemedRewards.length}
+        </span>
         <i className="fas fa-chevron-down section-chevron" />
       </h2>
 
       {redeemedRewards.length === 0 && (
-        <p style={{ textAlign: 'center', color: 'var(--cr-text-secondary)', fontStyle: 'italic', marginTop: 10 }}>
+        <p style={{ textAlign: 'center', color: 'var(--cr-text-secondary)', fontStyle: 'italic', marginTop: 14 }}>
           This is where your redeemed rewards will be when you redeem them
         </p>
       )}
 
-      <div id="redeemed-rewards-container" className="completed-rewards-container">
+      <div className="rewards-grid-modern" style={{ marginTop: 14 }}>
         {redeemedRewards.map((reward) => {
           const person = family.find((p) => p.name === reward.assigned_to);
           const reqPts = Number(reward.points_required || 0);
           return (
             <div
               key={reward.id}
-              className="reward-card"
-              style={{ opacity: 0.7, position: 'relative' }}
-              data-reward-id={reward.id}
+              className="reward-card-modern"
+              style={{ opacity: 0.75 }}
             >
-              {reward.image_url ? (
-                <div className="reward-image-container">
-                  <img src={resolveAssetUrl(reward.image_url)} alt={reward.title} className="reward-image" />
-                  <div className="reward-overlay">
-                    <span className="reward-points-badge">
-                      {isCash ? (
-                        <>
-                          <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                          <span className="reward-points-value">${reqPts.toFixed(2)}</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-award" />
-                          <span className="reward-points-value">{reqPts}</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
+              <div className="reward-card-header">
+                <div className="reward-card-title-group">
+                  {reward.image_url ? (
+                    <img
+                      src={resolveAssetUrl(reward.image_url)}
+                      alt={reward.title}
+                      className="reward-card-thumb"
+                    />
+                  ) : (
+                    <div className="reward-card-icon-box">
+                      <i className={`fas ${getRewardIconClass(reward.title)}`} />
+                    </div>
+                  )}
+                  <h3 className="reward-card-title" title={reward.title}>
+                    {reward.title}
+                  </h3>
                 </div>
-              ) : (
-                <div className="reward-icon-container">
-                  <div className="reward-icon-large">
-                    <i className={`fas ${getRewardIconClass(reward.title)}`} />
-                  </div>
-                  <span className="reward-points-badge">
-                    {isCash ? (
-                      <>
-                        <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                        <span className="reward-points-value">${reqPts.toFixed(2)}</span>
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-award" />
-                        <span className="reward-points-value">{reqPts}</span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              )}
 
-              <div className="reward-content">
-                <h3 className="reward-title-modern">{reward.title}</h3>
-                <div
-                  className="reward-points-badge"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 6 }}
-                >
+                <span className={`reward-points-pill${isCash ? ' cash' : ''}`}>
                   {isCash ? (
                     <>
-                      <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} />
-                      <span className="reward-points-value">${reqPts.toFixed(2)}</span>
+                      <i className="fas fa-money-bill-wave" />
+                      <span>${reqPts.toFixed(2)}</span>
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-award" style={{ color: '#fbbf24' }} />
-                      <span className="reward-points-value">{reqPts}</span>
+                      <i className="fas fa-award" />
+                      <span>{reqPts} pts</span>
                     </>
                   )}
-                </div>
-                {reward.description && <p className="reward-description">{reward.description}</p>}
-                <div className="reward-meta">
-                  <div className="reward-assignee">
-                    <img
-                      src={resolveAvatarUrl(person?.avatar)}
-                      alt={reward.assigned_to}
-                      className="assignee-avatar"
-                    />
-                    <span className="assignee-name">{reward.assigned_to}</span>
-                  </div>
-                </div>
-                <div className="reward-actions-modern" style={{ marginTop: 8 }}>
-                  <span className="completed-status" style={{ color: '#6366f1', fontWeight: 600 }}>
-                    <i className="fas fa-check-circle" /> Redeemed
+                </span>
+              </div>
+
+              <div className="reward-card-meta">
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <img
+                    src={resolveAvatarUrl(person?.avatar)}
+                    alt={reward.assigned_to}
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                    }}
+                  />
+                  <span style={{ fontWeight: 600, color: 'var(--cr-text-primary)', fontSize: '0.82rem' }}>
+                    {reward.assigned_to || 'Everyone'}
                   </span>
-                  {reward.date_completed && (
-                    <span className="completion-date" style={{ color: '#888', fontSize: '0.95em', marginLeft: 10 }}>
-                      Redeemed on: {new Date(reward.date_completed).toLocaleDateString()}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-delete"
-                    onClick={() => handleDeleteReward(reward)}
-                    aria-label="Delete reward"
-                    style={{ float: 'right', marginLeft: 'auto' }}
-                  >
-                    <i className="fas fa-trash-alt" />
-                  </button>
                 </div>
+
+                <span style={{ color: '#22c55e', fontSize: '0.8rem', fontWeight: 700 }}>
+                  <i className="fas fa-check-circle" /> Redeemed
+                </span>
+              </div>
+
+              <div className="reward-card-actions-row">
+                <span style={{ color: 'var(--cr-text-secondary)', fontSize: '0.78rem' }}>
+                  {reward.date_completed
+                    ? `On ${new Date(reward.date_completed).toLocaleDateString()}`
+                    : 'Completed'}
+                </span>
+
+                <button
+                  type="button"
+                  className="reward-icon-btn delete"
+                  onClick={() => handleDeleteReward(reward)}
+                  title="Delete from history"
+                  aria-label="Delete reward"
+                >
+                  <i className="fas fa-trash-alt" />
+                </button>
               </div>
             </div>
           );

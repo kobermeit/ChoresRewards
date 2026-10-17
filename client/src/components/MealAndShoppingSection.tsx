@@ -157,13 +157,8 @@ export const MealAndShoppingSection: React.FC = () => {
   const [planSelectedDays, setPlanSelectedDays] = useState<string[]>([]);
   const [planEditingCardId, setPlanEditingCardId] = useState<string | null>(null);
 
-  // Recipe View / Edit Modal
+  // Recipe View Modal
   const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
-  const [editingRecipe, setEditingRecipe] = useState(false);
-  const [recipeFormTitle, setRecipeFormTitle] = useState('');
-  const [recipeFormPrep, setRecipeFormPrep] = useState('');
-  const [recipeFormServings, setRecipeFormServings] = useState('');
-  const [recipeFormInstructions, setRecipeFormInstructions] = useState('');
 
   // Notion Sync in Library
   const [notionSyncing, setNotionSyncing] = useState(false);
@@ -567,43 +562,6 @@ export const MealAndShoppingSection: React.FC = () => {
       prep_time: '25 mins',
     };
     setActiveRecipe(existing);
-    setRecipeFormTitle(existing.title);
-    setRecipeFormPrep(existing.prep_time || '');
-    setRecipeFormServings(existing.servings || '');
-    setRecipeFormInstructions(existing.instructions || '');
-    setEditingRecipe(false);
-  };
-
-  const handleSaveRecipeForm = async () => {
-    if (!activeRecipe) return;
-    try {
-      await apiPost('recipes', {
-        title: recipeFormTitle || activeRecipe.title,
-        prep_time: recipeFormPrep,
-        servings: recipeFormServings,
-        instructions: recipeFormInstructions,
-        ingredients: activeRecipe.ingredients || [],
-        image_url: activeRecipe.image_url || undefined,
-      });
-      showToast('Recipe saved!');
-      setEditingRecipe(false);
-      await refresh();
-      if (activeRecipe.meal_key) {
-        setActiveRecipe((prev) =>
-          prev
-            ? {
-                ...prev,
-                title: recipeFormTitle || prev.title,
-                prep_time: recipeFormPrep,
-                servings: recipeFormServings,
-                instructions: recipeFormInstructions,
-              }
-            : null
-        );
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Failed to save recipe', { type: 'error' });
-    }
   };
 
   const handleAddRecipeIngredientsToShopping = async (recipe: RecipeItem) => {
@@ -799,28 +757,28 @@ export const MealAndShoppingSection: React.FC = () => {
                               <img
                                 src={resolveAssetUrl(customImg)}
                                 alt=""
-                                style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                                style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
                               />
                             ) : (
                               <span style={{ fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>{getMealEmoji(card.title)}</span>
                             )}
-                            <span
-                              className="meal-kanban-card-title"
-                              style={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                fontWeight: 600,
-                                fontSize: '0.84rem',
-                              }}
-                            >
-                              {card.title}
-                            </span>
-                            {card.audience && card.audience !== 'Everyone' && (
-                              <span className={`meal-audience-pill meal-audience-${card.audience}`}>
-                                {card.audience}
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', lineHeight: 1.15 }}>
+                              <span
+                                className="meal-kanban-card-title"
+                                style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: 600,
+                                  fontSize: '0.82rem',
+                                }}
+                              >
+                                {card.title}
                               </span>
-                            )}
+                              <span style={{ fontSize: '0.62rem', color: card.audience && card.audience !== 'Everyone' ? '#93c5fd' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {card.audience ? card.audience : 'All family'}
+                              </span>
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -1644,141 +1602,63 @@ export const MealAndShoppingSection: React.FC = () => {
               </button>
             </div>
             <div className="cr-modal-body">
-              {editingRecipe ? (
-                <>
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-                      Title
-                    </label>
-                    <input
-                      type="text"
-                      className="modern-input"
-                      value={recipeFormTitle}
-                      onChange={(e) => setRecipeFormTitle(e.target.value)}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-                        Prep Time
-                      </label>
-                      <input
-                        type="text"
-                        className="modern-input"
-                        placeholder="e.g. 25 mins"
-                        value={recipeFormPrep}
-                        onChange={(e) => setRecipeFormPrep(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-                        Servings
-                      </label>
-                      <input
-                        type="text"
-                        className="modern-input"
-                        placeholder="e.g. 4 people"
-                        value={recipeFormServings}
-                        onChange={(e) => setRecipeFormServings(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>
-                      Instructions / Method
-                    </label>
-                    <textarea
-                      className="modern-input"
-                      rows={6}
-                      placeholder="Step by step instructions..."
-                      value={recipeFormInstructions}
-                      onChange={(e) => setRecipeFormInstructions(e.target.value)}
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {activeRecipe.image_url && (
-                    <img
-                      src={resolveAssetUrl(activeRecipe.image_url)}
-                      alt={activeRecipe.title}
-                      className="recipe-modal-img"
-                    />
-                  )}
-                  <div className="recipe-meta-row">
-                    <span>
-                      <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
-                    </span>
-                    <span>
-                      <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
-                    </span>
-                    {activeRecipe.notion_id && (
-                      <span style={{ color: '#a78bfa' }}>
-                        <i className="fas fa-arrows-rotate" /> Synced from Notion
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
-                    <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {(activeRecipe.ingredients || []).length === 0 ? (
-                        <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
-                          No ingredients specified.
-                        </div>
-                      ) : (
-                        (activeRecipe.ingredients || []).map((ing, idx) => (
-                          <div key={idx} className="recipe-ing-item">
-                            <span>{ing.name}</span>
-                            <span style={{ opacity: 0.6 }}>{ing.qty}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
-                    <div className="recipe-instructions-box">
-                      {activeRecipe.instructions || 'No instructions written yet. Click Edit to add them!'}
-                    </div>
-                  </div>
-                </>
+              {activeRecipe.image_url && (
+                <img
+                  src={resolveAssetUrl(activeRecipe.image_url)}
+                  alt={activeRecipe.title}
+                  className="recipe-modal-img"
+                />
               )}
+              <div className="recipe-meta-row">
+                <span>
+                  <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
+                </span>
+                <span>
+                  <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
+                </span>
+                {activeRecipe.notion_id && (
+                  <span style={{ color: '#a78bfa' }}>
+                    <i className="fas fa-arrows-rotate" /> Synced from Notion
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {(activeRecipe.ingredients || []).length === 0 ? (
+                    <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
+                      No ingredients specified.
+                    </div>
+                  ) : (
+                    (activeRecipe.ingredients || []).map((ing, idx) => (
+                      <div key={idx} className="recipe-ing-item">
+                        <span>{ing.name}</span>
+                        <span style={{ opacity: 0.6 }}>{ing.qty}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
+                <div className="recipe-instructions-box">
+                  {activeRecipe.instructions || 'No instructions specified.'}
+                </div>
+              </div>
             </div>
             <div className="cr-modal-footer">
-              {editingRecipe ? (
-                <>
-                  <button type="button" className="edit-btn" onClick={() => setEditingRecipe(false)}>
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="edit-btn"
-                    style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
-                    onClick={handleSaveRecipeForm}
-                  >
-                    Save Recipe
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="edit-btn"
-                    onClick={() => handleAddRecipeIngredientsToShopping(activeRecipe)}
-                    style={{ background: 'rgba(34,197,94,0.18)', borderColor: 'rgba(34,197,94,0.4)', color: '#86efac' }}
-                  >
-                    <i className="fas fa-cart-plus" /> Add all to Shopping List
-                  </button>
-                  <button type="button" className="edit-btn" onClick={() => setEditingRecipe(true)}>
-                    <i className="fas fa-pencil" /> Edit
-                  </button>
-                  <button type="button" className="edit-btn" onClick={() => setActiveRecipe(null)}>
-                    Close
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                className="shopping-archive-btn"
+                onClick={() => handleAddRecipeIngredientsToShopping(activeRecipe)}
+              >
+                <i className="fas fa-cart-plus" /> Add to Shopping List
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => setActiveRecipe(null)}>
+                Close
+              </button>
             </div>
           </div>
         </div>

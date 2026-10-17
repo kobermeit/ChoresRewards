@@ -58,6 +58,7 @@ export interface Reward {
   assigned_to: string;
   completed: boolean;
   date_completed: string | null;
+  is_recurring?: boolean;
 }
 
 export interface ExtraChore {
