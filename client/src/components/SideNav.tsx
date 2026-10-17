@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
 
 export const SideNav: React.FC = () => {
-  const { data, adultMode, setAdultMode, openAdultPinModal, activeView, setActiveView, scrollToSection, showToast } =
+  const { adultMode, setAdultMode, openAdultPinModal, activeView, setActiveView, scrollToSection, showToast } =
     useApp();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sideNavCollapsed') === 'true';
   });
+
+  useEffect(() => {
+    document.body.classList.toggle('side-nav-body-collapsed', collapsed);
+  }, [collapsed]);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -17,210 +21,176 @@ export const SideNav: React.FC = () => {
     });
   };
 
-  const navItems: Array<{
-    id: string;
-    label: string;
-    icon: string;
-    color: string;
-    adminOnly?: boolean;
-    conditional?: boolean;
-  }> = [
-    { id: 'dashboard-section', label: 'Today', icon: 'fa-home', color: '#38bdf8' },
-    { id: 'kanban', label: 'Chores', icon: 'fa-check-circle', color: '#4ade80' },
-    { id: 'rewards-section', label: 'Rewards', icon: 'fa-trophy', color: '#fbbf24' },
-    {
-      id: 'events-section',
-      label: 'Family Events',
-      icon: 'fa-calendar-alt',
-      color: '#60a5fa',
-      conditional: Boolean(data?.google_calendar?.enabled),
-    },
-    { id: 'meal-planner-section', label: 'Meal Planner', icon: 'fa-utensils', color: '#fb923c' },
-    { id: 'shopping-list-section', label: 'Shopping List', icon: 'fa-shopping-cart', color: '#34d399' },
-    { id: 'meal-library-section', label: 'Meal Library', icon: 'fa-book-open', color: '#f472b6' },
-    { id: 'notes-kanban-section', label: 'Notes', icon: 'fa-sticky-note', color: '#fde047' },
-    { id: 'add-chores-section', label: 'Add Chores', icon: 'fa-plus-circle', color: '#e879f9', adminOnly: true },
-    { id: 'create-reward-section', label: 'Create Reward', icon: 'fa-gift', color: '#c084fc', adminOnly: true },
-    { id: 'redeemed-section', label: 'Redeemed', icon: 'fa-history', color: '#94a3b8', adminOnly: true },
-    { id: 'organise-section', label: 'Organise', icon: 'fa-car', color: '#f59e0b', adminOnly: true },
-  ];
-
   const handleLockToggle = async () => {
     if (adultMode) {
-      await apiPost('adult_logout');
+      await apiPost('adult_logout', {});
       setAdultMode(false);
-      showToast('Switched to Child Mode 🔒', { type: 'info' });
+      showToast('Locked Adult Mode 🔒');
     } else {
       openAdultPinModal();
     }
   };
 
   return (
-    <aside
-      id="side-nav"
-      className={`side-nav ${collapsed ? 'collapsed' : ''}`}
-      style={{
-        width: collapsed ? 64 : 220,
-        transition: 'width 0.2s ease',
-        flexShrink: 0,
-        background: 'var(--cr-surface-1)',
-        borderRight: '1px solid var(--cr-surface-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '12px 8px',
-      }}
-    >
-      <div>
+    <>
+      <button
+        id="side-nav-toggle"
+        className={collapsed ? 'side-nav-toggle-collapsed' : ''}
+        title={collapsed ? 'Open sidebar' : 'Close sidebar'}
+        aria-label="Toggle sidebar"
+        onClick={toggleCollapsed}
+      >
+        <i className={`fas ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`} />
+      </button>
+
+      <nav id="side-nav" className={collapsed ? 'side-nav-collapsed' : ''} aria-label="Section navigation">
         <button
           type="button"
-          id="side-nav-toggle"
-          onClick={toggleCollapsed}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          style={{
-            width: '100%',
-            background: 'var(--cr-surface-2)',
-            border: '1px solid var(--cr-surface-border)',
-            color: 'var(--cr-text-primary)',
-            borderRadius: 10,
-            padding: '8px 10px',
-            cursor: 'pointer',
-            marginBottom: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'space-between',
-          }}
+          className="side-nav-btn"
+          title="Dashboard"
+          onClick={() => scrollToSection('dashboard-section')}
         >
-          {!collapsed && <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>Navigation</span>}
-          <i className={`fas ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`} />
+          <i className="fas fa-gauge-high" />
         </button>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {navItems.map((item) => {
-            if (item.conditional === false) return null;
-            if (item.adminOnly && !adultMode) return null;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => scrollToSection(item.id)}
-                title={item.label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--cr-text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  fontSize: '0.92rem',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                }}
-              >
-                <i className={`fas ${item.icon}`} style={{ color: item.color, width: 20, textAlign: 'center' }} />
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
+        <div className="side-nav-divider" style={{ marginTop: 8 }} />
 
-          <hr style={{ borderColor: 'var(--cr-surface-border)', margin: '8px 0' }} />
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Notes"
+          onClick={() => scrollToSection('notes-kanban-section')}
+        >
+          <i className="fas fa-sticky-note" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Available Rewards"
+          onClick={() => scrollToSection('rewards-section')}
+        >
+          <i className="fas fa-trophy" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Family Events"
+          onClick={() => scrollToSection('events-section')}
+        >
+          <i className="fas fa-calendar-alt" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Weekly Meal Plan"
+          onClick={() => scrollToSection('meal-planner-section')}
+        >
+          <i className="fas fa-utensils" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Shopping List"
+          onClick={() => scrollToSection('shopping-list-section')}
+        >
+          <i className="fas fa-cart-shopping" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Meal Library"
+          onClick={() => scrollToSection('meal-library-section')}
+        >
+          <i className="fas fa-book-open" />
+        </button>
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Family Members Chores"
+          onClick={() => scrollToSection('kanban')}
+        >
+          <i className="fas fa-house" />
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveView('activity_log')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 12px',
-              borderRadius: 10,
-              background: activeView === 'activity_log' ? 'var(--cr-surface-2)' : 'transparent',
-              border: 'none',
-              color: 'var(--cr-text-primary)',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.92rem',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-            }}
-          >
-            <i className="fas fa-list-alt" style={{ color: '#38bdf8', width: 20, textAlign: 'center' }} />
-            {!collapsed && <span>Activity Log</span>}
-          </button>
+        <div className="side-nav-divider" />
 
-          <button
-            type="button"
-            onClick={() => setActiveView('chore_history')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 12px',
-              borderRadius: 10,
-              background: activeView === 'chore_history' ? 'var(--cr-surface-2)' : 'transparent',
-              border: 'none',
-              color: 'var(--cr-text-primary)',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.92rem',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-            }}
-          >
-            <i className="fas fa-chart-pie" style={{ color: '#a855f7', width: 20, textAlign: 'center' }} />
-            {!collapsed && <span>Chore History</span>}
-          </button>
-
-          {adultMode && (
+        {adultMode && (
+          <>
             <button
               type="button"
-              onClick={() => setActiveView('settings')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: activeView === 'settings' ? 'var(--cr-surface-2)' : 'transparent',
-                border: 'none',
-                color: 'var(--cr-text-primary)',
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: '0.92rem',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-              }}
+              className="side-nav-btn"
+              title="Add Chores"
+              onClick={() => scrollToSection('add-chores-section')}
             >
-              <i className="fas fa-cog" style={{ color: '#94a3b8', width: 20, textAlign: 'center' }} />
-              {!collapsed && <span>Settings</span>}
+              <i className="fas fa-tasks" />
             </button>
-          )}
-        </div>
-      </div>
+            <button
+              type="button"
+              className="side-nav-btn"
+              title="Create Reward"
+              onClick={() => scrollToSection('create-reward-section')}
+            >
+              <i className="fas fa-gift" />
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="side-nav-btn"
+          title="Redeemed Rewards"
+          onClick={() => scrollToSection('redeemed-section')}
+        >
+          <i className="fas fa-medal" />
+        </button>
+        {adultMode && (
+          <button
+            type="button"
+            className="side-nav-btn"
+            title="Organise"
+            onClick={() => scrollToSection('organise-section')}
+          >
+            <i className="fas fa-folder-open" />
+          </button>
+        )}
 
-      <button
-        type="button"
-        id="side-nav-lock-btn"
-        onClick={handleLockToggle}
-        style={{
-          marginTop: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: collapsed ? 'center' : 'flex-start',
-          gap: 10,
-          padding: '10px 12px',
-          borderRadius: 10,
-          background: adultMode ? 'rgba(34, 197, 94, 0.15)' : 'var(--cr-surface-2)',
-          color: adultMode ? '#4ade80' : 'var(--cr-text-primary)',
-          border: '1px solid var(--cr-surface-border)',
-          cursor: 'pointer',
-          fontWeight: 700,
-        }}
-      >
-        <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
-        {!collapsed && <span>{adultMode ? 'Adult Mode' : 'Unlock Admin'}</span>}
-      </button>
-    </aside>
+        <div className="side-nav-divider" />
+
+        <button
+          type="button"
+          className={`side-nav-btn side-nav-link ${activeView === 'activity_log' ? 'side-nav-active' : ''}`}
+          title="Activity Log"
+          onClick={() => setActiveView('activity_log')}
+        >
+          <i className="fas fa-history" />
+        </button>
+        <button
+          type="button"
+          className={`side-nav-btn side-nav-link ${activeView === 'chore_history' ? 'side-nav-active' : ''}`}
+          title="Chore History"
+          onClick={() => setActiveView('chore_history')}
+        >
+          <i className="fas fa-chart-bar" />
+        </button>
+        {adultMode && (
+          <button
+            type="button"
+            className={`side-nav-btn side-nav-link ${activeView === 'settings' ? 'side-nav-active' : ''}`}
+            title="Settings"
+            onClick={() => setActiveView('settings')}
+          >
+            <i className="fas fa-cog" />
+          </button>
+        )}
+        <button
+          type="button"
+          className={`side-nav-btn ${adultMode ? 'unlocked' : ''}`}
+          id="side-nav-lock-btn"
+          title="Admin lock / unlock"
+          onClick={handleLockToggle}
+        >
+          <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
+        </button>
+      </nav>
+    </>
   );
 };

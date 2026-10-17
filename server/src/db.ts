@@ -205,7 +205,7 @@ export function initDatabase() {
     const countRow = db.prepare('SELECT COUNT(id) as cnt FROM person').get() as { cnt: number };
     if (countRow.cnt === 0) {
       console.log('[startup] Seeding migrated household data (Sarah, Abby, Gee)...');
-      const pinHash = bcrypt.hashSync('1234', 10);
+      const pinHash = bcrypt.hashSync('0212', 10);
 
       const insPerson = db.prepare(
         'INSERT INTO person (id, name, points, bonus_points, avatar, color, "order", is_admin, pin) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)'
@@ -255,6 +255,41 @@ export function initDatabase() {
           { icon: '🛒', id: 'coles-7129', name: 'coles' },
           { icon: '🛒', id: 'fruit-an-vege-4537', name: 'fruit an vege' },
         ])
+      );
+    } else {
+      const sarah = db.prepare('SELECT id, pin FROM person WHERE name = ?').get('Sarah') as { id: number; pin: string | null } | undefined;
+      if (sarah?.pin && bcrypt.compareSync('1234', sarah.pin)) {
+        db.prepare('UPDATE person SET pin = ?, is_admin = 1 WHERE id = ?').run(bcrypt.hashSync('0212', 10), sarah.id);
+      }
+    }
+
+    // Ensure migrated badges & meal plan are present
+    const badgeCnt = (db.prepare('SELECT COUNT(id) as cnt FROM person_badge').get() as { cnt: number }).cnt;
+    if (badgeCnt === 0) {
+      const nowIso = new Date().toISOString();
+      const insBadge = db.prepare('INSERT OR IGNORE INTO person_badge (person_id, badge_key, earned_at) VALUES (?, ?, ?)');
+      insBadge.run(2, 'first_chore', nowIso);
+      insBadge.run(2, 'perfect_day', nowIso);
+      insBadge.run(3, 'first_chore', nowIso);
+      insBadge.run(3, 'perfect_day', nowIso);
+    }
+
+    if (!AppSetting.get('meal_planner_plan_json')) {
+      AppSetting.set(
+        'meal_planner_plan_json',
+        JSON.stringify({
+          '2026-10-12': { breakfast: '', lunch: 'Abby : lasanga', dinner: 'Lasanga' },
+          '2026-10-13': { breakfast: '', lunch: '', dinner: 'Lasanga' },
+          '2026-10-14': { breakfast: '', lunch: 'Abby : Pizza', dinner: 'Pizza' },
+          '2026-10-15': { breakfast: '', lunch: '', dinner: 'Sausage and veg' },
+          '2026-10-16': { breakfast: '', lunch: '', dinner: 'Sausage and vege' },
+        })
+      );
+    }
+    if (!AppSetting.get('meal_planner_suggestions_json')) {
+      AppSetting.set(
+        'meal_planner_suggestions_json',
+        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
       );
     }
   } catch (err) {

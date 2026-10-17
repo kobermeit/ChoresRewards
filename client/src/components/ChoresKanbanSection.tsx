@@ -3,7 +3,23 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAvatarUrl } from '../api';
 import { BadgeItem, Chore, ExtraChore, Person } from '../types';
 
-const CHORE_ICONS = ['🧹', '🛏️', '🍽️', '🗑️', '🐕', '📚', '🧺', '🦷', '🌱', '🧸', '🧽', '🚿', '🎒', '👟', '⭐'];
+const CHORE_EMOJI_OPTIONS = [
+  '', '✅', '🍽️', '🧺', '🗑️', '🧹', '🚿', '🦷', '👕', '🌱', '🍳', '🥗',
+  '🎵', '📖', '🎓', '🎒', '🐶', '🐱', '🦮', '🐾', '💧', '💊', '📦', '🧽',
+  '🛏️', '🚗', '🛒', '🎮', '📱', '🖥️', '😴', '🏋️', '⭐', '🔥', '🌟',
+  '🧼', '🪣', '🪥', '🧻', '🛋️', '🪟', '🧴', '🧦', '👟', '🪴', '🌻',
+  '🔨', '🔧', '🪛', '✂️', '🍲', '🍞', '🍎', '🥛', '☕', '🍕', '🦴',
+  '🐟', '🦜', '🐹', '✏️', '📝', '🎨', '🧘', '🛁', '🏃', '🚲', '⚽',
+  '🏀', '✉️', '📬', '🛍️', '💵', '📅', '🏆', '🥇', '🎯', '🎉', '⏰',
+  '☀️', '🌙', '🧸', '🔒',
+];
+
+const INITIAL_CHORE_SUGGESTIONS = [
+  'Clean Room', 'Clean Desk', 'Pack Lunch', 'Clean Playroom',
+  'Pack Water Bottle', 'Brush Teeth', 'Unstack Dishwasher',
+  'Put Away Laundry', 'Do a workout', 'Take Dog For A Walk',
+  'Reading', 'Go to Sleep without meltdown',
+];
 
 const BODY_CHALLENGES = [
   'Do 10 star jumps!',
@@ -15,24 +31,107 @@ const BODY_CHALLENGES = [
   'Balance on one leg with your eyes closed for 10 seconds!',
 ];
 
+function detectChoreIcon(title: string, customIcon?: string | null): string {
+  if (customIcon && customIcon.trim()) return customIcon.trim();
+  const t = (title || '').toLowerCase();
+  if (t.includes('tooth') || t.includes('teeth') || t.includes('dental') || t.includes('brush')) return '🦷';
+  if (t.includes('dishwasher') || t.includes('dishes') || t.includes('dish')) return '🍽️';
+  if (t.includes('laundry') || t.includes('washing') || t.includes('fold') || t.includes('iron') || t.includes('clothes')) return '👕';
+  if (t.includes('lawn') || t.includes('mow') || t.includes('grass') || t.includes('garden') || t.includes('weed') || t.includes('yard') || t.includes('plant')) return '🌱';
+  if (t.includes('rubbish') || t.includes('garbage') || t.includes('recycl') || t.includes('bins') || t.includes('bin') || t.includes('trash')) return '🗑️';
+  if (t.includes('workout') || t.includes('exercise') || t.includes('gym') || t.includes('fitness') || t.includes('sport')) return '🏋️';
+  if (t.includes('shop') || t.includes('grocery') || t.includes('groceries') || t.includes('market') || t.includes('supermarket')) return '🛒';
+  if (t.includes('cook') || t.includes('bake') || t.includes('dinner')) return '🍳';
+  if (t.includes('bath') || t.includes('shower')) return '🚿';
+  if (t.includes('vacuum') || t.includes('hoover') || t.includes('sweep') || t.includes('mop')) return '🧹';
+  if (t.includes('music') || t.includes('piano') || t.includes('guitar') || t.includes('violin') || t.includes('instrument') || t.includes('practis') || t.includes('practice')) return '🎵';
+  if (t.includes('cat')) return '🐱';
+  if (t.includes('fish')) return '🐟';
+  if (t.includes('bird')) return '🐦';
+  if (t.includes('hamster') || t.includes('rabbit')) return '🐹';
+  if (t.includes('feed') || t.includes('animal')) return '🐾';
+  if (t.includes('medicine') || t.includes('pill') || t.includes('vitamin')) return '💊';
+  if (t.includes('dog') || t.includes('sam')) return '🐶';
+  if (t.includes('walk')) return '🦮';
+  if (t.includes('sleep') || t.includes('meltdown') || t.includes('night')) return '😴';
+  if (t.includes('lunch') || t.includes('breakfast') || t.includes('snack') || t.includes('meal') || t.includes('eat') || t.includes('food')) return '🥗';
+  if (t.includes('pack')) return '🎒';
+  if (t.includes('water') || t.includes('drink') || t.includes('bottle')) return '💧';
+  if (t.includes('read') || t.includes('book')) return '📖';
+  if (t.includes('homework') || t.includes('school') || t.includes('learn') || t.includes('study')) return '🎓';
+  if (t.includes('tidy') || t.includes('organis') || t.includes('organiz')) return '📦';
+  if (t.includes('wipe') || t.includes('clean') || t.includes('sort')) return '🧽';
+  if (t.includes('playroom') || t.includes('play') || t.includes('game') || t.includes('toy')) return '🎮';
+  if (t.includes('desk')) return '🖥️';
+  if (t.includes('bedroom') || t.includes('room') || t.includes('bed')) return '🛏️';
+  if (t.includes('car') || t.includes('drive')) return '🚗';
+  if (t.includes('screen') || t.includes('ipad') || t.includes('computer') || t.includes('phone') || t.includes('tv')) return '📱';
+  return '✅';
+}
+
+function formatDaysTag(daysOfWeek: string | string[] | null | undefined): string | null {
+  if (!daysOfWeek) return null;
+  const raw = Array.isArray(daysOfWeek) ? daysOfWeek : String(daysOfWeek).split(',');
+  const shortDays = raw.map((d) => d.trim().toLowerCase()).filter(Boolean);
+  if (shortDays.length === 0) return null;
+  const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  const weekends = ['saturday', 'sunday'];
+  const sorted = [...shortDays].sort();
+  if (sorted.length === 5 && sorted.every((d, i) => d === [...weekdays].sort()[i])) {
+    return 'Weekdays';
+  }
+  if (sorted.length === 2 && sorted.every((d, i) => d === [...weekends].sort()[i])) {
+    return 'Weekends';
+  }
+  const mapDay: Record<string, string> = {
+    monday: 'Mon',
+    tuesday: 'Tue',
+    wednesday: 'Wed',
+    thursday: 'Thu',
+    friday: 'Fri',
+    saturday: 'Sat',
+    sunday: 'Sun',
+  };
+  return shortDays.map((d) => mapDay[d] || d.charAt(0).toUpperCase() + d.slice(1, 3)).join(', ');
+}
+
 export const ChoresKanbanSection: React.FC = () => {
-  const { data, refresh, adultMode, openAdultPinModal, playSound, showToast, formatRewardValue } = useApp();
+  const { data, refresh, adultMode, playSound, showToast, formatRewardValue } = useApp();
+
+  // Add Chores accordion state
+  const [addChoresCollapsed, setAddChoresCollapsed] = useState(true);
+
+  // Quick suggestions
+  const [choreSuggestions, setChoreSuggestions] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('choreSuggestions');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return INITIAL_CHORE_SUGGESTIONS;
+  });
+  const [showAddSuggestionInput, setShowAddSuggestionInput] = useState(false);
+  const [newSuggestionText, setNewSuggestionText] = useState('');
+  const [suggestionsEditMode, setSuggestionsEditMode] = useState(false);
 
   // Add Chore form state
   const [newTitle, setNewTitle] = useState('');
   const [newAssignedTo, setNewAssignedTo] = useState('');
   const [newPoints, setNewPoints] = useState('1');
-  const [newIcon, setNewIcon] = useState('🧹');
-  const [newScheduleType, setNewScheduleType] = useState<'daily' | 'days' | 'once'>('daily');
-  const [newDaysOfWeek, setNewDaysOfWeek] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
-  const [newDueDate, setNewDueDate] = useState('');
-  const [newDueTime, setNewDueTime] = useState('');
+  const [newIcon, setNewIcon] = useState('');
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [isRepeating, setIsRepeating] = useState(false);
+  const [newDaysOfWeek, setNewDaysOfWeek] = useState<string[]>([]);
+  const [hasDueDatetime, setHasDueDatetime] = useState(false);
+  const [newDueDatetime, setNewDueDatetime] = useState('');
   const [submittingChore, setSubmittingChore] = useState(false);
 
   // Column interactions
-  const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const [editingPersonModal, setEditingPersonModal] = useState<Person | null>(null);
   const [editingNameVal, setEditingNameVal] = useState('');
   const [expandedCompleted, setExpandedCompleted] = useState<Record<number, boolean>>({});
+  const [draggedPersonId, setDraggedPersonId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   // Delete / Skip Chore Modal
@@ -61,9 +160,23 @@ export const ChoresKanbanSection: React.FC = () => {
 
   if (!data) return null;
 
-  const family = data.family || [];
+  const family = [...(data.family || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const chores = data.chores || [];
   const overdueIds = new Set(data.overdue_chore_ids || []);
+  const isCash = data.reward_system === 'cash';
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? '☀️ Good morning!' : hour < 17 ? '🌤️ Good afternoon!' : '🌙 Good evening!';
+
+  const saveSuggestions = (next: string[]) => {
+    setChoreSuggestions(next);
+    try {
+      localStorage.setItem('choreSuggestions', JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
 
   const handleCompleteChore = async (chore: Chore, person: Person) => {
     try {
@@ -92,9 +205,12 @@ export const ChoresKanbanSection: React.FC = () => {
           }
         }
 
-        // Check if this was the last pending chore for this person
         const remainingForPerson = chores.filter(
-          (c) => c.assigned_to === person.name && !c.completed && !c.deleted && c.id !== chore.id
+          (c) =>
+            (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
+            !c.completed &&
+            !c.deleted &&
+            c.id !== chore.id
         );
         await refresh();
 
@@ -115,7 +231,6 @@ export const ChoresKanbanSection: React.FC = () => {
     setBonusAwarded(null);
     setBodyChallengeText(BODY_CHALLENGES[Math.floor(Math.random() * BODY_CHALLENGES.length)]);
 
-    // Pick an age-appropriate quiz question if enabled
     if (data.quiz_questions_enabled && Array.isArray(data.quiz_questions) && data.quiz_questions.length > 0) {
       const age = person.age ?? 8;
       const matching = data.quiz_questions.filter((q: any) => {
@@ -155,7 +270,7 @@ export const ChoresKanbanSection: React.FC = () => {
         correct: isCorrect,
       });
     } catch {
-      // ignore logging error
+      // ignore
     }
   };
 
@@ -196,6 +311,13 @@ export const ChoresKanbanSection: React.FC = () => {
   };
 
   const handleClearCompleted = async (personName: string) => {
+    if (
+      !window.confirm(
+        "Clear today's completed chores for this person? Repeating chores come back tomorrow. One-off chores are removed."
+      )
+    ) {
+      return;
+    }
     try {
       await apiPost('clear_completed_chores', { assigned_to: personName });
       showToast(`Cleared completed chores for ${personName}`);
@@ -242,7 +364,6 @@ export const ChoresKanbanSection: React.FC = () => {
         });
       }
     } catch {
-      // fallback to bootstrap data
       setProfileDetails({
         streak: person.streak,
         total_completed: person.total_completed,
@@ -276,9 +397,11 @@ export const ChoresKanbanSection: React.FC = () => {
     }
   };
 
-  const handleSaveName = async (person: Person) => {
+  const handleSaveName = async () => {
+    if (!editingPersonModal) return;
     const trimmed = editingNameVal.trim();
-    setEditingNameId(null);
+    const person = editingPersonModal;
+    setEditingPersonModal(null);
     if (!trimmed || trimmed === person.name) return;
     try {
       const res = await apiPost<{ success: boolean; error?: string }>('update_person_name', {
@@ -296,6 +419,26 @@ export const ChoresKanbanSection: React.FC = () => {
     }
   };
 
+  const handleDropColumn = async (targetPerson: Person) => {
+    if (draggedPersonId == null || draggedPersonId === targetPerson.id) return;
+    const currentOrder = [...family];
+    const fromIdx = currentOrder.findIndex((p) => p.id === draggedPersonId);
+    const toIdx = currentOrder.findIndex((p) => p.id === targetPerson.id);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = currentOrder.splice(fromIdx, 1);
+    currentOrder.splice(toIdx, 0, moved);
+    setDraggedPersonId(null);
+
+    try {
+      await Promise.all(
+        currentOrder.map((p, idx) => apiPost('update_order', { person_id: p.id, order: idx }))
+      );
+      await refresh();
+    } catch {
+      // ignore
+    }
+  };
+
   const handleAddChoreSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -307,23 +450,21 @@ export const ChoresKanbanSection: React.FC = () => {
 
     setSubmittingChore(true);
     try {
-      let due_datetime: string | null = null;
-      if (newDueDate && newDueTime) {
-        due_datetime = `${newDueDate}T${newDueTime}`;
-      }
       await apiPost('add_chore', {
         title: newTitle.trim(),
         assigned_to: assigned,
-        points: parseFloat(newPoints) || 1,
-        icon: newIcon,
-        is_daily: newScheduleType === 'daily',
-        days_of_week: newScheduleType === 'days' ? newDaysOfWeek.join(',') : null,
-        due_date: newDueDate || null,
-        due_datetime,
+        points: parseFloat(newPoints) || 0,
+        icon: newIcon || null,
+        is_daily: isRepeating,
+        days_of_week: isRepeating && newDaysOfWeek.length > 0 ? newDaysOfWeek.join(',') : null,
+        due_datetime: hasDueDatetime && newDueDatetime ? newDueDatetime : null,
       });
       setNewTitle('');
-      setNewDueDate('');
-      setNewDueTime('');
+      setNewIcon('');
+      setNewDaysOfWeek([]);
+      setIsRepeating(false);
+      setHasDueDatetime(false);
+      setNewDueDatetime('');
       showToast(`Added chore "${newTitle.trim()}" for ${assigned}`);
       await refresh();
     } catch (err: any) {
@@ -333,718 +474,992 @@ export const ChoresKanbanSection: React.FC = () => {
     }
   };
 
-  const toggleDayOfWeek = (day: string) => {
-    setNewDaysOfWeek((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  const toggleDayOfWeek = (dayFull: string) => {
+    setNewDaysOfWeek((prev) =>
+      prev.includes(dayFull) ? prev.filter((d) => d !== dayFull) : [...prev, dayFull]
+    );
   };
+
+  const selectedAssignee = newAssignedTo || family[0]?.name || '';
 
   return (
     <>
-      {/* FAMILY CHORES KANBAN BOARD */}
-      <section className="section-heading" id="chores-heading">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h2>🧹 Family Chores</h2>
-            <p className="section-subtitle">Complete your daily chores to earn rewards and build your streak!</p>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            style={{ padding: '8px 16px', borderRadius: 10, fontSize: '0.9rem' }}
-            onClick={() => {
-              if (!adultMode) {
-                openAdultPinModal(() => {
-                  document.getElementById('add-chores-section')?.scrollIntoView({ behavior: 'smooth' });
-                });
-              } else {
-                document.getElementById('add-chores-section')?.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-          >
-            + Add Chore
-          </button>
+      <section>
+        <h2
+          style={{
+            textAlign: 'center',
+            color: 'var(--cr-text-primary)',
+            marginBottom: 10,
+            marginTop: 0,
+            fontSize: '2em',
+            letterSpacing: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
+          <i className="fas fa-house-chimney" style={{ color: 'var(--cr-text-primary)', fontSize: '1.2em' }} />
+          Family Members Chores
+        </h2>
+        <div id="morning-greeting-bar" className="morning-greeting-bar">
+          {greeting}
         </div>
-      </section>
 
-      <div id="kanban" className="kanban-board">
-        {family.map((person) => {
-          const personChores = chores.filter((c) => c.assigned_to === person.name && !c.deleted);
-          const pendingChores = personChores.filter((c) => !c.completed);
-          const completedChores = personChores.filter((c) => c.completed);
-          const prog = data.family_progress?.[person.name] || {
-            completed: completedChores.length,
-            total: personChores.length,
-          };
-          const pct = prog.total > 0 ? Math.round((prog.completed / prog.total) * 100) : 0;
-          const totalPts = Number((person.points || 0) + (person.bonus_points || 0));
-          const streakCount = person.streak?.current_streak || 0;
-          const earnedBadges = (person.badges || []).filter((b) => b.earned !== false);
+        <div id="kanban">
+          {family.map((person) => {
+            const personChores = chores.filter(
+              (c) =>
+                (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
+                !c.deleted
+            );
+            const pendingChores = personChores.filter((c) => !c.completed);
+            const completedChores = personChores.filter((c) => c.completed);
+            const totalToday = pendingChores.length + completedChores.length;
+            const doneToday = completedChores.length;
+            const remaining = pendingChores.length;
+            const pct = totalToday > 0 ? Math.round((doneToday / totalToday) * 100) : 0;
+            const totalPts = Number((person.points || 0) + (person.bonus_points || 0));
+            const streakCount = person.streak?.current_streak || 0;
+            const longestStreak = person.streak?.longest_streak || 0;
+            const earnedBadges = (person.badges || []).filter((b) => b.earned !== false);
+            const availableExtraChores = (data.extra_chores || []).filter((ec) => {
+              if (!ec.enabled) return false;
+              const age = person.age;
+              if (age != null) {
+                if (ec.min_age && age < ec.min_age) return false;
+                if (ec.max_age && age > ec.max_age) return false;
+              }
+              return true;
+            });
 
-          return (
-            <div
-              key={person.id}
-              className="kanban-column"
-              style={{
-                borderTop: `5px solid ${person.color || '#4a6fa5'}`,
-                backgroundColor: person.color ? `${person.color}18` : undefined,
-              }}
-            >
-              {/* Column Header */}
-              <div className="column-header" style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-                  {/* Avatar with click-to-upload */}
-                  <div
-                    style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}
-                    title="Click to change avatar"
-                    onClick={() => fileInputRefs.current[person.id]?.click()}
-                  >
-                    <img
-                      src={resolveAvatarUrl(person.avatar)}
-                      alt={person.name}
-                      className="avatar"
+            return (
+              <div
+                key={person.id}
+                className="column"
+                data-person={person.name}
+                data-person-id={person.id}
+                data-person-age={person.age ?? ''}
+                style={{
+                  backgroundColor: person.color || undefined,
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDropColumn(person)}
+              >
+                {/* Column header with centered name and edit icon */}
+                <div className="column-header">
+                  <h3 className="name" style={{ position: 'relative', paddingRight: 28 }}>
+                    <span className="person-name" data-person-id={person.id}>
+                      {person.name}
+                    </span>
+                    <i
+                      className="fas fa-pencil-alt edit-name-icon admin-only"
                       style={{
-                        width: 54,
-                        height: 54,
+                        position: 'absolute',
+                        top: -6,
+                        right: -2,
+                        fontSize: '0.45em',
+                        color: '#bbbbbb',
+                        background: 'rgba(0,0,0,0.45)',
                         borderRadius: '50%',
-                        objectFit: 'cover',
-                        border: `3px solid ${person.color || '#60a5fa'}`,
+                        width: 18,
+                        height: 18,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                      title="Edit Name"
+                      onClick={() => {
+                        setEditingPersonModal(person);
+                        setEditingNameVal(person.name);
                       }}
                     />
-                    <input
-                      ref={(el) => {
-                        fileInputRefs.current[person.id] = el;
-                      }}
-                      type="file"
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleAvatarUpload(person, file);
-                      }}
-                    />
-                  </div>
+                  </h3>
+                </div>
 
-                  {/* Name & Points */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {editingNameId === person.id ? (
-                        <input
-                          type="text"
-                          value={editingNameVal}
-                          onChange={(e) => setEditingNameVal(e.target.value)}
-                          onBlur={() => handleSaveName(person)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveName(person);
-                            if (e.key === 'Escape') setEditingNameId(null);
-                          }}
-                          autoFocus
-                          style={{
-                            width: '100%',
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            border: '1px solid #60a5fa',
-                            background: 'rgba(0,0,0,0.3)',
-                            color: 'inherit',
-                            fontWeight: 700,
-                          }}
-                        />
-                      ) : (
-                        <h3
-                          style={{ margin: 0, fontSize: '1.2rem', cursor: adultMode ? 'pointer' : 'default' }}
-                          onClick={() => {
-                            if (adultMode) {
-                              setEditingNameId(person.id);
-                              setEditingNameVal(person.name);
-                            }
-                          }}
-                          title={adultMode ? 'Click to rename' : person.name}
-                        >
-                          {person.name}
-                        </h3>
-                      )}
-                      {person.is_admin && (
-                        <span
-                          title="Parent / Admin"
-                          style={{
-                            fontSize: '0.7rem',
-                            background: 'rgba(245,158,11,0.2)',
-                            color: '#fbbf24',
-                            padding: '2px 6px',
-                            borderRadius: 6,
-                            fontWeight: 700,
-                          }}
-                        >
-                          ADMIN
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                      <span
-                        className="points-badge"
-                        style={{
-                          background: 'rgba(59,130,246,0.2)',
-                          color: '#60a5fa',
-                          padding: '3px 10px',
-                          borderRadius: 999,
-                          fontWeight: 800,
-                          fontSize: '0.88rem',
-                        }}
-                      >
-                        ⭐ {formatRewardValue(totalPts)}
-                      </span>
-
-                      {streakCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenProfile(person)}
-                          style={{
-                            background: 'rgba(249,115,22,0.2)',
-                            color: '#fb923c',
-                            border: 'none',
-                            padding: '3px 9px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                          }}
-                          title="View Streak & Badges"
-                        >
-                          🔥 {streakCount}d
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenProfile(person)}
-                        style={{
-                          background: 'rgba(255,255,255,0.08)',
-                          color: 'inherit',
-                          border: 'none',
-                          padding: '3px 8px',
-                          borderRadius: 999,
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                        title="View Profile & Badges"
-                      >
-                        🏅 {earnedBadges.length}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Color Picker */}
-                  <label
-                    title="Change column color"
-                    style={{
-                      cursor: 'pointer',
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: person.color || '#4a6fa5',
-                      border: '2px solid rgba(255,255,255,0.4)',
-                      flexShrink: 0,
-                    }}
+                {/* Points / Balance Display */}
+                <div className="points-display">
+                  <div className="balance-label">{isCash ? 'Balance' : 'Points'}</div>
+                  <span
+                    className="chore-points-badge"
+                    title={`Total ${isCash ? 'cash' : 'points'} for ${person.name}`}
                   >
+                    {isCash ? (
+                      <>
+                        <i className="fas fa-money-bill-wave" style={{ color: '#4ade80', marginRight: 4 }} />
+                        <span className="chore-points-value">${totalPts.toFixed(2)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
+                        <span className="chore-points-value">{totalPts.toFixed(2)}</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {/* Avatar + Upload + Color Picker */}
+                <div className="avatar-container" style={{ marginBottom: 0, paddingBottom: 0 }}>
+                  <img
+                    src={resolveAvatarUrl(person.avatar)}
+                    alt={person.name}
+                    className="avatar avatar-tappable"
+                    onClick={() => handleOpenProfile(person)}
+                    title={`View ${person.name}'s badges`}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                    <div className="avatar-upload-form" style={{ margin: 0 }}>
+                      <input
+                        ref={(el) => {
+                          fileInputRefs.current[person.id] = el;
+                        }}
+                        id={`avatar-upload-${person.id}`}
+                        type="file"
+                        name="avatar"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleAvatarUpload(person, file);
+                        }}
+                      />
+                      <label
+                        htmlFor={`avatar-upload-${person.id}`}
+                        className="custom-file-upload"
+                        title="Change Profile Picture"
+                        style={{
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          zIndex: 2,
+                          position: 'relative',
+                        }}
+                      >
+                        <i className="fa-solid fa-image" />
+                      </label>
+                    </div>
                     <input
                       type="color"
-                      value={person.color || '#4a6fa5'}
+                      id={`color-picker-${person.id}`}
+                      className="color-input"
+                      value={person.color || '#cccccc'}
                       onChange={(e) => handleColorChange(person, e.target.value)}
-                      style={{ opacity: 0, width: 0, height: 0 }}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        padding: 0,
+                        borderRadius: 6,
+                        border: '1.5px solid #bbb',
+                        background: 'none',
+                        display: 'inline-block',
+                        verticalAlign: 'middle',
+                        cursor: 'pointer',
+                      }}
                     />
-                  </label>
+                    <label
+                      htmlFor={`color-picker-${person.id}`}
+                      className="color-picker-label"
+                      title="Change Kanban Color"
+                    >
+                      <i className="fas fa-palette" />
+                    </label>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div style={{ width: '100%', marginTop: 10 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '0.78rem',
-                      opacity: 0.8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <span>
-                      Today: {prog.completed}/{prog.total} done
-                    </span>
-                    <span>{pct}%</span>
-                  </div>
-                  <div
-                    style={{
-                      height: 8,
-                      borderRadius: 999,
-                      background: 'rgba(255,255,255,0.12)',
-                      overflow: 'hidden',
-                    }}
-                  >
+                {totalToday > 0 && (
+                  <div className="chore-progress-wrap" data-done={doneToday} data-total={totalToday}>
                     <div
-                      style={{
-                        width: `${pct}%`,
-                        height: '100%',
-                        background: pct === 100 ? '#22c55e' : person.color || '#3b82f6',
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
+                      className="chore-progress-bar-container"
+                      title={`${doneToday} of ${totalToday} done`}
+                    >
+                      <div className="chore-progress-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="chore-progress-label">{remaining} left</div>
                   </div>
-                </div>
-              </div>
+                )}
 
-              {/* Pending Chores List */}
-              <div className="chore-list" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-                {pendingChores.length === 0 ? (
-                  <div
-                    style={{
-                      textAlign: 'center',
-                      padding: '22px 12px',
-                      borderRadius: 12,
-                      background: 'rgba(34,197,94,0.1)',
-                      border: '1px dashed rgba(34,197,94,0.35)',
-                    }}
-                  >
-                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>🎉</div>
-                    <div style={{ fontWeight: 700, color: '#4ade80' }}>All chores done for today!</div>
-                    {prog.total > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => openCelebrationModal(person)}
-                        style={{
-                          marginTop: 8,
-                          background: 'rgba(34,197,94,0.2)',
-                          color: '#4ade80',
-                          border: '1px solid rgba(34,197,94,0.4)',
-                          borderRadius: 8,
-                          padding: '5px 12px',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                          fontSize: '0.82rem',
-                        }}
-                      >
-                        🎁 Daily Bonus & Quiz
-                      </button>
-                    )}
+                {/* Streak Display */}
+                <div
+                  className={`streak-display${streakCount === 0 ? ' hidden' : ''}`}
+                  id={`streak-${person.id}`}
+                >
+                  {streakCount > 0 && (
+                    <>
+                      <span className="streak-flame">🔥</span>
+                      <span className="streak-count">{streakCount}-day streak</span>
+                      {longestStreak > streakCount && (
+                        <span className="streak-best"> (best: {longestStreak})</span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Badge Shelf */}
+                <div className="badge-shelf" id={`badges-${person.id}`}>
+                  {earnedBadges.map((badge) => (
+                    <span
+                      key={badge.key}
+                      className="badge-item"
+                      title={`${badge.name}: ${badge.desc}`}
+                    >
+                      {badge.emoji}
+                    </span>
+                  ))}
+                </div>
+
+                <h4
+                  className="chores-to-do-header"
+                  style={{
+                    textAlign: 'center',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(255,255,255,0.45)',
+                    margin: '10px 0 4px',
+                    padding: 0,
+                  }}
+                >
+                  CHORES
+                </h4>
+
+                {/* Pending Chores */}
+                {pendingChores.length > 0 ? (
+                  <div className="chores-list incomplete-chores-list">
+                    {pendingChores.map((chore) => {
+                      const isOverdue = overdueIds.has(chore.id) || Boolean(chore.is_overdue);
+                      const daysLabel = formatDaysTag(chore.days_of_week);
+                      return (
+                        <div
+                          key={chore.id}
+                          className={`chore${chore.due_datetime ? ' has-due-date' : ''}${chore.is_extra ? ' chore-extra' : ''}`}
+                          data-chore-id={chore.id}
+                          style={{
+                            margin: 8,
+                            borderRadius: 14,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                            paddingRight: 34,
+                            paddingTop: 40,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn-delete-chore-sm admin-only"
+                            onClick={() => setChoreToDelete(chore)}
+                            aria-label="Delete chore"
+                          >
+                            <i className="fas fa-times" />
+                          </button>
+
+                          <span
+                            className="chore-points-badge"
+                            style={{ position: 'absolute', top: 6, left: 6, marginLeft: 0 }}
+                            title="Points for this chore"
+                          >
+                            {isCash ? (
+                              <>
+                                <i className="fas fa-money-bill-wave" style={{ color: '#4ade80', marginRight: 4 }} />
+                                <span className="chore-points-value">${Number(chore.points).toFixed(2)}</span>
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-award" style={{ color: '#fbbf24', marginRight: 4 }} />
+                                <span className="chore-points-value">{Number(chore.points).toFixed(1)}</span>
+                              </>
+                            )}
+                          </span>
+
+                          <div className="chore-header">
+                            <span className="chore-icon">{detectChoreIcon(chore.title, chore.icon)}</span>
+                            <span className="chore-title">{chore.title}</span>
+                          </div>
+
+                          <div className="chore-meta">
+                            <div className="chore-tags">
+                              {chore.is_extra && (
+                                <span className="chore-tag chore-tag-extra">
+                                  <i className="fas fa-star" /> Extra
+                                </span>
+                              )}
+                              {chore.is_daily && (
+                                <span className="chore-tag chore-tag-daily">
+                                  <i className="fas fa-sync" /> Daily
+                                </span>
+                              )}
+                              {daysLabel && <span className="chore-tag">{daysLabel}</span>}
+                              {chore.due_datetime && (
+                                <span
+                                  className={`chore-tag ${isOverdue ? 'chore-tag-overdue' : 'chore-tag-due'}`}
+                                >
+                                  <i className="fas fa-clock" /> {isOverdue ? 'Overdue' : `Due ${chore.due_datetime}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn-complete-chore"
+                            onClick={() => handleCompleteChore(chore, person)}
+                          >
+                            <i className="fas fa-check" /> Complete
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : completedChores.length > 0 ? (
+                  <div className="all-done-banner">
+                    <div className="all-done-emoji">🎉</div>
+                    <div className="all-done-text">ALL DONE!</div>
+                    <div className="all-done-subtext">Amazing work today!</div>
                   </div>
                 ) : (
-                  pendingChores.map((chore) => {
-                    const isOverdue = overdueIds.has(chore.id) || Boolean(chore.is_overdue);
-                    return (
-                      <div
-                        key={chore.id}
-                        className={`chore-card ${isOverdue ? 'overdue' : ''}`}
+                  <div className="no-chores-banner">
+                    <div className="no-chores-emoji">😊</div>
+                    <div className="no-chores-text">FREE DAY!</div>
+                    <div className="no-chores-subtext">No chores today</div>
+                  </div>
+                )}
+
+                {/* Earn More Prompt when no pending chores and extra chores exist */}
+                {pendingChores.length === 0 && availableExtraChores.length > 0 && (
+                  <div className="earn-more-prompt" id={`earn-more-${person.id}`}>
+                    <p className="earn-more-prompt-kicker">Want to earn more?</p>
+                    <button
+                      type="button"
+                      className="earn-more-btn"
+                      onClick={() => setExtraModalPerson(person)}
+                    >
+                      <i className="fas fa-plus-circle" /> Pick an extra job
+                    </button>
+                  </div>
+                )}
+
+                {/* Collapsible Completed Chores Section */}
+                {completedChores.length > 0 && (
+                  <div className="completed-chores-toggle-container" style={{ marginTop: 15 }}>
+                    <button
+                      type="button"
+                      className="completed-chores-toggle-btn"
+                      onClick={() =>
+                        setExpandedCompleted((prev) => ({ ...prev, [person.id]: !prev[person.id] }))
+                      }
+                      aria-label="Show/Hide Completed Chores"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '1.1em',
+                        color: 'var(--text-color)',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <i
+                        className="fas fa-chevron-down"
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          padding: '12px 14px',
-                          borderRadius: 12,
-                          background: isOverdue ? 'rgba(239,68,68,0.14)' : 'rgba(255,255,255,0.06)',
-                          border: isOverdue
-                            ? '1px solid rgba(239,68,68,0.45)'
-                            : '1px solid rgba(255,255,255,0.1)',
+                          transition: 'transform 0.2s',
+                          transform: expandedCompleted[person.id] ? 'rotate(180deg)' : 'rotate(0deg)',
                         }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '1.45rem', flexShrink: 0 }}>{chore.icon || '🧹'}</span>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.98rem', wordBreak: 'break-word' }}>
-                              {chore.title}
+                      />
+                      <span style={{ marginLeft: 6 }}>
+                        {expandedCompleted[person.id] ? 'Hide' : 'Show'} Completed Chores ({completedChores.length})
+                      </span>
+                    </button>
+
+                    {expandedCompleted[person.id] && (
+                      <div className="chores-list completed-chores-list">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h4 className="chores-completed-header" style={{ color: 'var(--text-color)', marginTop: 0 }}>
+                            Completed Chores:
+                          </h4>
+                          <button
+                            type="button"
+                            className="clear-all-completed-btn admin-only"
+                            style={{
+                              background: '#f44336',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 16px',
+                              borderRadius: 6,
+                              fontSize: '0.95em',
+                              cursor: 'pointer',
+                              marginBottom: 6,
+                            }}
+                            onClick={() => handleClearCompleted(person.name)}
+                          >
+                            <i className="fas fa-trash" /> Clear All
+                          </button>
+                        </div>
+                        <div
+                          className="clear-all-hint admin-only"
+                          style={{ fontSize: '0.95em', color: 'var(--cr-text-secondary)', marginBottom: 6 }}
+                        >
+                          (clears this list for today)
+                        </div>
+                        {completedChores.map((chore) => (
+                          <div
+                            key={chore.id}
+                            className="chore completed"
+                            data-chore-id={chore.id}
+                            style={{
+                              margin: 8,
+                              borderRadius: 14,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                              opacity: 0.72,
+                              paddingRight: 34,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="btn-delete-chore-sm admin-only"
+                              onClick={() => setChoreToDelete(chore)}
+                              aria-label="Delete chore"
+                            >
+                              <i className="fas fa-times" />
+                            </button>
+                            <div className="chore-header">
+                              <span className="chore-icon">
+                                <i className="fas fa-check-circle" style={{ color: '#10b981' }} />
+                              </span>
+                              <span className="chore-title" style={{ fontSize: '0.95em' }}>
+                                {chore.title}
+                              </span>
                             </div>
                             <div
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 6,
+                                justifyContent: 'space-between',
                                 flexWrap: 'wrap',
-                                marginTop: 4,
-                                fontSize: '0.75rem',
-                                opacity: 0.8,
+                                gap: 6,
                               }}
                             >
-                              <span
-                                style={{
-                                  background: 'rgba(59,130,246,0.2)',
-                                  color: '#93c5fd',
-                                  padding: '1px 7px',
-                                  borderRadius: 6,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                +{formatRewardValue(chore.points)}
-                              </span>
-                              {chore.is_extra && (
-                                <span
-                                  style={{
-                                    background: 'rgba(245,158,11,0.2)',
-                                    color: '#fcd34d',
-                                    padding: '1px 7px',
-                                    borderRadius: 6,
-                                    fontWeight: 700,
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <button
+                                  type="button"
+                                  className="btn-undo-chore"
+                                  onClick={async () => {
+                                    await apiPost('undo_complete_chore', { chore_id: chore.id });
+                                    await refresh();
                                   }}
+                                  title="Mark as not done (takes the points back)"
+                                  aria-label="Undo completion"
                                 >
-                                  ⚡ Extra
-                                </span>
-                              )}
-                              {chore.days_of_week ? (
-                                <span>📅 {chore.days_of_week}</span>
-                              ) : chore.is_daily ? (
-                                <span>🔄 Daily</span>
-                              ) : (
-                                <span>📌 Once-off</span>
-                              )}
-                              {isOverdue && (
-                                <span style={{ color: '#f87171', fontWeight: 700 }}>⚠️ Overdue</span>
-                              )}
+                                  <i className="fas fa-undo" /> Undo
+                                </button>
+                                <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>✓ Today</span>
+                              </span>
+                              <span className="chore-points-badge" title="Points for this chore">
+                                {isCash ? (
+                                  <>
+                                    <i className="fas fa-money-bill-wave" />
+                                    <span className="chore-points-value">${Number(chore.points).toFixed(2)}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fas fa-award" />
+                                    <span className="chore-points-value">{Number(chore.points).toFixed(1)}</span>
+                                  </>
+                                )}
+                              </span>
                             </div>
                           </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          <button
-                            type="button"
-                            className="complete-btn"
-                            title="Mark Complete"
-                            onClick={() => handleCompleteChore(chore, person)}
-                            style={{
-                              background: '#22c55e',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: 10,
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                              fontSize: '0.9rem',
-                            }}
-                          >
-                            ✓ Done
-                          </button>
-                          {adultMode && (
-                            <button
-                              type="button"
-                              title="Skip or Delete Chore"
-                              onClick={() => setChoreToDelete(chore)}
-                              style={{
-                                background: 'rgba(239,68,68,0.18)',
-                                color: '#f87171',
-                                border: 'none',
-                                borderRadius: 8,
-                                padding: '8px 10px',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
+                        ))}
                       </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Extra Chores Button */}
-              <div style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setExtraModalPerson(person)}
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 10,
-                    background: 'rgba(245,158,11,0.15)',
-                    border: '1px dashed rgba(245,158,11,0.45)',
-                    color: '#fbbf24',
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ⚡ Claim Extra Chore
-                </button>
-              </div>
-
-              {/* Completed Chores Drawer */}
-              {completedChores.length > 0 && (
-                <div style={{ marginTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedCompleted((prev) => ({ ...prev, [person.id]: !prev[person.id] }))
-                      }
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'inherit',
-                        opacity: 0.75,
-                        cursor: 'pointer',
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {expandedCompleted[person.id] ? '▼' : '▶'} Completed Today ({completedChores.length})
-                    </button>
-                    {adultMode && (
-                      <button
-                        type="button"
-                        onClick={() => handleClearCompleted(person.name)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#f87171',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        Clear
-                      </button>
                     )}
                   </div>
+                )}
 
-                  {expandedCompleted[person.id] && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                      {completedChores.map((c) => (
-                        <div
-                          key={c.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                            background: 'rgba(255,255,255,0.04)',
-                            opacity: 0.7,
-                            fontSize: '0.85rem',
-                          }}
-                        >
-                          <span style={{ textDecoration: 'line-through' }}>
-                            {c.icon || '✅'} {c.title}
-                          </span>
-                          <button
-                            type="button"
-                            title="Undo completion"
-                            onClick={async () => {
-                              await apiPost('undo_complete_chore', { chore_id: c.id });
-                              await refresh();
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#60a5fa',
-                              cursor: 'pointer',
-                              fontSize: '0.78rem',
-                            }}
-                          >
-                            ↩ Undo
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {/* Drag handle for Kanban column */}
+                <div className="column-footer">
+                  <span
+                    className="drag-handle"
+                    title="Hold and drag to reorder columns"
+                    draggable
+                    onDragStart={() => setDraggedPersonId(person.id)}
+                    onDragEnd={() => setDraggedPersonId(null)}
+                  >
+                    <i className="fas fa-grip-vertical" />
+                    <span className="drag-handle-label">Hold to reorder</span>
+                    <i className="fas fa-grip-vertical" />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ADD CHORES COLLAPSIBLE SECTION */}
+      <section
+        className={`chores collapsible-section${addChoresCollapsed ? ' collapsed' : ''} admin-only`}
+        id="add-chores-section"
+      >
+        <h2
+          className="section-title section-toggle"
+          onClick={() => setAddChoresCollapsed((p) => !p)}
+        >
+          <i className="fas fa-tasks" style={{ color: 'rgb(225, 0, 255)' }} /> Add Chores
+          <i className="fas fa-chevron-down section-chevron" />
+        </h2>
+
+        {/* Suggestions bar */}
+        <div className="chore-suggestions-bar">
+          <div className="chore-suggestions-header">
+            <span className="chore-suggestions-label">Quick Suggestions</span>
+            <div className="chore-suggestions-actions">
+              <button
+                type="button"
+                className="btn-suggestion-add"
+                title="Add a new chore suggestion"
+                onClick={() => setShowAddSuggestionInput((p) => !p)}
+              >
+                <i className="fas fa-pencil-alt" />
+              </button>
+              {showAddSuggestionInput && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="text"
+                    placeholder="Add chore suggestion..."
+                    className="modern-input suggestion-inline-input"
+                    value={newSuggestionText}
+                    onChange={(e) => setNewSuggestionText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = newSuggestionText.trim();
+                        if (trimmed && !choreSuggestions.includes(trimmed)) {
+                          saveSuggestions([...choreSuggestions, trimmed]);
+                        }
+                        setNewSuggestionText('');
+                        setShowAddSuggestionInput(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ whiteSpace: 'nowrap', padding: '0.55rem 0.9rem' }}
+                    onClick={() => {
+                      const trimmed = newSuggestionText.trim();
+                      if (trimmed && !choreSuggestions.includes(trimmed)) {
+                        saveSuggestions([...choreSuggestions, trimmed]);
+                      }
+                      setNewSuggestionText('');
+                      setShowAddSuggestionInput(false);
+                    }}
+                  >
+                    <i className="fas fa-plus" /> Add
+                  </button>
                 </div>
               )}
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ padding: '0.55rem 0.9rem' }}
+                onClick={() => setSuggestionsEditMode((p) => !p)}
+              >
+                {suggestionsEditMode ? 'Done' : 'Edit'}
+              </button>
             </div>
-          );
-        })}
-      </div>
+          </div>
+          <div className="chore-suggestions">
+            {choreSuggestions.map((s, idx) =>
+              suggestionsEditMode ? (
+                <div key={idx} className="chore-suggestion-edit-item">
+                  <input
+                    type="text"
+                    value={s}
+                    className="modern-input"
+                    style={{ padding: '4px 8px', fontSize: '0.85rem', width: 120, height: 32 }}
+                    onChange={(e) => {
+                      const next = [...choreSuggestions];
+                      next[idx] = e.target.value;
+                      saveSuggestions(next);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-suggestion-delete"
+                    onClick={() => {
+                      saveSuggestions(choreSuggestions.filter((_, i) => i !== idx));
+                    }}
+                  >
+                    &times;
+                  </button>
+                </div>
+              ) : (
+                <button
+                  key={idx}
+                  type="button"
+                  className="chore-suggestion-chip"
+                  onClick={() => setNewTitle(s)}
+                >
+                  {s}
+                </button>
+              )
+            )}
+          </div>
+        </div>
 
-      {/* ADD CHORES FORM SECTION (Adult Mode or accessible at bottom) */}
-      <section id="add-chores-section" className="card" style={{ marginTop: 28, padding: 20, borderRadius: 16 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 14 }}>➕ Add a New Chore</h3>
-        <form
-          onSubmit={handleAddChoreSubmit}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}
-        >
-          <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4, opacity: 0.8 }}>Chore Title</label>
+        {/* Add Chore Form */}
+        <form id="add-chore-form" onSubmit={handleAddChoreSubmit} className="chore-form-card">
+          <div className="chore-field-group">
+            <label className="chore-field-label" htmlFor="chore-title-input">
+              <i className="fas fa-tag" /> Chore Title
+            </label>
             <input
+              id="chore-title-input"
               type="text"
-              placeholder="e.g. Make bed, Empty dishwasher..."
+              name="title"
+              placeholder="e.g. Clean your room, Pack lunch..."
+              className="modern-input chore-title-input"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               required
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
+              autoComplete="off"
             />
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4, opacity: 0.8 }}>Assign To</label>
-            <select
-              value={newAssignedTo || family[0]?.name || ''}
-              onChange={(e) => setNewAssignedTo(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-            >
-              {family.map((p) => (
-                <option key={p.id} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4, opacity: 0.8 }}>
-              {data.reward_system === 'cash' ? 'Amount ($)' : 'Points'}
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              value={newPoints}
-              onChange={(e) => setNewPoints(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 4, opacity: 0.8 }}>Schedule</label>
-            <select
-              value={newScheduleType}
-              onChange={(e) => setNewScheduleType(e.target.value as any)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-            >
-              <option value="daily">Every Day (Daily Reset)</option>
-              <option value="days">Specific Days of Week</option>
-              <option value="once">Once-Off Task</option>
-            </select>
-          </div>
-
-          {newScheduleType === 'days' && (
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 6, opacity: 0.8 }}>
-                Select Days of Week
+          <div className="chore-meta-row">
+            <div className="chore-field-group chore-points-group" style={{ maxWidth: 150 }}>
+              <label className="chore-field-label" htmlFor="points-input">
+                {isCash ? (
+                  <>
+                    <i className="fas fa-money-bill-wave" style={{ color: '#4ade80' }} /> Cash amount
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-star" style={{ color: '#fbbf24' }} /> Points
+                  </>
+                )}
               </label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => {
-                  const active = newDaysOfWeek.includes(d);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => toggleDayOfWeek(d)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        border: active ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.15)',
-                        background: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.05)',
-                        color: active ? '#60a5fa' : 'inherit',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {d}
-                    </button>
-                  );
-                })}
+              <input
+                type="number"
+                id="points-input"
+                name="points"
+                value={newPoints}
+                onChange={(e) => setNewPoints(e.target.value)}
+                min="0"
+                step={isCash ? '0.01' : '0.5'}
+                className="modern-input"
+                required
+              />
+            </div>
+
+            <div className="chore-field-group">
+              <label className="chore-field-label">
+                <i className="fas fa-user-circle" /> Assign to
+              </label>
+              <div className="chore-assign-pills" id="assigned-to-btn-group">
+                {family.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className={`chore-assign-pill assigned-to-btn${selectedAssignee === person.name ? ' selected' : ''}`}
+                    onClick={() => setNewAssignedTo(person.name)}
+                  >
+                    <span className="pill-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
+                    <span className="pill-name">{person.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Repeating row */}
+          <div className="chore-field-group">
+            <label className="chore-field-label">
+              <i className="fas fa-sync-alt" style={{ color: '#60a5fa' }} /> Repeating Chore
+            </label>
+            <label className="chore-toggle-wrap">
+              <input
+                type="checkbox"
+                checked={isRepeating}
+                onChange={(e) => {
+                  setIsRepeating(e.target.checked);
+                  if (!e.target.checked) setNewDaysOfWeek([]);
+                }}
+                className="chore-toggle-input"
+              />
+              <span className="chore-toggle-track">
+                <span className="chore-toggle-thumb" />
+              </span>
+              <span className="chore-toggle-label">{isRepeating ? 'On' : 'Off'}</span>
+            </label>
+          </div>
+
+          {/* Days of week */}
+          {isRepeating && (
+            <div className="chore-days-row">
+              <label className="chore-field-label">
+                <i className="fas fa-calendar-day" /> Which days{' '}
+                <span className="chore-days-hint">(leave all unchecked for every day)</span>
+              </label>
+              <div className="chore-day-pills">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                  <label key={day} className="chore-day-pill">
+                    <input
+                      type="checkbox"
+                      checked={newDaysOfWeek.includes(day)}
+                      onChange={() => toggleDayOfWeek(day)}
+                      className="day-checkbox"
+                    />
+                    <span>{day.slice(0, 3)}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
 
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 6, opacity: 0.8 }}>Icon</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {CHORE_ICONS.map((ic) => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => setNewIcon(ic)}
-                  style={{
-                    fontSize: '1.3rem',
-                    padding: '6px 10px',
-                    borderRadius: 8,
-                    border: newIcon === ic ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.12)',
-                    background: newIcon === ic ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.04)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {ic}
-                </button>
-              ))}
+          {/* Due date/time */}
+          <div className="chore-due-row">
+            <div className="chore-due-toggle-line">
+              <label className="chore-toggle-wrap">
+                <input
+                  type="checkbox"
+                  checked={hasDueDatetime}
+                  onChange={(e) => setHasDueDatetime(e.target.checked)}
+                  className="chore-toggle-input"
+                />
+                <span className="chore-toggle-track">
+                  <span className="chore-toggle-thumb" />
+                </span>
+              </label>
+              <span className="chore-field-label" style={{ margin: 0 }}>
+                <i className="fas fa-clock" style={{ color: '#f87171' }} /> Set due date &amp; time{' '}
+                <span className="optional-label">(optional)</span>
+              </span>
+            </div>
+            {hasDueDatetime && (
+              <div>
+                <input
+                  type="datetime-local"
+                  value={newDueDatetime}
+                  onChange={(e) => setNewDueDatetime(e.target.value)}
+                  className="modern-input modern-datetime"
+                />
+                <p className="chore-due-warning">No points will be awarded if completed after the due date</p>
+              </div>
+            )}
+          </div>
+
+          {/* Emoji icon picker */}
+          <div className="chore-field-group">
+            <label className="chore-field-label">
+              <i className="fas fa-face-smile" /> Icon{' '}
+              <span className="optional-label">(optional — auto-detected if left blank)</span>
+            </label>
+            <div className="chore-emoji-picker-wrap">
+              <button
+                type="button"
+                className="chore-emoji-preview-btn"
+                title="Click to choose an icon"
+                onClick={() => setEmojiPickerOpen((p) => !p)}
+              >
+                <span>{newIcon || '✅'}</span>
+                <i className="fas fa-chevron-down" style={{ fontSize: '0.65em', marginLeft: 4, opacity: 0.6 }} />
+              </button>
+              {emojiPickerOpen && (
+                <div className="chore-emoji-grid" style={{ display: 'flex' }}>
+                  {CHORE_EMOJI_OPTIONS.map((emoji, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="chore-emoji-opt"
+                      onClick={() => {
+                        setNewIcon(emoji);
+                        setEmojiPickerOpen(false);
+                      }}
+                    >
+                      {emoji || 'Auto ✨'}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-            <button
-              type="submit"
-              disabled={submittingChore}
-              className="btn-primary"
-              style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 700 }}
-            >
-              {submittingChore ? 'Adding...' : '➕ Add Chore'}
-            </button>
-          </div>
+          <button type="submit" disabled={submittingChore} className="btn-add-chore">
+            <i className="fas fa-plus" /> {submittingChore ? 'Adding...' : 'Add Chore'}
+          </button>
         </form>
       </section>
+
+      {/* EDIT NAME MODAL */}
+      {editingPersonModal && (
+        <div
+          id="edit-name-modal"
+          style={{
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'var(--cr-modal-overlay)',
+            zIndex: 9999,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          onClick={() => setEditingPersonModal(null)}
+        >
+          <div
+            style={{
+              background: 'var(--cr-modal-surface)',
+              padding: '32px 24px',
+              borderRadius: 12,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+              minWidth: 320,
+              textAlign: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ color: 'var(--cr-text-primary)', margin: '0 0 12px' }}>Edit Name</h3>
+            <input
+              type="text"
+              value={editingNameVal}
+              onChange={(e) => setEditingNameVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveName();
+                if (e.key === 'Escape') setEditingPersonModal(null);
+              }}
+              autoFocus
+              placeholder="Enter new name"
+              style={{
+                padding: 8,
+                borderRadius: 6,
+                border: '1px solid var(--cr-subtle-panel-border)',
+                background: 'var(--cr-subtle-panel)',
+                color: 'var(--cr-text-primary)',
+                width: '80%',
+                marginBottom: 18,
+                outline: 'none',
+              }}
+            />
+            <div style={{ marginTop: 10, display: 'flex', gap: 16, justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="confirm-btn"
+                onClick={handleSaveName}
+                style={{
+                  background: '#2d2d2d',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => setEditingPersonModal(null)}
+                style={{
+                  background: '#888',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DELETE / SKIP CHORE MODAL */}
       {choreToDelete && (
         <div
-          className="modal-backdrop"
           style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            zIndex: 9999,
             display: 'flex',
-            alignItems: 'center',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'var(--cr-modal-overlay)',
+            zIndex: 9999,
             justifyContent: 'center',
-            padding: 16,
+            alignItems: 'center',
           }}
           onClick={() => setChoreToDelete(null)}
         >
           <div
-            className="card"
-            style={{ maxWidth: 420, width: '100%', padding: 24, borderRadius: 18 }}
+            style={{
+              background: 'var(--cr-modal-surface)',
+              padding: '32px 24px',
+              borderRadius: 12,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+              minWidth: 320,
+              maxWidth: 440,
+              textAlign: 'center',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ marginTop: 0 }}>Remove "{choreToDelete.title}"?</h3>
-            <p style={{ opacity: 0.8, fontSize: '0.92rem' }}>
+            <div style={{ fontSize: '2.5em', marginBottom: 10 }}>
+              <i className="fas fa-trash-alt" style={{ color: '#e53935' }} />
+            </div>
+            <div style={{ fontSize: '1.15em', marginBottom: 22, color: 'var(--cr-text-primary)' }}>
               {choreToDelete.is_daily || choreToDelete.days_of_week
-                ? 'Would you like to skip this chore just for today, or delete it permanently?'
+                ? 'Do you want to delete this daily chore permanently, or just for today?'
                 : 'Are you sure you want to delete this chore?'}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleDeleteChore(choreToDelete, true)}
+                style={{
+                  background: '#e53935',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {choreToDelete.is_daily || choreToDelete.days_of_week ? 'Delete Permanently' : 'Delete'}
+              </button>
               {(choreToDelete.is_daily || choreToDelete.days_of_week) && (
                 <button
                   type="button"
                   onClick={() => handleDeleteChore(choreToDelete, false)}
                   style={{
-                    padding: '10px 16px',
-                    borderRadius: 10,
-                    background: 'rgba(59,130,246,0.2)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(59,130,246,0.4)',
-                    fontWeight: 700,
+                    background: '#fbc02d',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: 6,
+                    fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
-                  ⏭️ Skip for Today Only
+                  Delete for Today
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => handleDeleteChore(choreToDelete, true)}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 10,
-                  background: '#ef4444',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                🗑️ Delete Permanently
-              </button>
-              <button
-                type="button"
                 onClick={() => setChoreToDelete(null)}
                 style={{
-                  padding: '10px 16px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.08)',
-                  color: 'inherit',
+                  background: '#888',
+                  color: '#fff',
                   border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
@@ -1062,7 +1477,7 @@ export const ChoresKanbanSection: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'var(--cr-modal-overlay)',
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
@@ -1072,8 +1487,16 @@ export const ChoresKanbanSection: React.FC = () => {
           onClick={() => setExtraModalPerson(null)}
         >
           <div
-            className="card"
-            style={{ maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 24, borderRadius: 18 }}
+            style={{
+              background: 'var(--cr-modal-surface)',
+              maxWidth: 520,
+              width: '100%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              padding: 24,
+              borderRadius: 18,
+              color: 'var(--cr-text-primary)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -1087,7 +1510,7 @@ export const ChoresKanbanSection: React.FC = () => {
               </button>
             </div>
             <p style={{ opacity: 0.75, fontSize: '0.88rem', marginTop: 0 }}>
-              Want to earn extra rewards? Claim a bonus chore below!
+              Want to earn extra rewards? Pick an extra job below!
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {(data.extra_chores || [])
@@ -1114,7 +1537,7 @@ export const ChoresKanbanSection: React.FC = () => {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: '1.5rem' }}>{ec.icon || '⚡'}</span>
+                      <span style={{ fontSize: '1.5rem' }}>{detectChoreIcon(ec.title, ec.icon)}</span>
                       <div>
                         <div style={{ fontWeight: 700 }}>{ec.title}</div>
                         <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 700 }}>
@@ -1135,7 +1558,7 @@ export const ChoresKanbanSection: React.FC = () => {
                         cursor: 'pointer',
                       }}
                     >
-                      Claim
+                      Pick Job
                     </button>
                   </div>
                 ))}
@@ -1147,116 +1570,140 @@ export const ChoresKanbanSection: React.FC = () => {
       {/* PROFILE & BADGES MODAL */}
       {profileModalPerson && (
         <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
+          id="profile-modal-overlay"
           onClick={() => setProfileModalPerson(null)}
+          style={{
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'var(--cr-modal-overlay)',
+            zIndex: 99990,
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            overflowY: 'auto',
+            boxSizing: 'border-box',
+            padding: 20,
+          }}
         >
           <div
-            className="card"
-            style={{ maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 24, borderRadius: 20 }}
             onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--cr-modal-surface)',
+              borderRadius: 20,
+              maxWidth: 500,
+              width: '100%',
+              margin: 'auto',
+              position: 'relative',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
+            }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <img
-                  src={resolveAvatarUrl(profileModalPerson.avatar)}
-                  alt={profileModalPerson.name}
-                  style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
-                />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.4rem' }}>{profileModalPerson.name}</h3>
-                  <div style={{ opacity: 0.75, fontSize: '0.9rem', marginTop: 4 }}>
-                    Total Completed: <strong>{profileDetails?.total_completed ?? profileModalPerson.total_completed}</strong> chores
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setProfileModalPerson(null)}
-                style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Streak Stats */}
-            <div
+            <button
+              type="button"
+              onClick={() => setProfileModalPerson(null)}
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 12,
-                marginTop: 18,
-                marginBottom: 18,
+                position: 'absolute',
+                top: 12,
+                right: 14,
+                background: 'var(--cr-subtle-panel)',
+                border: 'none',
+                color: 'var(--cr-text-primary)',
+                fontSize: '1.5em',
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                cursor: 'pointer',
+                zIndex: 1,
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: 14,
-                  background: 'rgba(249,115,22,0.15)',
-                  border: '1px solid rgba(249,115,22,0.35)',
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fb923c' }}>
-                  🔥 {profileDetails?.streak?.current_streak ?? profileModalPerson.streak?.current_streak ?? 0} days
-                </div>
-                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>Current Streak</div>
-              </div>
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: 14,
-                  background: 'rgba(59,130,246,0.15)',
-                  border: '1px solid rgba(59,130,246,0.35)',
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#60a5fa' }}>
-                  🏆 {profileDetails?.streak?.longest_streak ?? profileModalPerson.streak?.longest_streak ?? 0} days
-                </div>
-                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>Longest Streak</div>
-              </div>
-            </div>
+              ×
+            </button>
+            <div id="profile-modal-content" style={{ padding: '28px 20px 36px', color: 'var(--cr-text-primary)' }}>
+              {(() => {
+                const pColor = profileModalPerson.color || '#555';
+                const totalPts = Number((profileModalPerson.points || 0) + (profileModalPerson.bonus_points || 0));
+                const streak = profileDetails?.streak?.current_streak ?? profileModalPerson.streak?.current_streak ?? 0;
+                const bestStreak = profileDetails?.streak?.longest_streak ?? profileModalPerson.streak?.longest_streak ?? 0;
+                const totalDone = profileDetails?.total_completed ?? profileModalPerson.total_completed ?? 0;
+                const allBadges = profileDetails?.badges || data.badge_definitions || [];
+                const earnedCount = allBadges.filter((b) => b.earned).length;
 
-            {/* Badges Grid */}
-            <h4 style={{ marginBottom: 10 }}>🏅 Achievements & Badges</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-              {(profileDetails?.badges || data.badge_definitions || []).map((b) => {
-                const earned = Boolean(b.earned);
                 return (
-                  <div
-                    key={b.key}
-                    style={{
-                      padding: 12,
-                      borderRadius: 12,
-                      background: earned ? 'rgba(245,158,11,0.16)' : 'rgba(255,255,255,0.04)',
-                      border: earned ? '1px solid rgba(245,158,11,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                      opacity: earned ? 1 : 0.45,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <div style={{ fontSize: '2rem', marginBottom: 4 }}>{b.emoji}</div>
-                    <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{b.name}</div>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.75, marginTop: 2 }}>{b.desc}</div>
-                  </div>
+                  <>
+                    <div
+                      className="profile-hero"
+                      style={{ background: `${pColor}22`, border: `2px solid ${pColor}` }}
+                    >
+                      <img
+                        src={resolveAvatarUrl(profileModalPerson.avatar)}
+                        alt={profileModalPerson.name}
+                        className="profile-avatar"
+                      />
+                      <h1 className="profile-name">{profileModalPerson.name}</h1>
+                      <div className="profile-stats-row">
+                        <div className="profile-stat">
+                          <div className="profile-stat-value">{totalDone}</div>
+                          <div className="profile-stat-label">Chores Done</div>
+                        </div>
+                        <div className="profile-stat">
+                          <div className="profile-stat-value">
+                            {isCash ? `$${totalPts.toFixed(2)}` : totalPts.toFixed(2)}
+                          </div>
+                          <div className="profile-stat-label">{isCash ? 'Balance' : 'Points'}</div>
+                        </div>
+                        <div className="profile-stat">
+                          <div className="profile-stat-value">🔥 {streak}</div>
+                          <div className="profile-stat-label">Day Streak</div>
+                        </div>
+                        <div className="profile-stat">
+                          <div className="profile-stat-value">
+                            {earnedCount}/{allBadges.length}
+                          </div>
+                          <div className="profile-stat-label">Badges</div>
+                        </div>
+                      </div>
+                      {bestStreak > streak && bestStreak > 0 && (
+                        <div className="profile-best-streak">Best streak: {bestStreak} days 🏅</div>
+                      )}
+                    </div>
+                    <h2 className="profile-section-title" style={{ marginTop: 20 }}>
+                      Badge Collection
+                    </h2>
+                    <div className="profile-badge-grid">
+                      {allBadges.map((b) => {
+                        const earned = Boolean(b.earned);
+                        return (
+                          <div
+                            key={b.key}
+                            className={`profile-badge-card ${earned ? 'badge-earned' : 'badge-locked'}`}
+                          >
+                            <div className="profile-badge-emoji">{b.emoji}</div>
+                            <div className="profile-badge-name">{b.name}</div>
+                            <div className="profile-badge-desc">{b.desc}</div>
+                            {!earned && (
+                              <div className="badge-locked-label">
+                                <i className="fas fa-lock" /> Locked
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 );
-              })}
+              })()}
             </div>
           </div>
         </div>
       )}
 
-      {/* ALL-DONE CELEBRATION MODAL (Quiz + Body Challenge + Bonus Spin) */}
+      {/* ALL-DONE CELEBRATION MODAL */}
       {celebrationPerson && (
         <div
           className="modal-backdrop"
@@ -1290,7 +1737,7 @@ export const ChoresKanbanSection: React.FC = () => {
                 <div style={{ fontSize: '3.5rem', marginBottom: 8 }}>🎉🌟🎉</div>
                 <h2 style={{ margin: '0 0 8px' }}>Amazing Job, {celebrationPerson.name}!</h2>
                 <p style={{ opacity: 0.85, marginBottom: 20 }}>
-                  You finished all your chores for today! Ready for your daily Brain & Body Bonus?
+                  You finished all your chores for today! Ready for your daily Brain &amp; Body Bonus?
                 </p>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                   <button

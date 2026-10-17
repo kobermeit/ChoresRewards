@@ -1,35 +1,56 @@
-# Dockerfile
-FROM python:3.11-slim-bookworm
+# =============================================================================
+# Stage 1: Build React + Vite Frontend (client/dist)
+# =============================================================================
+FROM node:22-bookworm-slim AS client-builder
+WORKDIR /app/client
 
-# Set the working directory
+COPY client/package*.json ./
+RUN npm install --include=dev
+
+COPY client/ ./
+RUN npm run build
+
+# =============================================================================
+# Stage 2: Build Node.js + Express + better-sqlite3 Backend (server/dist)
+# =============================================================================
+FROM node:22-bookworm-slim AS server-builder
+WORKDIR /app/server
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY server/package*.json ./
+RUN npm install --include=dev
+
+COPY server/ ./
+RUN npm run build && npm prune --omit=dev
+
+# =============================================================================
+# Stage 3: Production Runtime Image (Port 8099 + HAOS /data persistence)
+# =============================================================================
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ENV NODE_ENV=production
+ENV PORT=8099
+ENV DATA_DIR=/data
 
-# Copy the start.sh script and make it executable
-COPY start.sh .
-RUN chmod +x start.sh
+# Copy backend build and production node_modules
+COPY --from=server-builder /app/server/package.json ./server/package.json
+COPY --from=server-builder /app/server/index.js ./server/index.js
+COPY --from=server-builder /app/server/node_modules ./server/node_modules
+COPY --from=server-builder /app/server/dist ./server/dist
 
-# Copy the application code
-COPY app.py .
-COPY models.py .
-COPY usage_stats.py .
-COPY usage_page.py .
-COPY telemetry.py .
-COPY extensions.py .
-COPY routes.py .
-COPY quiz_questions.py .
+# Copy built Vite frontend
+COPY --from=client-builder /app/client/dist ./client/dist
 
-# Copy routes package, static and templates directories
-COPY routes /app/routes/
-COPY static /app/static/
-COPY templates /app/templates/
-COPY stats/usage.json /app/stats/usage.json
+# Copy static assets (default avatars, sounds, images)
+COPY static/ ./static/
 
-# Expose the port the app runs on
-EXPOSE 3000
+# Ensure /data exists for Home Assistant OS persistent volume
+RUN mkdir -p /data/uploads
 
-# Use the start.sh script as the entry point
-CMD ["./start.sh"]
+EXPOSE 8099
+
+CMD ["node", "server/index.js"]

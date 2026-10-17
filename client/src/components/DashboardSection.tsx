@@ -1,20 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { apiGet, apiPost, resolveAvatarUrl, resolveAssetUrl } from '../api';
+import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { DashboardStickyNote } from '../types';
 
-const STICKY_COLORS = [
-  { label: 'Yellow', hex: '#fef08a' },
-  { label: 'Pink', hex: '#fecaca' },
-  { label: 'Mint', hex: '#bbf7d0' },
-  { label: 'Sky', hex: '#bfdbfe' },
-  { label: 'Lavender', hex: '#e9d5ff' },
-  { label: 'Peach', hex: '#fed7aa' },
-];
+const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
 export const DashboardSection: React.FC = () => {
   const {
     data,
+    refresh,
     scrollToSection,
     setScreensaverOpen,
     setVisualTimerOpen,
@@ -23,589 +17,482 @@ export const DashboardSection: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [stickyNotes, setStickyNotes] = useState<DashboardStickyNote[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [screensaverMedia, setScreensaverMedia] = useState<Array<{ filename: string; url: string; type: string }>>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
 
-  useEffect(() => {
-    if (data?.dashboard_notes) {
-      setStickyNotes(data.dashboard_notes);
-    }
-  }, [data?.dashboard_notes]);
+  // Sticky note creation/editing state
+  const [addingNote, setAddingNote] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [newNoteText, setNewNoteText] = useState('');
+  const [newNoteColor, setNewNoteColor] = useState(STICKY_COLORS[0]);
 
   useEffect(() => {
-    apiGet('screensaver/config')
+    apiGet<{ success: boolean; media: Array<{ filename: string; url: string; type: string }> }>('screensaver/config')
       .then((res) => {
-        if (res?.photos?.length) {
-          setPhotos(res.photos);
+        if (res?.media) {
+          setScreensaverMedia(res.media.filter((m) => m.type === 'image'));
         }
       })
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (photos.length <= 1) return;
-    const t = setInterval(() => {
-      setPhotoIdx((prev) => (prev + 1) % photos.length);
-    }, 8000);
-    return () => clearInterval(t);
-  }, [photos.length]);
-
   if (!data) return null;
 
   const todayIso = data.current_date;
-  const weekdayName = new Date(`${todayIso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
   const todayMeals = data.meal_planner?.plan?.[todayIso] || { breakfast: '', lunch: '', dinner: '' };
-  const uncompletedRewards = data.rewards.filter((r) => !r.completed).slice(0, 4);
-  const upcomingEvents = (data.google_calendar?.events || []).slice(0, 5);
+  const activeRewards = (data.rewards || [])
+    .filter((r) => !r.completed)
+    .sort((a, b) => b.points_required - a.points_required)
+    .slice(0, 4);
+  const stickyNotes: DashboardStickyNote[] = data.dashboard_notes || [];
+  const currentPhoto = screensaverMedia.length > 0 ? screensaverMedia[photoIdx % screensaverMedia.length] : null;
 
-  const saveStickyNotes = async (nextNotes: DashboardStickyNote[]) => {
-    setStickyNotes(nextNotes);
+  const handleAddStickyNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNoteText.trim() && !newNoteTitle.trim()) return;
     try {
-      await apiPost('dashboard_notes', { notes: nextNotes });
-    } catch {
-      showToast('Failed to save sticky notes', { type: 'error' });
+      await apiPost('add_dashboard_note', {
+        title: newNoteTitle.trim(),
+        text: newNoteText.trim(),
+        color: newNoteColor,
+      });
+      setNewNoteTitle('');
+      setNewNoteText('');
+      setAddingNote(false);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to add sticky note', { type: 'error' });
     }
   };
 
-  const addStickyNote = () => {
-    const newNote: DashboardStickyNote = {
-      id: `note_${Date.now()}`,
-      title: 'Note',
-      text: '',
-      color: STICKY_COLORS[stickyNotes.length % STICKY_COLORS.length].hex,
-      text_size: 'md',
-      pinned: false,
-    };
-    saveStickyNotes([newNote, ...stickyNotes]);
-  };
-
-  const updateStickyNote = (id: string, patch: Partial<DashboardStickyNote>) => {
-    const next = stickyNotes.map((n) => (n.id === id ? { ...n, ...patch } : n));
-    saveStickyNotes(next);
-  };
-
-  const deleteStickyNote = (id: string) => {
-    saveStickyNotes(stickyNotes.filter((n) => n.id !== id));
+  const handleDeleteStickyNote = async (id: string) => {
+    try {
+      await apiPost('delete_dashboard_note', { id });
+      await refresh();
+    } catch {
+      // ignore
+    }
   };
 
   return (
-    <section
-      id="dashboard-section"
-      style={{
-        padding: '16px 20px',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 14,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: '1.35rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <i className="fas fa-compass" style={{ color: '#38bdf8' }} />
-          Today at a Glance
-        </h2>
-      </div>
+    <section className="rewards-section dashboard-section" id="dashboard-section">
+      <h2 className="section-title dashboard-section-title">
+        <i className="fas fa-gauge-high" style={{ color: '#38bdf8' }} /> <span>Today at a Glance</span>
+        <span className="dash-layout-actions">
+          <button type="button" className="dash-arrange-btn" id="dash-arrange-btn" title="Rearrange and resize dashboard cards">
+            <i className="fas fa-up-down-left-right" /> Arrange
+          </button>
+          <button type="button" className="dash-layout-reset-btn" id="dash-layout-reset-btn">
+            Reset layout
+          </button>
+        </span>
+      </h2>
 
-      {/* Dashboard Grid */}
-      <div
-        id="dashboard-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
-          gap: 16,
-        }}
-      >
+      <div className="dashboard-grid" id="dashboard-grid">
         {/* 1. Today's Tasks */}
         <div
-          className="dash-tile"
+          className="dashboard-card dash-tile"
+          data-dash-id="tasks"
+          style={{ '--dash-cols': 4, '--dash-rows': 12 } as React.CSSProperties}
           onClick={() => scrollToSection('kanban')}
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            cursor: 'pointer',
-          }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-check-double" style={{ color: '#4ade80' }} />
-              Today's Tasks
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)' }}>View Board →</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {data.family.map((person) => {
-              const personChores = data.chores.filter((c) => {
-                if (c.completed) return false;
-                if (c.assigned_to_id !== person.id && c.assigned_to !== person.name) return false;
-                if (!c.days_of_week || !c.days_of_week.trim()) return true;
-                return c.days_of_week
-                  .split(',')
-                  .map((d) => d.trim().toLowerCase())
-                  .includes(weekdayName);
-              });
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Today's Tasks">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-list-check" style={{ color: '#4ade80' }} /> Today&apos;s Tasks
+          </h3>
 
-              return (
-                <div
-                  key={person.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    background: 'var(--cr-surface-2)',
-                    padding: '8px 12px',
-                    borderRadius: 12,
-                    borderLeft: `4px solid ${person.color || '#3b82f6'}`,
-                  }}
-                >
-                  <img
-                    src={resolveAvatarUrl(person.avatar)}
-                    alt={person.name}
-                    style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--cr-text-primary)' }}>
-                      {person.name}
-                    </div>
-                    {personChores.length === 0 ? (
-                      <div style={{ fontSize: '0.8rem', color: '#4ade80', fontWeight: 600 }}>🌟 All done today!</div>
-                    ) : (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {personChores.map((c) => `${c.icon || '•'} ${c.title}`).join(', ')}
-                      </div>
-                    )}
+          {data.family.map((person) => {
+            const pChores = data.chores.filter((c) => c.assigned_to === person.name && !c.deleted);
+            const incomplete = pChores.filter((c) => !c.completed);
+            const done = pChores.filter((c) => c.completed);
+
+            return (
+              <div key={person.id} className="dash-person-row">
+                <img className="dash-person-avatar" src={resolveAvatarUrl(person.avatar)} alt={person.name} />
+                <div className="dash-person-info">
+                  <div className="dash-person-name">{person.name}</div>
+                  <div className="dash-person-chores">
+                    {incomplete.length > 0
+                      ? `${incomplete
+                          .slice(0, 2)
+                          .map((c) => c.title)
+                          .join(', ')}${incomplete.length > 2 ? ` +${incomplete.length - 2} more` : ''}`
+                      : done.length > 0
+                        ? 'All done today! 🎉'
+                        : 'No chores today'}
                   </div>
-                  <span
-                    style={{
-                      background: personChores.length === 0 ? 'rgba(74,222,128,0.2)' : 'rgba(59,130,246,0.2)',
-                      color: personChores.length === 0 ? '#4ade80' : '#60a5fa',
-                      padding: '4px 10px',
-                      borderRadius: 999,
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {personChores.length === 0 ? 'Done' : `${personChores.length} left`}
-                  </span>
                 </div>
-              );
-            })}
-          </div>
+                <span
+                  className={`dash-person-badge${
+                    done.length > 0 && incomplete.length === 0
+                      ? ' dash-all-done'
+                      : incomplete.length === 0
+                        ? ' dash-free-day'
+                        : ''
+                  }`}
+                >
+                  {incomplete.length > 0 ? (
+                    `${incomplete.length} left`
+                  ) : done.length > 0 ? (
+                    <i className="fas fa-check" />
+                  ) : (
+                    'Free'
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         {/* 2. Meals Today */}
         <div
-          className="dash-tile"
+          className="dashboard-card dash-tile"
+          data-dash-id="meals"
+          style={{ '--dash-cols': 4, '--dash-rows': 8 } as React.CSSProperties}
           onClick={() => scrollToSection('meal-planner-section')}
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            cursor: 'pointer',
-          }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-utensils" style={{ color: '#fb923c' }} />
-              Meals Today
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)' }}>Meal Planner →</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { key: 'breakfast', label: 'Breakfast', icon: '🥐', val: todayMeals.breakfast },
-              { key: 'lunch', label: 'Lunch', icon: '🥪', val: todayMeals.lunch },
-              { key: 'dinner', label: 'Dinner', icon: '🍽️', val: todayMeals.dinner },
-            ].map((slot) => (
-              <div
-                key={slot.key}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'var(--cr-surface-2)',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                }}
-              >
-                <span style={{ fontWeight: 600, color: 'var(--cr-text-secondary)', fontSize: '0.88rem' }}>
-                  {slot.icon} {slot.label}
-                </span>
-                <span style={{ fontWeight: 700, color: slot.val ? 'var(--cr-text-primary)' : 'var(--cr-text-secondary)' }}>
-                  {slot.val || 'Not planned'}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Meals Today">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-utensils" style={{ color: '#fb923c' }} /> Meals Today
+          </h3>
+          {todayMeals.breakfast && (
+            <div className="dash-meal-row">
+              <span className="dash-meal-label">Breakfast</span>
+              <span className="dash-meal-name">{todayMeals.breakfast}</span>
+            </div>
+          )}
+          {todayMeals.lunch && (
+            <div className="dash-meal-row">
+              <span className="dash-meal-label">Lunch</span>
+              <span className="dash-meal-name">{todayMeals.lunch}</span>
+            </div>
+          )}
+          {todayMeals.dinner && (
+            <div className="dash-meal-row">
+              <span className="dash-meal-label">Dinner</span>
+              <span className="dash-meal-name">{todayMeals.dinner}</span>
+            </div>
+          )}
+          {!todayMeals.breakfast && !todayMeals.lunch && !todayMeals.dinner && (
+            <p className="dash-empty-hint">No meals planned for today yet.</p>
+          )}
         </div>
 
         {/* 3. Top Rewards */}
         <div
-          className="dash-tile"
+          className="dashboard-card dash-tile"
+          data-dash-id="rewards"
+          style={{ '--dash-cols': 4, '--dash-rows': 9 } as React.CSSProperties}
           onClick={() => scrollToSection('rewards-section')}
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            cursor: 'pointer',
-          }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-trophy" style={{ color: '#fbbf24' }} />
-              Top Rewards
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)' }}>All Rewards →</span>
-          </div>
-          {uncompletedRewards.length === 0 ? (
-            <p style={{ color: 'var(--cr-text-secondary)', margin: '16px 0' }}>No active rewards yet.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {uncompletedRewards.map((r) => {
-                const person = data.family.find((p) => p.id === r.assigned_to_id || p.name === r.assigned_to);
-                const currentPts = person ? person.points + person.bonus_points : 0;
-                const pct = Math.min(100, Math.round((currentPts / Math.max(1, r.points_required)) * 100));
-                return (
-                  <div
-                    key={r.id}
-                    style={{
-                      background: 'var(--cr-surface-2)',
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 700, marginBottom: 6 }}>
-                      <span>
-                        🎁 {r.title} <span style={{ opacity: 0.65 }}>({r.assigned_to})</span>
-                      </span>
-                      <span style={{ color: '#fbbf24' }}>{formatRewardValue(r.points_required)}</span>
-                    </div>
-                    <div style={{ height: 7, background: 'rgba(255,255,255,0.1)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${pct}%`,
-                          height: '100%',
-                          background: pct >= 100 ? '#4ade80' : 'linear-gradient(90deg, #3b82f6, #a855f7)',
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 4. Upcoming Events */}
-        <div
-          className="dash-tile"
-          onClick={() => scrollToSection('events-section')}
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            cursor: 'pointer',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-calendar-day" style={{ color: '#60a5fa' }} />
-              Upcoming Events
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)' }}>Calendar →</span>
-          </div>
-          {!data.google_calendar?.enabled ? (
-            <p style={{ color: 'var(--cr-text-secondary)', fontSize: '0.88rem' }}>
-              Google Calendar is not enabled. Enable it in Settings to view family events.
-            </p>
-          ) : upcomingEvents.length === 0 ? (
-            <p style={{ color: 'var(--cr-text-secondary)', fontSize: '0.88rem' }}>No upcoming events scheduled.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {upcomingEvents.map((ev, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: 'var(--cr-surface-2)',
-                    padding: '8px 12px',
-                    borderRadius: 10,
-                    borderLeft: `4px solid ${ev.color || '#3b82f6'}`,
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{ev.title}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', whiteSpace: 'nowrap' }}>
-                    {ev.weekday_short} • {ev.start_time_display}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 5. Family Photos / Screensaver Card */}
-        <div
-          id="dash-photos-card"
-          className="dash-tile"
-          onClick={() => setScreensaverOpen(true)}
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            cursor: 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-images" style={{ color: '#f472b6' }} />
-              Family Photos
-            </h3>
-            <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>Start Slideshow ⛶</span>
-          </div>
-          {photos.length > 0 ? (
-            <div style={{ position: 'relative', height: 150, borderRadius: 12, overflow: 'hidden', background: '#000' }}>
-              <img
-                src={resolveAssetUrl(photos[photoIdx % photos.length])}
-                alt="Family memory"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
-          ) : (
-            <div
-              style={{
-                height: 140,
-                borderRadius: 12,
-                background: 'var(--cr-surface-2)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--cr-text-secondary)',
-                gap: 8,
-              }}
-            >
-              <i className="fas fa-camera-retro" style={{ fontSize: '2rem', opacity: 0.6 }} />
-              <span style={{ fontSize: '0.85rem' }}>Upload photos in Settings → Screensaver</span>
-            </div>
-          )}
-        </div>
-
-        {/* 6. Visual Timer & Kids Play Zone */}
-        <div
-          style={{
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            borderRadius: 16,
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-gamepad" style={{ color: '#a855f7' }} />
-              Timer & Brain Games
-            </h3>
-            <button
-              type="button"
-              onClick={() => setVisualTimerOpen(true)}
-              style={{
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 10,
-                padding: '6px 12px',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-              }}
-            >
-              ⏱️ Open Visual Timer
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Top Rewards">
+              <i className="fas fa-grip-vertical" />
             </button>
-          </div>
+            <i className="fas fa-trophy" style={{ color: '#a78bfa' }} /> Top Rewards
+          </h3>
+          {activeRewards.length === 0 ? (
+            <p className="dash-empty-hint">No rewards yet.</p>
+          ) : (
+            activeRewards.map((r) => (
+              <div key={r.id} className="dash-reward-row">
+                {r.image_url ? (
+                  <img className="dash-reward-thumb" src={resolveAssetUrl(r.image_url)} alt="" />
+                ) : (
+                  <span
+                    className="dash-reward-thumb"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <i className="fas fa-gift" style={{ color: '#a78bfa' }} />
+                  </span>
+                )}
+                <span>{r.title}</span>
+                <span className="dash-reward-points">{formatRewardValue(r.points_required)}</span>
+              </div>
+            ))
+          )}
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[
-              { id: 'maths' as const, label: '🔢 Maths', color: '#3b82f6' },
-              { id: 'colours' as const, label: '🎨 Colours', color: '#ec4899' },
-              { id: 'patterns' as const, label: '🧩 Patterns', color: '#10b981' },
-              { id: 'memory' as const, label: '🃏 Memory', color: '#f59e0b' },
-            ].map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => openPlayGame(g.id)}
-                style={{
-                  background: 'var(--cr-surface-2)',
-                  color: 'var(--cr-text-primary)',
-                  border: `1px solid ${g.color}55`,
-                  borderRadius: 12,
-                  padding: '12px 10px',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  textAlign: 'center',
-                }}
-              >
-                {g.label}
-              </button>
-            ))}
+        {/* 4. Family Photos */}
+        <div
+          className="dashboard-card dashboard-card-photos dash-tile"
+          id="dash-photos-card"
+          data-dash-id="photos"
+          title="Tap a photo for full-screen slideshow"
+          style={{ '--dash-cols': 4, '--dash-rows': 12 } as React.CSSProperties}
+        >
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Family Photos">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-images" style={{ color: '#f472b6' }} /> Family Photos
+          </h3>
+          <div className="dash-photo-slideshow" id="dash-photo-slideshow">
+            {currentPhoto ? (
+              <>
+                <img
+                  src={resolveAssetUrl(currentPhoto.url)}
+                  alt="Family"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }}
+                  onClick={() => setScreensaverOpen(true)}
+                />
+                {screensaverMedia.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className="dash-photo-nav dash-photo-nav-prev"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPhotoIdx((prev) => (prev - 1 + screensaverMedia.length) % screensaverMedia.length);
+                      }}
+                    >
+                      <i className="fas fa-chevron-left" />
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-photo-nav dash-photo-nav-next"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPhotoIdx((prev) => (prev + 1) % screensaverMedia.length);
+                      }}
+                    >
+                      <i className="fas fa-chevron-right" />
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              <p className="dash-empty-hint" id="dash-photo-empty">
+                No photos yet — add some in Settings &rarr; Screensaver.
+              </p>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Dashboard Sticky Notes Board */}
-      <div
-        id="dashboard-notes-panel"
-        style={{
-          marginTop: 18,
-          background: 'var(--cr-surface-1)',
-          border: '1px solid var(--cr-surface-border)',
-          borderRadius: 16,
-          padding: 18,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cr-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="fas fa-thumbtack" style={{ color: '#fde047' }} />
-            Fridge Sticky Notes
+        {/* 5. Compact Visual Timer */}
+        <div
+          className="dashboard-card dashboard-card-timer dash-tile"
+          id="dashboard-timer-panel"
+          data-dash-id="timer"
+          style={{ '--dash-cols': 2, '--dash-rows': 8 } as React.CSSProperties}
+        >
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Visual Timer">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-hourglass-half" style={{ color: '#f97316' }} /> Timer
           </h3>
           <button
             type="button"
-            onClick={addStickyNote}
-            style={{
-              background: '#eab308',
-              color: '#0f172a',
-              border: 'none',
-              borderRadius: 10,
-              padding: '7px 14px',
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: '0.85rem',
-            }}
+            className="visual-timer-launcher"
+            id="visual-timer-open"
+            title="Open timer"
+            aria-label="Open visual timer"
+            onClick={() => setVisualTimerOpen(true)}
           >
-            + Add Sticky Note
+            <svg className="visual-timer-mini-svg" viewBox="0 0 220 220" aria-hidden="true">
+              <circle className="visual-timer-disc" cx="110" cy="110" r="100" />
+              <path
+                id="visual-timer-mini-pie"
+                className="visual-timer-pie"
+                fill="#ef4444"
+                d="M 110 110 L 110 10 A 100 100 0 1 1 109.99 10 Z"
+              />
+              <circle className="visual-timer-hub" cx="110" cy="110" r="10" />
+            </svg>
+            <span className="visual-timer-mini-digits" id="visual-timer-mini-digits">
+              05:00
+            </span>
+            <span className="visual-timer-mini-hint">Tap to open</span>
           </button>
         </div>
 
-        {stickyNotes.length === 0 ? (
-          <p style={{ color: 'var(--cr-text-secondary)', fontSize: '0.9rem', margin: 0 }}>
-            No sticky notes on the fridge yet. Click "+ Add Sticky Note" to post one!
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-            {stickyNotes.map((note) => (
-              <div
-                key={note.id}
-                style={{
-                  background: note.color || '#fef08a',
-                  color: '#1e293b',
-                  width: note.width || 240,
-                  minHeight: note.height || 170,
-                  borderRadius: 14,
-                  padding: 14,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <textarea
-                  value={note.text}
-                  placeholder="Write a note…"
-                  onChange={(e) => updateStickyNote(note.id, { text: e.target.value })}
-                  style={{
-                    width: '100%',
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    resize: 'none',
-                    color: '#0f172a',
-                    fontWeight: 600,
-                    fontSize: note.text_size === 'lg' ? '1.15rem' : note.text_size === 'sm' ? '0.85rem' : '0.98rem',
-                    fontFamily: 'inherit',
-                  }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {STICKY_COLORS.map((c) => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => updateStickyNote(note.id, { color: c.hex })}
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          background: c.hex,
-                          border: note.color === c.hex ? '2px solid #0f172a' : '1px solid rgba(0,0,0,0.3)',
-                          cursor: 'pointer',
-                          padding: 0,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateStickyNote(note.id, {
-                          text_size: note.text_size === 'sm' ? 'md' : note.text_size === 'md' ? 'lg' : 'sm',
-                        })
-                      }
-                      title="Change text size"
-                      style={{
-                        background: 'rgba(0,0,0,0.1)',
-                        color: '#0f172a',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '2px 6px',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      Aa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteStickyNote(note.id)}
-                      title="Delete note"
-                      style={{
-                        background: 'rgba(239,68,68,0.2)',
-                        color: '#991b1b',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '2px 7px',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+        {/* 6. Play — Maths, Colours, Patterns, Memory */}
+        <div
+          className="dashboard-card dashboard-card-play dash-tile"
+          id="dashboard-play-panel"
+          data-dash-id="play"
+          style={{ '--dash-cols': 4, '--dash-rows': 11 } as React.CSSProperties}
+        >
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Play">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-star" style={{ color: '#fbbf24' }} /> Play
+          </h3>
+          <div className="play-launch-row">
+            <button
+              type="button"
+              className="play-launch play-launch-maths"
+              id="play-open-maths"
+              aria-label="Play maths"
+              onClick={() => openPlayGame('maths')}
+            >
+              <span className="play-launch-mark" aria-hidden="true">
+                ×
+              </span>
+              <span className="play-launch-label">Maths</span>
+            </button>
+            <button
+              type="button"
+              className="play-launch play-launch-colours"
+              id="play-open-colours"
+              aria-label="Play colours"
+              onClick={() => openPlayGame('colours')}
+            >
+              <span className="play-launch-swatches" aria-hidden="true">
+                <i style={{ background: '#ef4444' }} />
+                <i style={{ background: '#facc15' }} />
+                <i style={{ background: '#3b82f6' }} />
+                <i style={{ background: '#22c55e' }} />
+              </span>
+              <span className="play-launch-label">Colours</span>
+            </button>
+            <button
+              type="button"
+              className="play-launch play-launch-patterns"
+              id="play-open-patterns"
+              aria-label="Play patterns"
+              onClick={() => openPlayGame('patterns')}
+            >
+              <span className="play-launch-mark play-launch-mark-sm" aria-hidden="true">
+                2 4 6
+              </span>
+              <span className="play-launch-label">Patterns</span>
+            </button>
+            <button
+              type="button"
+              className="play-launch play-launch-memory"
+              id="play-open-memory"
+              aria-label="Play memory"
+              onClick={() => openPlayGame('memory')}
+            >
+              <span className="play-launch-cards" aria-hidden="true">
+                <i />
+                <i />
+              </span>
+              <span className="play-launch-label">Memory</span>
+            </button>
           </div>
-        )}
+        </div>
+
+        {/* 7. Sticky Notes */}
+        <div
+          className="dashboard-card dashboard-card-photos dashboard-card-notes dash-tile"
+          id="dashboard-notes-panel"
+          data-dash-id="notes"
+          style={{ '--dash-cols': 12, '--dash-rows': 16 } as React.CSSProperties}
+        >
+          <h3 className="dashboard-card-title">
+            <button type="button" className="dash-tile-handle" title="Drag to move" aria-label="Move Sticky Notes">
+              <i className="fas fa-grip-vertical" />
+            </button>
+            <i className="fas fa-note-sticky" style={{ color: '#fbbf24' }} /> Sticky Notes
+            <button
+              type="button"
+              className="dash-note-add-btn"
+              id="dash-note-add-btn"
+              title="Add note"
+              onClick={() => setAddingNote((v) => !v)}
+            >
+              <i className="fas fa-plus" />
+            </button>
+          </h3>
+
+          {addingNote && (
+            <form
+              onSubmit={handleAddStickyNote}
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginBottom: 12,
+                padding: 10,
+                borderRadius: 10,
+                background: 'rgba(0,0,0,0.2)',
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Title (optional)"
+                value={newNoteTitle}
+                onChange={(e) => setNewNoteTitle(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: 8 }}
+              />
+              <input
+                type="text"
+                placeholder="Write a sticky note..."
+                value={newNoteText}
+                onChange={(e) => setNewNoteText(e.target.value)}
+                required
+                style={{ flex: 1, padding: '6px 10px', borderRadius: 8 }}
+              />
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {STICKY_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewNoteColor(c)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      background: c,
+                      border: newNoteColor === c ? '2px solid #fff' : '1px solid rgba(0,0,0,0.3)',
+                      cursor: 'pointer',
+                    }}
+                  />
+                ))}
+              </div>
+              <button type="submit" className="btn-primary" style={{ padding: '6px 14px', borderRadius: 8 }}>
+                Post
+              </button>
+            </form>
+          )}
+
+          <div className="dash-notes-grid" id="dash-notes-grid">
+            {stickyNotes.length === 0 ? (
+              <p className="dash-empty-hint">No notes yet — tap + to add one.</p>
+            ) : (
+              stickyNotes.map((n) => (
+                <div
+                  key={n.id}
+                  style={{
+                    background: n.color || '#fef08a',
+                    color: '#1e293b',
+                    padding: 14,
+                    borderRadius: 10,
+                    minWidth: 180,
+                    position: 'relative',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteStickyNote(n.id)}
+                    style={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 8,
+                      background: 'none',
+                      border: 'none',
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                  {n.title && <div style={{ fontWeight: 800, marginBottom: 4 }}>{n.title}</div>}
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{n.text}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -2,32 +2,29 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
 
-export const CalendarAndNotesSection: React.FC = () => {
-  const { data, refresh, setActiveView, showToast } = useApp();
+const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
 
-  // Calendar view mode
-  const [calMode, setCalMode] = useState<'week' | 'list'>('week');
+export const NotesSection: React.FC = () => {
+  const { data, refresh, showToast } = useApp();
 
-  // Notes Kanban state
+  const [sectionCollapsed, setSectionCollapsed] = useState(true);
+  const [deletedCollapsed, setDeletedCollapsed] = useState(true);
+  const [padsCollapsed, setPadsCollapsed] = useState(true);
+
   const [newNoteText, setNewNoteText] = useState<Record<string, string>>({});
-  const [newColTitle, setNewColTitle] = useState('');
-  const [newColColor, setNewColColor] = useState('#3b82f6');
-  const [showAddCol, setShowAddCol] = useState(false);
-
-  // Text Pads state
   const [newPadTitle, setNewPadTitle] = useState('');
+  const [newPadContent, setNewPadContent] = useState('');
   const [editingPadContent, setEditingPadContent] = useState<Record<string, string>>({});
 
   if (!data) return null;
 
-  const gcal = data.google_calendar;
   const nk = data.notes_kanban || { columns: [], notes: [] };
-  const columns = nk.columns || [];
+  const columns = [...(nk.columns || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const activeNotes = (nk.notes || []).filter((n) => !n.deleted);
+  const deletedNotes = (nk.notes || []).filter((n) => n.deleted);
   const textPads = data.text_pads || [];
 
-  const handleAddNote = async (colId: string, e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddNote = async (colId: string) => {
     const txt = (newNoteText[colId] || '').trim();
     if (!txt) return;
     try {
@@ -48,29 +45,29 @@ export const CalendarAndNotesSection: React.FC = () => {
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
+  const handleDeleteNote = async (noteId: string, permanent = false) => {
     try {
-      await apiPost('delete_kanban_note', { id: noteId, permanent: true });
+      await apiPost('delete_kanban_note', { id: noteId, permanent });
       await refresh();
     } catch {
       // ignore
     }
   };
 
-  const handleAddColumn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newColTitle.trim()) return;
+  const handleAddColumnPrompt = async () => {
+    const title = window.prompt('List name:');
+    if (!title || !title.trim()) return;
+    const color = POSTIT_COLORS[columns.length % POSTIT_COLORS.length];
     try {
-      await apiPost('add_note_column', { title: newColTitle.trim(), color: newColColor });
-      setNewColTitle('');
-      setShowAddCol(false);
+      await apiPost('add_note_column', { title: title.trim(), color });
       await refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to add column', { type: 'error' });
     }
   };
 
-  const handleDeleteColumn = async (colId: string) => {
+  const handleDeleteColumn = async (colId: string, colTitle: string) => {
+    if (!window.confirm(`Delete list "${colTitle}"?`)) return;
     try {
       await apiPost('delete_note_column', { id: colId });
       await refresh();
@@ -79,12 +76,38 @@ export const CalendarAndNotesSection: React.FC = () => {
     }
   };
 
-  const handleAddTextPad = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPadTitle.trim()) return;
+  const handleClearChecked = async () => {
+    const checkedList = activeNotes.filter((n) => n.checked);
+    if (!checkedList.length) return;
+    if (!window.confirm(`Move ${checkedList.length} checked note(s) to Deleted Notes?`)) return;
     try {
-      await apiPost('add_text_pad', { title: newPadTitle.trim(), content: '' });
+      await Promise.all(checkedList.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: false })));
+      await refresh();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleEmptyDeleted = async () => {
+    if (!deletedNotes.length) return;
+    if (!window.confirm(`Permanently delete ${deletedNotes.length} note(s)?`)) return;
+    try {
+      await Promise.all(deletedNotes.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: true })));
+      await refresh();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAddTextPad = async () => {
+    if (!newPadContent.trim()) return;
+    try {
+      await apiPost('add_text_pad', {
+        title: newPadTitle.trim() || 'Untitled',
+        content: newPadContent,
+      });
       setNewPadTitle('');
+      setNewPadContent('');
       await refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to create text pad', { type: 'error' });
@@ -104,6 +127,7 @@ export const CalendarAndNotesSection: React.FC = () => {
   };
 
   const handleDeleteTextPad = async (padId: string) => {
+    if (!window.confirm('Delete this text pad?')) return;
     try {
       await apiPost('delete_text_pad', { id: padId });
       await refresh();
@@ -113,400 +137,354 @@ export const CalendarAndNotesSection: React.FC = () => {
   };
 
   return (
-    <>
-      {/* ===================================================================
-          1. FAMILY CALENDAR SECTION
-         =================================================================== */}
-      <section className="section-heading" id="events-section" style={{ marginTop: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h2>📅 Family Calendar</h2>
-            <p className="section-subtitle">Upcoming family schedule & events for the next 7 days.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => setCalMode(calMode === 'week' ? 'list' : 'week')}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.08)',
-                color: 'inherit',
-                border: '1px solid rgba(255,255,255,0.14)',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              {calMode === 'week' ? '📋 List View' : '📆 Week Grid'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveView('settings')}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 10,
-                background: 'rgba(59,130,246,0.2)',
-                color: '#60a5fa',
-                border: '1px solid rgba(59,130,246,0.4)',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              ⚙️ Calendar Settings
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {!gcal?.enabled ? (
-        <div className="card" style={{ padding: 24, borderRadius: 16, textAlign: 'center', opacity: 0.85 }}>
-          <div style={{ fontSize: '2.2rem', marginBottom: 6 }}>📅</div>
-          <div>Google Calendar integration is not enabled yet.</div>
-          <button
-            type="button"
-            onClick={() => setActiveView('settings')}
-            className="btn-primary"
-            style={{ marginTop: 12, padding: '8px 18px', borderRadius: 10 }}
-          >
-            Configure Google Calendar in Settings
-          </button>
-        </div>
-      ) : gcal.error ? (
-        <div
-          className="card"
-          style={{
-            padding: 20,
-            borderRadius: 16,
-            border: '1px solid rgba(239,68,68,0.4)',
-            color: '#f87171',
-          }}
-        >
-          ⚠️ Calendar Error: {gcal.error}
-        </div>
-      ) : calMode === 'week' ? (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {(gcal.week_columns || []).map((col: any) => (
-            <div
-              key={col.date_iso}
-              className="card"
-              style={{
-                padding: 14,
-                borderRadius: 16,
-                border: col.is_today ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
-                background: col.is_today ? 'rgba(59,130,246,0.1)' : undefined,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: 10,
-                  paddingBottom: 6,
-                  borderBottom: '1px solid rgba(255,255,255,0.1)',
-                }}
-              >
-                <span style={{ fontWeight: 800 }}>{col.day_name}</span>
-                <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>{col.date_label}</span>
-              </div>
-
-              {/* All-day & timed events */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(col.all_day_events || []).map((ev: any, idx: number) => (
-                  <div
-                    key={`ad-${idx}`}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: 8,
-                      background: ev.color || '#3b82f6',
-                      color: '#fff',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    📌 {ev.summary}
-                  </div>
-                ))}
-                {(col.timed_events || []).map((ev: any, idx: number) => (
-                  <div
-                    key={`tm-${idx}`}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: 8,
-                      background: 'rgba(255,255,255,0.07)',
-                      borderLeft: `4px solid ${ev.color || '#3b82f6'}`,
-                      fontSize: '0.82rem',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.72rem', opacity: 0.75 }}>{ev.time_label}</div>
-                    <div style={{ fontWeight: 700 }}>{ev.summary}</div>
-                  </div>
-                ))}
-                {!col.all_day_events?.length && !col.timed_events?.length && (
-                  <div style={{ fontSize: '0.8rem', opacity: 0.45, fontStyle: 'italic' }}>No events</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 20, borderRadius: 16 }}>
-          {(gcal.events || []).length === 0 ? (
-            <div style={{ opacity: 0.7 }}>No upcoming events in the next 7 days.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(gcal.events || []).map((ev: any, i: number) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.05)',
-                    borderLeft: `4px solid ${ev.color || '#3b82f6'}`,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{ev.summary}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.75 }}>
-                      {ev.date_label} • {ev.time_label}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ===================================================================
-          2. NOTES KANBAN & TEXT PADS SECTION
-         =================================================================== */}
-      <section className="section-heading" id="notes-kanban-section" style={{ marginTop: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h2>📋 Lists & Notes Board</h2>
-            <p className="section-subtitle">Keep track of family checklists, school reminders, and scratchpads.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAddCol((prev) => !prev)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 10,
-              background: 'rgba(59,130,246,0.2)',
-              color: '#60a5fa',
-              border: '1px solid rgba(59,130,246,0.4)',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
-            + Add List Column
-          </button>
-        </div>
-      </section>
-
-      {showAddCol && (
-        <form
-          onSubmit={handleAddColumn}
-          className="card"
-          style={{ padding: 14, borderRadius: 14, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center' }}
-        >
-          <input
-            type="text"
-            placeholder="Column title (e.g. To Do, Packing List, Ideas)..."
-            value={newColTitle}
-            onChange={(e) => setNewColTitle(e.target.value)}
-            style={{ flex: 1, padding: '8px 12px', borderRadius: 8 }}
-          />
-          <input
-            type="color"
-            value={newColColor}
-            onChange={(e) => setNewColColor(e.target.value)}
-            style={{ width: 42, height: 38, border: 'none', background: 'none', cursor: 'pointer' }}
-          />
-          <button type="submit" className="btn-primary" style={{ padding: '8px 16px', borderRadius: 8 }}>
-            Create Column
-          </button>
-        </form>
-      )}
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: 14,
-        }}
+    <section
+      className={`notes-kanban-section collapsible-section${sectionCollapsed ? ' collapsed' : ''}`}
+      id="notes-kanban-section"
+    >
+      <h2
+        className="section-title section-toggle"
+        onClick={() => setSectionCollapsed((p) => !p)}
       >
+        <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} /> <span>Notes</span>
+        <i className="fas fa-chevron-down section-chevron" />
+      </h2>
+
+      <div className="notes-kanban-board" id="notes-kanban-board">
         {columns.map((col) => {
           const colNotes = activeNotes.filter((n) => n.column_id === col.id);
           return (
-            <div
-              key={col.id}
-              className="card"
-              style={{
-                padding: 16,
-                borderRadius: 16,
-                borderTop: `4px solid ${col.color || '#3b82f6'}`,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{col.title}</h3>
-                {columns.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteColumn(col.id)}
-                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                    title="Delete column"
-                  >
-                    ✕
-                  </button>
-                )}
+            <div key={col.id} className="notes-kanban-col" data-col-id={col.id}>
+              <div
+                className="notes-col-header"
+                style={{ '--col-color': col.color } as React.CSSProperties}
+              >
+                <span className="notes-col-drag-handle" title="Hold and drag to reorder lists">
+                  <i className="fas fa-grip-vertical" />
+                </span>
+                <span className="notes-col-dot" style={{ background: col.color }} />
+                <span className="notes-col-title">{col.title}</span>
+                <button
+                  type="button"
+                  className="notes-col-delete-btn"
+                  title="Delete list"
+                  onClick={() => handleDeleteColumn(col.id, col.title)}
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <div className="notes-list">
                 {colNotes.map((note) => (
                   <div
                     key={note.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      padding: '8px 10px',
-                      borderRadius: 10,
-                      background: 'rgba(255,255,255,0.05)',
-                      opacity: note.checked ? 0.55 : 1,
-                    }}
+                    className={`notes-sticky${note.checked ? ' notes-sticky-checked' : ''}`}
+                    style={{ '--note-color': col.color } as React.CSSProperties}
                   >
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(note.checked)}
-                        onChange={() => handleToggleNote(note.id, Boolean(note.checked))}
-                      />
-                      <span style={{ textDecoration: note.checked ? 'line-through' : 'none' }}>{note.text}</span>
-                    </label>
+                    <input
+                      type="checkbox"
+                      className="notes-sticky-check"
+                      checked={Boolean(note.checked)}
+                      onChange={() => handleToggleNote(note.id, Boolean(note.checked))}
+                    />
+                    <span className="notes-sticky-text">{note.text}</span>
                     <button
                       type="button"
-                      onClick={() => handleDeleteNote(note.id)}
-                      style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
+                      className="notes-sticky-del"
+                      title="Delete note"
+                      onClick={() => handleDeleteNote(note.id, false)}
                     >
-                      ✕
+                      <i className="fas fa-times" />
                     </button>
                   </div>
                 ))}
               </div>
 
-              <form onSubmit={(e) => handleAddNote(col.id, e)} style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="text"
-                  placeholder="Add item..."
+              <div className="notes-add-row">
+                <textarea
+                  className="notes-add-input"
+                  placeholder="New note..."
+                  rows={2}
                   value={newNoteText[col.id] || ''}
                   onChange={(e) => setNewNoteText((prev) => ({ ...prev, [col.id]: e.target.value }))}
-                  style={{ flex: 1, padding: '8px 10px', borderRadius: 8 }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAddNote(col.id);
+                    }
+                  }}
                 />
                 <button
-                  type="submit"
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    background: col.color || '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  type="button"
+                  className="notes-add-btn edit-btn"
+                  onClick={() => handleAddNote(col.id)}
                 >
-                  +
+                  <i className="fas fa-plus" /> Add
                 </button>
-              </form>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Text Pads */}
-      <div id="text-pads-section" style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>📝 Scratchpads & Notes</h3>
-          <form onSubmit={handleAddTextPad} style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              placeholder="New notepad title..."
-              value={newPadTitle}
-              onChange={(e) => setNewPadTitle(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8 }}
-            />
-            <button type="submit" className="btn-primary" style={{ padding: '8px 14px', borderRadius: 8 }}>
-              + New Pad
-            </button>
-          </form>
-        </div>
+      <div className="notes-action-row">
+        <button type="button" className="edit-btn" id="notes-add-column-btn" onClick={handleAddColumnPrompt}>
+          <i className="fas fa-plus" /> Add List
+        </button>
+        <button type="button" className="edit-btn" id="notes-clear-checked-btn" onClick={handleClearChecked}>
+          <i className="fas fa-broom" /> Clear Checked
+        </button>
+      </div>
 
-        {textPads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-            {textPads.map((pad) => {
+      <div
+        className={`notes-deleted-wrap collapsible-section${deletedCollapsed ? ' collapsed' : ''}`}
+        id="notes-deleted-section"
+      >
+        <h3
+          className="notes-deleted-toggle section-toggle"
+          onClick={() => setDeletedCollapsed((p) => !p)}
+        >
+          <i className="fas fa-trash" /> Deleted Notes
+          <span id="notes-deleted-count" className="notes-deleted-count">
+            {deletedNotes.length}
+          </span>
+          <i className="fas fa-chevron-down section-chevron" />
+        </h3>
+        <div id="notes-deleted-list" className="notes-deleted-list">
+          {deletedNotes.length === 0 ? (
+            <p className="notes-deleted-empty">No deleted notes.</p>
+          ) : (
+            deletedNotes.map((note) => (
+              <div key={note.id} className="notes-deleted-item">
+                <span className="notes-deleted-text">{note.text}</span>
+                <div className="notes-deleted-item-actions">
+                  <button
+                    type="button"
+                    className="notes-deleted-permanent"
+                    title="Delete permanently"
+                    onClick={() => handleDeleteNote(note.id, true)}
+                  >
+                    <i className="fas fa-trash-alt" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="notes-deleted-actions">
+          <button type="button" className="edit-btn" id="notes-empty-trash-btn" onClick={handleEmptyDeleted}>
+            <i className="fas fa-trash-alt" /> Empty Deleted
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`text-pads-wrap collapsible-section${padsCollapsed ? ' collapsed' : ''}`}
+        id="text-pads-section"
+      >
+        <h3
+          className="text-pads-section-toggle section-toggle"
+          onClick={() => setPadsCollapsed((p) => !p)}
+        >
+          <i className="fas fa-file-alt" /> Text Pads
+          <i className="fas fa-chevron-down section-chevron" />
+        </h3>
+        <div id="text-pads-list" className="text-pads-list">
+          {textPads.length === 0 ? (
+            <p className="text-pads-empty">No text pads yet — add one below.</p>
+          ) : (
+            textPads.map((pad) => {
               const val = editingPadContent[pad.id] !== undefined ? editingPadContent[pad.id] : pad.content;
               return (
-                <div key={pad.id} className="card" style={{ padding: 16, borderRadius: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <h4 style={{ margin: 0 }}>{pad.title}</h4>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                <div key={pad.id} className="text-pad-card">
+                  <div className="text-pad-card-header">
+                    <input
+                      type="text"
+                      className="text-pad-title-input modern-input"
+                      value={pad.title || ''}
+                      readOnly
+                    />
+                    <span className="text-pad-meta">{(val || '').length.toLocaleString()} chars</span>
+                    <div className="text-pad-actions">
                       <button
                         type="button"
-                        onClick={() => handleSaveTextPad(pad.id, pad.title)}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          background: 'rgba(34,197,94,0.2)',
-                          color: '#4ade80',
-                          border: 'none',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
+                        className="edit-btn text-pad-copy-btn"
+                        title="Copy to clipboard"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(val || '');
+                          showToast('Copied to clipboard');
                         }}
                       >
-                        💾 Save
+                        <i className="fas fa-copy" />
                       </button>
                       <button
                         type="button"
+                        className="notes-col-delete-btn text-pad-del-btn"
+                        title="Delete pad"
                         onClick={() => handleDeleteTextPad(pad.id)}
-                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
                       >
-                        🗑️
+                        <i className="fas fa-trash" />
                       </button>
                     </div>
                   </div>
                   <textarea
-                    rows={5}
+                    className="text-pad-textarea"
+                    rows={8}
                     value={val}
                     onChange={(e) => setEditingPadContent((prev) => ({ ...prev, [pad.id]: e.target.value }))}
                     onBlur={() => handleSaveTextPad(pad.id, pad.title)}
-                    placeholder="Write notes here..."
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      borderRadius: 10,
-                      background: 'rgba(0,0,0,0.2)',
-                      color: 'inherit',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      resize: 'vertical',
-                    }}
                   />
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="text-pad-composer">
+          <input
+            type="text"
+            id="text-pad-new-title"
+            className="modern-input"
+            placeholder="Title (optional)..."
+            maxLength={80}
+            value={newPadTitle}
+            onChange={(e) => setNewPadTitle(e.target.value)}
+          />
+          <textarea
+            id="text-pad-new-content"
+            className="text-pad-textarea"
+            placeholder="Paste or type your text here..."
+            rows={6}
+            value={newPadContent}
+            onChange={(e) => setNewPadContent(e.target.value)}
+          />
+          <div className="text-pad-composer-row">
+            <span className="text-pad-char-count" id="text-pad-char-count">
+              {newPadContent.length.toLocaleString()} chars
+            </span>
+            <button type="button" className="save-btn" id="text-pad-add-btn" onClick={handleAddTextPad}>
+              <i className="fas fa-plus" /> Save Pad
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export const CalendarSection: React.FC = () => {
+  const { data } = useApp();
+  const [collapsed, setCollapsed] = useState(false);
+  const [calMode, setCalMode] = useState<'grid' | 'list'>('grid');
+
+  if (!data) return null;
+  const gcal = data.google_calendar;
+  if (!gcal?.enabled) return null;
+
+  return (
+    <section
+      className={`rewards-section collapsible-section${collapsed ? ' collapsed' : ''}`}
+      style={{ marginTop: '1rem' }}
+      id="events-section"
+    >
+      <h2
+        className="section-title section-toggle"
+        onClick={() => setCollapsed((p) => !p)}
+      >
+        <i className="fas fa-calendar-alt" style={{ color: '#60a5fa' }} />{' '}
+        <span>Upcoming Family Events</span>
+        <div
+          className="gcal-view-switch"
+          onClick={(e) => e.stopPropagation()}
+          title="Switch calendar view"
+        >
+          <button
+            type="button"
+            className={`gcal-view-switch-btn${calMode === 'grid' ? ' active' : ''}`}
+            onClick={() => setCalMode('grid')}
+            title="Time grid view"
+          >
+            <i className="fas fa-stream" />
+          </button>
+          <button
+            type="button"
+            className={`gcal-view-switch-btn${calMode === 'list' ? ' active' : ''}`}
+            onClick={() => setCalMode('list')}
+            title="List view"
+          >
+            <i className="fas fa-list" />
+          </button>
+        </div>
+        <i className="fas fa-chevron-down section-chevron" />
+      </h2>
+
+      {gcal.error ? (
+        <div className="empty-state" style={{ padding: '1rem' }}>
+          <i
+            className="fas fa-exclamation-triangle"
+            style={{ fontSize: '2em', color: '#f59e0b', marginBottom: '0.75rem' }}
+          />
+          <p style={{ margin: '0 0 6px' }}>Calendar unavailable</p>
+          <p className="subtitle" style={{ margin: 0 }}>
+            {gcal.error}
+          </p>
+        </div>
+      ) : (gcal.events || []).length === 0 ? (
+        <div className="empty-state" style={{ padding: '1rem' }}>
+          <i
+            className="fas fa-calendar-check"
+            style={{ fontSize: '2em', color: '#64748b', marginBottom: '0.75rem' }}
+          />
+          <p style={{ margin: '0 0 6px' }}>No upcoming events found</p>
+          <p className="subtitle" style={{ margin: 0 }}>
+            Try increasing "Days ahead" in Settings.
+          </p>
+        </div>
+      ) : (
+        <div className="google-week-calendar">
+          <div className="gcal-week-grid">
+            {(gcal.week_columns || []).map((day: any) => {
+              const allEvents = [...(day.all_day_events || []), ...(day.timed_events || [])];
+              return (
+                <div key={day.date_iso} className="gcal-day-column">
+                  <div className="gcal-day-header">
+                    <div className="gcal-day-name">{day.day_name}</div>
+                    <div className="gcal-day-date">{day.date_label}</div>
+                  </div>
+                  <div className="gcal-day-events">
+                    {allEvents.length === 0 ? (
+                      <div className="gcal-no-events">No events</div>
+                    ) : (
+                      allEvents.map((ev: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="gcal-event-card"
+                          style={
+                            {
+                              '--gcal-event-color': ev.color || '#3b82f6',
+                              '--gcal-event-color-tint': 'rgba(59,130,246,0.18)',
+                            } as React.CSSProperties
+                          }
+                        >
+                          {ev.time_label && <div className="gcal-event-time">{ev.time_label}</div>}
+                          <div className="gcal-event-title">{ev.summary || ev.title}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+export const CalendarAndNotesSection: React.FC = () => {
+  return (
+    <>
+      <NotesSection />
+      <CalendarSection />
     </>
   );
 };

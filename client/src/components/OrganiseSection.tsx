@@ -166,59 +166,113 @@ export const OrganiseSection: React.FC = () => {
     await openServicesModal(activeVehicle);
   };
 
+  const [collapsed, setCollapsed] = useState(true);
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+
   const cars = items.filter((i) => i.category === 'car');
   const bills = items.filter((i) => i.category !== 'car');
 
   return (
     <>
-      <section className="section-heading" id="organise-section" style={{ marginTop: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h2>🚗 Organise — Vehicles, Rego & Household Bills</h2>
-            <p className="section-subtitle">Track car service logs, registration, insurance renewals, and household bills.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['all', 'cars', 'bills'] as const).map((t) => (
+      <section className={`organise-section collapsible-section${collapsed ? ' collapsed' : ''} admin-only`} id="organise-section">
+        <h2
+          className="section-title section-toggle"
+          onClick={() => setCollapsed((c) => !c)}
+          style={{ cursor: 'pointer' }}
+        >
+          <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} /> Organise
+          <i className="fas fa-chevron-down section-chevron" />
+        </h2>
+        <div className="organise-body">
+          <div className="organise-toolbar">
+            <p className="org-subtitle">
+              Keep cars, documents and service details in one place. Tap a widget to update kilometres, services or renewals.
+            </p>
+            <div className="org-toolbar-actions">
+              {(['all', 'cars', 'bills'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setFilterTab(t)}
+                  className="org-quick-btn"
+                  style={{
+                    background: filterTab === t ? 'rgba(59,130,246,0.25)' : undefined,
+                    borderColor: filterTab === t ? '#3b82f6' : undefined,
+                  }}
+                >
+                  {t === 'all' ? 'All' : t === 'cars' ? '🚗 Vehicles' : '📄 Bills & Renewals'}
+                </button>
+              ))}
               <button
-                key={t}
+                id="organise-add-btn"
                 type="button"
-                onClick={() => setFilterTab(t)}
+                onClick={() => setShowAddModal(true)}
+                className="org-add-btn admin-only"
+              >
+                <i className="fas fa-plus" /> Add
+              </button>
+              <div className="org-quick-wrap admin-only" style={{ position: 'relative' }}>
+                <button
+                  id="org-quick-btn"
+                  className="org-quick-btn"
+                  type="button"
+                  onClick={() => setQuickMenuOpen((o) => !o)}
+                >
+                  <i className="fas fa-car" /> Templates
+                </button>
+                {quickMenuOpen && (
+                  <div id="org-quick-menu" className="org-quick-menu" style={{ display: 'block' }}>
+                    <div className="org-quick-heading">Car</div>
+                    <button
+                      type="button"
+                      className="org-quick-item"
+                      onClick={() => {
+                        setAddCategory('car');
+                        setAddTitle('');
+                        setQuickMenuOpen(false);
+                        setShowAddModal(true);
+                      }}
+                    >
+                      🚗 Add a car
+                    </button>
+                    <div className="org-quick-heading">Attach to a car</div>
+                    {[
+                      { title: 'Registration / Rego', cat: 'rego', icon: '🔖' },
+                      { title: 'CTP / Green Slip', cat: 'insurance', icon: '🛡️' },
+                      { title: 'Comprehensive Insurance', cat: 'insurance', icon: '🛡️' },
+                      { title: 'Roadside Assistance', cat: 'subscription', icon: '🚨' },
+                    ].map((tmpl) => (
+                      <button
+                        key={tmpl.title}
+                        type="button"
+                        className="org-quick-item"
+                        onClick={() => {
+                          setAddCategory(tmpl.cat);
+                          setAddTitle(tmpl.title);
+                          setQuickMenuOpen(false);
+                          setShowAddModal(true);
+                        }}
+                      >
+                        {tmpl.icon} {tmpl.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div id="organise-items-container">
+            {/* Vehicles Grid */}
+            {(filterTab === 'all' || filterTab === 'cars') && cars.length > 0 && (
+              <div
                 style={{
-                  padding: '8px 14px',
-                  borderRadius: 10,
-                  background: filterTab === t ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-                  border: filterTab === t ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.12)',
-                  color: 'inherit',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                  gap: 16,
+                  marginBottom: 20,
                 }}
               >
-                {t === 'all' ? 'All' : t === 'cars' ? '🚗 Vehicles' : '📄 Bills & Renewals'}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="btn-primary"
-              style={{ padding: '8px 16px', borderRadius: 10, fontWeight: 700 }}
-            >
-              + Add Item
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Vehicles Grid */}
-      {(filterTab === 'all' || filterTab === 'cars') && cars.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: 16,
-            marginBottom: 20,
-          }}
-        >
           {cars.map((car) => (
             <div key={car.id} className="card" style={{ borderRadius: 16, overflow: 'hidden' }}>
               {car.photo_url ? (
@@ -424,10 +478,13 @@ export const OrganiseSection: React.FC = () => {
       )}
 
       {items.length === 0 && (
-        <div className="card" style={{ padding: 24, borderRadius: 16, textAlign: 'center', opacity: 0.75 }}>
-          No vehicles or household renewals added yet. Click "+ Add Item" to track cars, rego, insurance, or bills!
-        </div>
+        <p className="org-empty">
+          No vehicles or household renewals added yet. Click "+ Add" to track cars, rego, insurance, or bills!
+        </p>
       )}
+          </div>
+        </div>
+      </section>
 
       {/* Add Item Modal */}
       {showAddModal && (

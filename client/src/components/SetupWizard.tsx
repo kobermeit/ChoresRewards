@@ -165,8 +165,8 @@ export const SetupWizard: React.FC = () => {
                 <div
                   key={idx}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 90px 60px auto auto auto',
+                    display: 'flex',
+                    flexWrap: 'wrap',
                     gap: 10,
                     alignItems: 'center',
                     background: 'var(--cr-surface-2)',
@@ -181,6 +181,8 @@ export const SetupWizard: React.FC = () => {
                     value={m.name}
                     onChange={(e) => updateMember(idx, { name: e.target.value })}
                     style={{
+                      flex: '1 1 160px',
+                      minWidth: 140,
                       padding: '10px 12px',
                       borderRadius: 8,
                       border: '1px solid var(--cr-surface-border)',
@@ -196,6 +198,7 @@ export const SetupWizard: React.FC = () => {
                     value={m.age}
                     onChange={(e) => updateMember(idx, { age: e.target.value })}
                     style={{
+                      width: 80,
                       padding: '10px 10px',
                       borderRadius: 8,
                       border: '1px solid var(--cr-surface-border)',
@@ -207,16 +210,18 @@ export const SetupWizard: React.FC = () => {
                     type="color"
                     value={m.color}
                     onChange={(e) => updateMember(idx, { color: e.target.value })}
-                    style={{ width: 44, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer' }}
+                    style={{ width: 44, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer', flexShrink: 0 }}
                   />
                   <label
                     style={{
-                      display: 'flex',
+                      display: 'inline-flex',
                       alignItems: 'center',
                       gap: 6,
                       color: 'var(--cr-text-primary)',
                       fontWeight: 600,
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      margin: 0,
                     }}
                   >
                     <input
@@ -226,7 +231,7 @@ export const SetupWizard: React.FC = () => {
                     />
                     Adult / Admin
                   </label>
-                  {m.is_admin ? (
+                  {m.is_admin && (
                     <input
                       type="password"
                       maxLength={4}
@@ -245,8 +250,6 @@ export const SetupWizard: React.FC = () => {
                         fontWeight: 700,
                       }}
                     />
-                  ) : (
-                    <div style={{ width: 115 }} />
                   )}
                   {members.length > 1 && (
                     <button
@@ -259,6 +262,7 @@ export const SetupWizard: React.FC = () => {
                         borderRadius: 8,
                         padding: '8px 10px',
                         cursor: 'pointer',
+                        marginLeft: 'auto',
                       }}
                     >
                       <i className="fas fa-trash" />

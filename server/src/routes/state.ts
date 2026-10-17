@@ -44,7 +44,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     const needsSetup = peopleRows.length === 0;
 
     const choresRows = db
-      .prepare('SELECT * FROM chore WHERE deleted = 0 AND (is_daily = 0 OR due_date <= ?) ORDER BY due_date, id')
+      .prepare('SELECT * FROM chore WHERE deleted = 0 AND (is_daily = 0 OR due_date IS NULL OR due_date <= ?) ORDER BY due_date, id')
       .all(familyToday) as Array<any>;
 
     const overdueChoreIds: number[] = [];
@@ -85,17 +85,12 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     }));
 
     const weekStart = getMondayOfWeek(familyToday);
-    const weeklyRows = db
-      .prepare(
-        'SELECT assigned_to, COUNT(id) as cnt FROM chore WHERE deleted = 0 AND completed = 1 AND date_completed >= ? GROUP BY assigned_to'
-      )
-      .all(weekStart) as Array<{ assigned_to: string; cnt: number }>;
-    const weeklyMap = new Map(weeklyRows.map((r) => [r.assigned_to, r.cnt]));
 
     const familyProgress: Record<string, { completed: number; total: number }> = {};
     for (const p of peopleRows) {
-      const cnt = weeklyMap.get(p.name) || 0;
-      familyProgress[p.name] = { completed: cnt, total: cnt };
+      const personChores = chores.filter((c) => c.assigned_to === p.name && !c.deleted);
+      const completedCnt = personChores.filter((c) => c.completed).length;
+      familyProgress[p.name] = { completed: completedCnt, total: personChores.length };
     }
 
     const streaksRows = db.prepare('SELECT * FROM person_streak').all() as Array<any>;

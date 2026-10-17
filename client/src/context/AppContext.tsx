@@ -56,7 +56,17 @@ export const AppProvider: React.FC<{
   const [muted, setMuted] = useState<boolean>(() => {
     return localStorage.getItem('globalMute') === 'true';
   });
-  const [adultMode, setAdultMode] = useState(false);
+  const [adultMode, setAdultModeState] = useState<boolean>(() => {
+    return sessionStorage.getItem('cr_adult_unlocked') === 'true';
+  });
+  const setAdultMode = useCallback((val: boolean) => {
+    setAdultModeState(val);
+    if (val) {
+      sessionStorage.setItem('cr_adult_unlocked', 'true');
+    } else {
+      sessionStorage.removeItem('cr_adult_unlocked');
+    }
+  }, []);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [screensaverOpen, setScreensaverOpen] = useState(false);
@@ -70,14 +80,16 @@ export const AppProvider: React.FC<{
       const res = await apiGet<BootstrapData>('bootstrap');
       if (res && res.success) {
         setData(res);
-        setAdultMode(Boolean(res.auth?.adult_mode));
+        if (res.auth?.adult_mode) {
+          setAdultMode(true);
+        }
       }
     } catch (err) {
       console.error('Failed to load bootstrap data:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setAdultMode]);
 
   useEffect(() => {
     refresh();
@@ -98,6 +110,9 @@ export const AppProvider: React.FC<{
   useEffect(() => {
     document.documentElement.classList.toggle('adult-mode', adultMode);
     document.documentElement.classList.toggle('child-mode', !adultMode);
+    document.body.classList.toggle('adult-mode', adultMode);
+    document.body.classList.toggle('child-mode', !adultMode);
+    document.body.classList.toggle('adult-unlocked', adultMode);
   }, [adultMode]);
 
   const toggleTheme = useCallback(() => {

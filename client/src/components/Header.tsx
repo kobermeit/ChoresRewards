@@ -33,6 +33,13 @@ export const Header: React.FC = () => {
 
   const [clockTime, setClockTime] = useState('--:--');
   const [clockDate, setClockDate] = useState('Loading…');
+  const [headerMinimized, setHeaderMinimized] = useState(() => {
+    try {
+      return localStorage.getItem('headerMinimized') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   // Weather state
   const [weatherCurrent, setWeatherCurrent] = useState<{
@@ -177,10 +184,22 @@ export const Header: React.FC = () => {
     }
   };
 
+  const toggleMinimizeHeader = () => {
+    setHeaderMinimized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('headerMinimized', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
 
   return (
-    <header className="dashboard-header-sticky">
+    <header className={`dashboard-header-sticky${headerMinimized ? ' header-minimized' : ''}`}>
       <div
         className="header-content"
         style={{
@@ -285,8 +304,10 @@ export const Header: React.FC = () => {
           </div>
           <button
             type="button"
+            id="weather-expand-btn"
             onClick={() => setWeatherExpanded((prev) => !prev)}
             title="Show 7-day forecast"
+            aria-expanded={weatherExpanded}
             style={{
               background: 'none',
               border: 'none',
@@ -296,11 +317,16 @@ export const Header: React.FC = () => {
               padding: '2px 0 0',
               margin: 0,
               lineHeight: 1,
-              opacity: 0.7,
+              opacity: 0.55,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'opacity 0.15s',
             }}
           >
             <i
               className="fas fa-chevron-down"
+              id="weather-expand-icon"
               style={{
                 transition: 'transform 0.25s',
                 transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -310,52 +336,35 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Header Actions */}
-        <nav className="header-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <nav className="header-nav-actions">
           {/* Notification Bell */}
-          <div className="header-notif-wrap" style={{ position: 'relative' }}>
+          <div className="header-notif-wrap" id="header-notif-wrap">
             <button
               type="button"
               className="header-notif-btn"
+              id="header-notif-btn"
               onClick={() => {
                 setNotifOpen((p) => !p);
                 setQuickAddOpen(false);
               }}
               title="Notifications"
+              aria-haspopup="true"
+              aria-expanded={notifOpen}
             >
               <i className="fas fa-bell" />
               {visibleAlerts.length > 0 && (
-                <span className="header-notif-badge">{visibleAlerts.length}</span>
+                <span className="header-notif-badge" id="header-notif-badge">
+                  {visibleAlerts.length}
+                </span>
               )}
             </button>
             {notifOpen && (
-              <div
-                className="header-notif-panel"
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 'calc(100% + 8px)',
-                  width: 340,
-                  zIndex: 9999,
-                  background: 'var(--cr-surface-1)',
-                  border: '1px solid var(--cr-surface-border)',
-                  borderRadius: 14,
-                  boxShadow: '0 16px 36px rgba(0,0,0,0.45)',
-                  padding: 14,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontWeight: 700,
-                    marginBottom: 10,
-                  }}
-                >
+              <div className="header-notif-panel" id="header-notif-panel">
+                <div className="header-notif-head">
                   <span>Notifications</span>
-                  <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{visibleAlerts.length} alerts</span>
+                  <span className="header-notif-head-meta">{visibleAlerts.length} alerts</span>
                 </div>
-                <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="header-notif-body">
                   {visibleAlerts.map((a, idx) => (
                     <div
                       key={idx}
@@ -371,6 +380,7 @@ export const Header: React.FC = () => {
                         border: `1px solid ${a.severity === 'overdue' ? '#ef4444' : '#f59e0b'}`,
                         cursor: 'pointer',
                         fontSize: '0.85rem',
+                        marginBottom: 6,
                       }}
                     >
                       <div style={{ fontWeight: 700 }}>{a.title}</div>
@@ -391,38 +401,36 @@ export const Header: React.FC = () => {
                     </div>
                   ))}
                   {visibleAlerts.length === 0 && notifs.recent.length === 0 && (
-                    <p style={{ opacity: 0.7, textAlign: 'center', margin: '12px 0' }}>No notifications</p>
+                    <p className="header-notif-empty">No notifications</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
+                <a
+                  href="#activity"
+                  className="header-notif-footer"
+                  onClick={(e) => {
+                    e.preventDefault();
                     setNotifOpen(false);
                     setActiveView('activity_log');
                   }}
-                  style={{
-                    marginTop: 10,
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: 8,
-                    background: 'var(--cr-surface-2)',
-                    color: 'var(--cr-text-primary)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
                 >
                   View activity log <i className="fas fa-chevron-right" />
-                </button>
+                </a>
               </div>
             )}
           </div>
 
           {/* Quick Add Dropdown */}
-          <div className={`header-quick-add-wrap ${quickAddOpen ? 'is-open' : ''}`} style={{ position: 'relative' }}>
+          <div
+            className={`header-quick-add-wrap${quickAddOpen ? ' is-open' : ''}`}
+            id="header-quick-add-wrap"
+          >
             <button
               type="button"
               className="header-quick-add-btn"
+              id="header-quick-add-btn"
+              aria-haspopup="true"
+              aria-expanded={quickAddOpen}
+              title="Quick Add"
               onClick={() => {
                 setQuickAddOpen((p) => !p);
                 setNotifOpen(false);
@@ -432,225 +440,159 @@ export const Header: React.FC = () => {
               <span>Quick Add</span>
               <i className="fas fa-chevron-down quick-add-chevron" />
             </button>
-            {quickAddOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 'calc(100% + 8px)',
-                  background: 'var(--cr-surface-1)',
-                  border: '1px solid var(--cr-surface-border)',
-                  borderRadius: 12,
-                  padding: 8,
-                  minWidth: 190,
-                  zIndex: 9999,
-                  boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
+            <div className="header-quick-add-menu" id="header-quick-add-menu">
+              <button
+                type="button"
+                className="header-quick-add-item"
+                onClick={() => {
+                  setQuickAddOpen(false);
+                  if (!adultMode) {
+                    openAdultPinModal(() => scrollToSection('add-chores-section'));
+                  } else {
+                    scrollToSection('add-chores-section');
+                  }
                 }}
               >
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('add-chores-section'));
-                    } else {
-                      scrollToSection('add-chores-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-tasks" style={{ color: '#e100ff' }} />
-                  <span>Add Chore</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    scrollToSection('shopping-list-section');
-                  }}
-                >
-                  <i className="fas fa-shopping-basket" style={{ color: '#38bdf8' }} />
-                  <span>Add Shopping</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    scrollToSection('notes-kanban-section');
-                  }}
-                >
-                  <i className="fas fa-sticky-note" style={{ color: '#fde047' }} />
-                  <span>New Note</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('organise-section'));
-                    } else {
-                      scrollToSection('organise-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-folder-open" style={{ color: '#f59e0b' }} />
-                  <span>Add Organise</span>
-                </button>
-                <button
-                  type="button"
-                  className="header-quick-add-item"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (!adultMode) {
-                      openAdultPinModal(() => scrollToSection('create-reward-section'));
-                    } else {
-                      scrollToSection('create-reward-section');
-                    }
-                  }}
-                >
-                  <i className="fas fa-gift" style={{ color: '#a855f7' }} />
-                  <span>Create Reward</span>
-                </button>
-              </div>
-            )}
+                <i className="fas fa-tasks" style={{ color: '#e100ff' }} />
+                <span>Add Chore</span>
+              </button>
+              <button
+                type="button"
+                className="header-quick-add-item"
+                onClick={() => {
+                  setQuickAddOpen(false);
+                  scrollToSection('shopping-list-section');
+                }}
+              >
+                <i className="fas fa-cart-shopping" style={{ color: '#10b981' }} />
+                <span>Add Shopping</span>
+              </button>
+              <button
+                type="button"
+                className="header-quick-add-item"
+                onClick={() => {
+                  setQuickAddOpen(false);
+                  scrollToSection('notes-kanban-section');
+                }}
+              >
+                <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} />
+                <span>New Note</span>
+              </button>
+              <button
+                type="button"
+                className="header-quick-add-item admin-only"
+                onClick={() => {
+                  setQuickAddOpen(false);
+                  if (!adultMode) {
+                    openAdultPinModal(() => scrollToSection('organise-section'));
+                  } else {
+                    scrollToSection('organise-section');
+                  }
+                }}
+              >
+                <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} />
+                <span>Add Organise</span>
+              </button>
+              <button
+                type="button"
+                className="header-quick-add-item admin-only"
+                onClick={() => {
+                  setQuickAddOpen(false);
+                  if (!adultMode) {
+                    openAdultPinModal(() => scrollToSection('create-reward-section'));
+                  } else {
+                    scrollToSection('create-reward-section');
+                  }
+                }}
+              >
+                <i className="fas fa-gift" style={{ color: '#a78bfa' }} />
+                <span>Create Reward</span>
+              </button>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveView('activity_log')}
-            className="header-action-btn"
-            title="Activity Log"
-            style={{
-              background: 'var(--cr-surface-2)',
-              color: 'var(--cr-text-primary)',
-              border: '1px solid var(--cr-surface-border)',
-              borderRadius: 10,
-              padding: '8px 12px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
+          <a
+            href="#activity_log"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveView('activity_log');
             }}
           >
-            <i className="fas fa-chart-line" />
-            <span className="hidden md:inline">Activity</span>
-          </button>
+            <i className="fas fa-history" /> Activity Log
+          </a>
 
-          {adultMode && (
-            <button
-              type="button"
-              onClick={() => setActiveView('settings')}
-              className="header-action-btn"
-              title="Settings"
-              style={{
-                background: 'var(--cr-surface-2)',
-                color: 'var(--cr-text-primary)',
-                border: '1px solid var(--cr-surface-border)',
-                borderRadius: 10,
-                padding: '8px 12px',
-                cursor: 'pointer',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <i className="fas fa-cog" />
-              <span className="hidden md:inline">Settings</span>
-            </button>
-          )}
-
-          {/* Theme Toggle */}
-          <button
-            type="button"
-            id="theme-toggle-btn"
-            onClick={toggleTheme}
-            title="Toggle dark/light theme"
-            style={{
-              background: 'var(--cr-surface-2)',
-              color: 'var(--cr-text-primary)',
-              border: '1px solid var(--cr-surface-border)',
-              borderRadius: 10,
-              width: 40,
-              height: 40,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+          <a
+            href="#settings"
+            className="admin-only flex-admin-only"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveView('settings');
             }}
           >
+            <i className="fas fa-cog" /> Settings
+          </a>
+
+          <button id="theme-toggle-btn" onClick={toggleTheme} title="Toggle light/dark mode">
             <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`} />
           </button>
 
-          {/* Mute Toggle */}
           <button
-            type="button"
-            id="mute-toggle"
-            onClick={toggleMute}
-            title={muted ? 'Unmute sounds' : 'Mute sounds'}
-            style={{
-              background: 'var(--cr-surface-2)',
-              color: muted ? '#ef4444' : 'var(--cr-text-primary)',
-              border: '1px solid var(--cr-surface-border)',
-              borderRadius: 10,
-              width: 40,
-              height: 40,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <i className={`fas ${muted ? 'fa-volume-mute' : 'fa-volume-up'}`} />
-          </button>
-
-          {/* Adult Lock Button */}
-          <button
-            type="button"
             id="adult-lock-btn"
+            className={adultMode ? 'unlocked' : 'locked'}
             onClick={handleLockClick}
-            title={adultMode ? 'Adult Mode Unlocked (Click to lock)' : 'Child Mode (Click to unlock Adult Mode)'}
-            style={{
-              background: adultMode ? 'rgba(34, 197, 94, 0.2)' : 'var(--cr-surface-2)',
-              color: adultMode ? '#4ade80' : 'var(--cr-text-primary)',
-              border: `1px solid ${adultMode ? '#22c55e' : 'var(--cr-surface-border)'}`,
-              borderRadius: 10,
-              padding: '8px 12px',
-              cursor: 'pointer',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            title={adultMode ? 'Adult mode unlocked — tap to lock' : 'Tap to unlock adult mode'}
           >
             <i className={`fas ${adultMode ? 'fa-lock-open' : 'fa-lock'}`} />
-            <span className="hidden sm:inline">{adultMode ? 'Adult' : 'Locked'}</span>
           </button>
         </nav>
+
+        <button
+          className="mute-toggle"
+          id="mute-toggle"
+          onClick={toggleMute}
+          title={muted ? 'Unmute All Sounds' : 'Mute All Sounds'}
+          style={{
+            background: 'var(--cr-header-control-bg)',
+            border: 'none',
+            color: muted ? '#ef4444' : 'var(--cr-text-primary)',
+            padding: 10,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            fontSize: '1.2em',
+          }}
+        >
+          <i className={`fas ${muted ? 'fa-volume-mute' : 'fa-volume-up'}`} id="mute-icon" />
+        </button>
+
+        <button
+          id="header-collapse-toggle"
+          title={headerMinimized ? 'Expand header' : 'Minimize header'}
+          onClick={toggleMinimizeHeader}
+        >
+          <i className={`fas ${headerMinimized ? 'fa-chevron-down' : 'fa-chevron-up'}`} />
+        </button>
       </div>
 
       {/* 7-Day Weather Forecast Panel */}
-      {weatherExpanded && weatherDaily && (
-        <div
-          id="weather-forecast-panel"
-          style={{
-            background: 'var(--cr-surface-1)',
-            borderBottom: '1px solid var(--cr-surface-border)',
-            padding: '14px 20px',
-          }}
-        >
+      <div
+        id="weather-forecast-panel"
+        style={{
+          maxHeight: weatherExpanded && weatherDaily ? 300 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.35s ease',
+          background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
+          borderRadius: '0 0 14px 14px',
+          marginBottom: '1.2rem',
+        }}
+      >
+        {weatherDaily && (
           <div
+            id="weather-forecast-days"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
               gap: 12,
+              padding: '16px 22px',
             }}
           >
             {(weatherDaily.time || []).map((dateStr: string, idx: number) => {
@@ -660,7 +602,15 @@ export const Header: React.FC = () => {
               const max = Math.round(weatherDaily.temperature_2m_max?.[idx] ?? 0);
               const min = Math.round(weatherDaily.temperature_2m_min?.[idx] ?? 0);
               return (
-                <div key={dateStr} style={{ textAlign: 'center', padding: 8, borderRadius: 10, background: 'var(--cr-surface-2)' }}>
+                <div
+                  key={dateStr}
+                  style={{
+                    textAlign: 'center',
+                    padding: 8,
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.06)',
+                  }}
+                >
                   <div style={{ color: 'var(--cr-text-primary)', fontSize: '0.9em', fontWeight: 700, marginBottom: 6 }}>
                     {dayLabel}
                   </div>
@@ -675,8 +625,8 @@ export const Header: React.FC = () => {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </header>
   );
 };

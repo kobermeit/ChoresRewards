@@ -6,9 +6,9 @@ import { SetupWizard } from './components/SetupWizard';
 import { PinModals } from './components/PinModals';
 import { DashboardSection } from './components/DashboardSection';
 import { ChoresKanbanSection } from './components/ChoresKanbanSection';
-import { RewardsSection } from './components/RewardsSection';
+import { RewardsSection, RedeemedRewardsSection } from './components/RewardsSection';
 import { MealAndShoppingSection } from './components/MealAndShoppingSection';
-import { CalendarAndNotesSection } from './components/CalendarAndNotesSection';
+import { NotesSection, CalendarSection } from './components/CalendarAndNotesSection';
 import { OrganiseSection } from './components/OrganiseSection';
 import { SettingsView, ActivityLogView, ChoreHistoryView } from './components/SettingsAndLogsViews';
 import { Overlays } from './components/Overlays';
@@ -67,28 +67,34 @@ const MainShell: React.FC<{
   }
 
   return (
-    <div className="app-wrapper">
+    <>
       <SideNav />
-      <div className="main-content" style={{ flex: 1, minWidth: 0 }}>
+      <div id="site-content">
         <Header />
-        <main className="container" style={{ maxWidth: 1600, margin: '0 auto', padding: '16px 24px 64px' }}>
-          {activeView === 'settings' ? (
+        {activeView === 'settings' ? (
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
             <SettingsView />
-          ) : activeView === 'activity_log' ? (
+          </div>
+        ) : activeView === 'activity_log' ? (
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
             <ActivityLogView />
-          ) : activeView === 'chore_history' ? (
+          </div>
+        ) : activeView === 'chore_history' ? (
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
             <ChoreHistoryView />
-          ) : (
-            <>
-              <DashboardSection />
-              <ChoresKanbanSection />
-              <RewardsSection />
-              <MealAndShoppingSection />
-              <CalendarAndNotesSection />
-              <OrganiseSection />
-            </>
-          )}
-        </main>
+          </div>
+        ) : (
+          <>
+            <DashboardSection />
+            <NotesSection />
+            <RewardsSection />
+            <CalendarSection />
+            <MealAndShoppingSection />
+            <ChoresKanbanSection />
+            <RedeemedRewardsSection />
+            <OrganiseSection />
+          </>
+        )}
       </div>
 
       <PinModals
@@ -98,7 +104,7 @@ const MainShell: React.FC<{
       />
       <Overlays />
       {versionBadge}
-    </div>
+    </>
   );
 };
 
