@@ -1,0 +1,15 @@
+{
+  "name": "choresrewards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Family Chores, Rewards & Household Hub (Node.js + Express + SQLite + React + Vite)",
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build:client": "npm --prefix client run build",
+    "build:server": "npm --prefix server run build",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node server/index.js",
+    "install:all": "npm --prefix server install && npm --prefix client install"
+  }
+}

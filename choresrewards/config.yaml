@@ -1,0 +1,24 @@
+name: ChoresRewards
+version: "1.0.0"
+slug: choresrewards
+description: Family Chores, Rewards, Meal Planner, Shopping List & Household Hub
+url: "https://github.com/kobermeit/ChoresRewards"
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:broom
+panel_title: Chores & Rewards
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Optional direct web access (not needed when using Ingress)
+image: ghcr.io/kobermeit/choresrewards
+options:
+  timezone: "Australia/Brisbane"
+schema:
+  timezone: str?

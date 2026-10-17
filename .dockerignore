@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+client/dist
+server/dist
+instance
+*.db
+*.db-wal
+*.db-shm
+.git
+.github
+__pycache__
+*.pyc
+venv
+.venv
+.env
+static/uploads/*
