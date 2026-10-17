@@ -1,5 +1,5 @@
 name: ChoresRewards
-version: "1.0.0"
+version: "1.0.1"
 slug: choresrewards
 description: Family Chores, Rewards, Meal Planner, Shopping List & Household Hub
 url: "https://github.com/kobermeit/ChoresRewards"
@@ -17,7 +17,6 @@ ports:
   8099/tcp: null
 ports_description:
   8099/tcp: Optional direct web access (not needed when using Ingress)
-image: ghcr.io/kobermeit/choresrewards
 options:
   timezone: "Australia/Brisbane"
 schema:
