@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { Modal } from './common/Modal';
 
 export const Overlays: React.FC = () => {
   return (
@@ -235,47 +236,14 @@ const VisualTimerModal: React.FC = () => {
   const dashOffset = circumference * (1 - pct);
 
   return (
-    <div
-      id="visual-timer-overlay"
-      className="modal-backdrop"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.8)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-      onClick={() => setVisualTimerOpen(false)}
+    <Modal
+      open={visualTimerOpen}
+      onClose={() => setVisualTimerOpen(false)}
+      title="Visual Timer"
+      icon="fas fa-stopwatch"
+      maxWidth={440}
     >
-      <div
-        className="card"
-        style={{
-          maxWidth: 440,
-          width: '100%',
-          padding: 28,
-          borderRadius: 24,
-          textAlign: 'center',
-          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)',
-          color: 'var(--cr-text-primary, #fff)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: '1.35rem' }}>⏱️ Visual Timer</h3>
-          <button
-            type="button"
-            onClick={() => setVisualTimerOpen(false)}
-            style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer' }}
-          >
-            ✕
-          </button>
-        </div>
-
+      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {/* Preset Buttons */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
           {[1, 2, 5, 10, 15, 20, 30].map((m) => (
@@ -382,7 +350,7 @@ const VisualTimerModal: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -497,46 +465,14 @@ const KidsPlayWidgetModal: React.FC = () => {
   const currentPattern = PATTERN_SETS[patternIdx % PATTERN_SETS.length];
 
   return (
-    <div
-      id="play-overlay"
-      className="modal-backdrop"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.8)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-      onClick={() => setPlayWidgetOpen(false)}
+    <Modal
+      open={playWidgetOpen}
+      onClose={() => setPlayWidgetOpen(false)}
+      title={`Play & Learn (⭐ ${score})`}
+      icon="fas fa-gamepad"
+      maxWidth={520}
     >
-      <div
-        className="card"
-        style={{
-          maxWidth: 520,
-          width: '100%',
-          padding: 24,
-          borderRadius: 24,
-          textAlign: 'center',
-          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)',
-          color: 'var(--cr-text-primary, #fff)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: '1.35rem' }}>🎮 Play & Learn (⭐ {score})</h3>
-          <button
-            type="button"
-            onClick={() => setPlayWidgetOpen(false)}
-            style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer' }}
-          >
-            ✕
-          </button>
-        </div>
+      <div style={{ textAlign: 'center' }}>
 
         {/* Game Tabs */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
@@ -724,6 +660,6 @@ const KidsPlayWidgetModal: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };

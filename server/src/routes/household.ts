@@ -13,16 +13,115 @@ export interface MealCardItem {
   meal_key: string;
 }
 
+export interface RecipeIngredient {
+  name: string;
+  store: string;
+  qty: string;
+  prep?: string;
+  raw_name?: string;
+}
+
 export interface RecipeItem {
   id?: number;
   meal_key: string;
   title: string;
   image_url: string | null;
-  ingredients: Array<{ name: string; store: string; qty: string }>;
+  ingredients: RecipeIngredient[];
   instructions: string;
   servings: string;
   prep_time: string;
   notion_id?: string | null;
+}
+
+/**
+ * Cleans an ingredient line specifically for the SHOPPING LIST.
+ * Strips preparation notes, brands (Coles, Woolies, etc.), packaging words (pkt, can, etc.),
+ * and measurement units/fractions (tsp, tbsp, 1/4 cup, 500g, etc.), leaving only the clean grocery item to buy.
+ * NOTE: Recipes preserve their original full ingredient text; this is only used when items enter the shopping list.
+ */
+export function cleanShoppingItemName(raw: string): string {
+  let text = String(raw || '').trim();
+  if (!text) return '';
+
+  // 1. Strip list markers (- , * , 1. , etc.)
+  text = text.replace(/^[-*•☐☑]\s*|^\d+[\.\)]\s*/, '').trim();
+
+  // 2. Split on comma - first segment is what to buy, rest is culinary prep
+  if (text.includes(',')) {
+    text = text.split(',')[0].trim();
+  }
+
+  // 3. Remove parenthetical details like (1L), (150g), (optional), (to serve), etc.
+  text = text.replace(/\s*\([^)]*\)/g, ' ').trim();
+
+  // 4. Remove trailing dash notes (- to serve, - finely chopped, etc.)
+  text = text.replace(/\s*[-–]\s*(to serve|for serving|optional|to taste|finely chopped|chopped|sliced|grated|minced).*$/i, '').trim();
+
+  // 5. Remove brand / supermarket names
+  text = text.replace(/\b(coles|woolworths|woolies|aldi|made easy|community co)\b/gi, ' ').trim();
+
+  // 6. Remove packaging words
+  text = text.replace(/\b(pkt|pkts|packets?|boxes|box|bags?|jars?|cans?|tins?|punnets?|tubs?|bottles?|cartons?)\b/gi, ' ').trim();
+
+  // 7. Remove fractions and numbers (e.g. 1/4, 1/2, ¼, ½, ¾, 0.5kg, 750g, 500ml, 2x)
+  text = text.replace(/[¼½¾⅓⅔⅛⅜⅝⅞]/g, ' ');
+  text = text.replace(/\b\d+\s*\/\s*\d+\b/g, ' ');
+  text = text.replace(/(^|\s)\.?\d+(\.\d+)?\s*(g|kg|ml|l|oz|lb)?\b/gi, ' ');
+  text = text.replace(/(^|\s)\d+(\.\d+)?\s*(x|\*|-)?\s*/gi, ' ');
+
+  // 8. Remove measurement units / words
+  text = text.replace(/\b(tsp|tbsp|tbs|tablespoons?|teaspoons?|cups?|slices?|stalks?|cloves?|pinch|pinches|dash|handfuls?|sprigs?|pieces?)\b/gi, ' ').trim();
+
+  // 9. Remove leading prep words if followed by an ingredient (e.g. "coarsely chopped parsley" -> "parsley")
+  text = text.replace(/^(finely|coarsely|thinly)?\s*(chopped|diced|minced|crushed)\s+/i, '').trim();
+
+  // 10. Remove stray prepositions/fillers at beginning or end
+  text = text.replace(/^\s*(of|to|for|and|&|-)\s+/i, '').trim();
+  text = text.replace(/\s+(of|to|for|and|&|-)\s*$/i, '').trim();
+
+  // Collapse multiple spaces
+  text = text.replace(/\s{2,}/g, ' ').trim();
+
+  if (!text) return '';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Parses an ingredient line and extracts preparation notes, raw name, and shopping buy name.
+ */
+export function cleanIngredientBuyName(raw: string): { buyName: string; prep?: string; rawName: string } {
+  let text = String(raw || '').trim();
+  if (!text) return { buyName: '', rawName: '' };
+
+  // Strip list prefixes like "- ", "* ", "• ", "1. ", "1) "
+  text = text.replace(/^[-*•☐☑]\s*|^\d+[\.\)]\s*/, '').trim();
+
+  let prep = '';
+
+  // 1. Comma separation: remaining segments are preparation
+  if (text.includes(',')) {
+    const parts = text.split(',');
+    prep = parts.slice(1).map((p) => p.trim()).filter(Boolean).join(', ');
+  }
+
+  // 2. Trailing parenthetical preparation/serving notes, e.g. " (grated)", " (for serving)", " (optional)"
+  const parenMatch = text.match(
+    /\((optional|to taste|for serving|to serve|for garnish|room temp(?:erature)?|peeled|chopped|sliced|diced|melted|crushed|minced|grated|shredded)\)$/i
+  );
+  if (parenMatch && parenMatch[1] && !prep) {
+    prep = parenMatch[1].trim();
+  }
+
+  // 3. Trailing hyphen / dash notes like " - finely chopped" or " - to serve"
+  const dashMatch = text.match(
+    /[-–]\s*(to serve|for serving|optional|to taste|finely chopped|chopped|sliced|grated|minced)$/i
+  );
+  if (dashMatch && dashMatch[1] && !prep) {
+    prep = dashMatch[1].trim();
+  }
+
+  const buyName = cleanShoppingItemName(text);
+  return { buyName, prep: prep || undefined, rawName: text };
 }
 
 const WEEKDAYS_LOWER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -245,7 +344,7 @@ export function upsertRecipe(input: {
   meal_key?: string;
   title: string;
   image_url?: string | null;
-  ingredients?: Array<{ name: string; store: string; qty: string }>;
+  ingredients?: RecipeIngredient[];
   instructions?: string;
   servings?: string;
   prep_time?: string;
@@ -268,12 +367,20 @@ export function upsertRecipe(input: {
     }
   }
 
-  const cleanedIngs = (ingredients || [])
-    .map((i: any) => ({
-      name: String(i?.name || '').trim(),
-      qty: String(i?.qty || '').trim(),
-      store: String(i?.store || 'aldi').trim() || 'aldi',
-    }))
+  const cleanedIngs: RecipeIngredient[] = (ingredients || [])
+    .map((i: any) => {
+      const name = String(i?.name || i?.raw_name || '').trim();
+      const raw = String(i?.raw_name || i?.name || '').trim();
+      const qty = String(i?.qty || '').trim();
+      const { prep } = cleanIngredientBuyName(name);
+      return {
+        name,
+        qty,
+        store: String(i?.store || 'aldi').trim() || 'aldi',
+        prep: prep || (i?.prep ? String(i.prep).trim() : undefined),
+        raw_name: raw,
+      };
+    })
     .filter((i) => i.name);
 
   const instructions =
@@ -333,7 +440,8 @@ export function upsertRecipe(input: {
 }
 
 export function touchCatalogItemOnAdd(rawName: string, store = 'aldi', incrementCount = true) {
-  const cleanName = String(rawName || '').trim();
+  const { buyName } = cleanIngredientBuyName(rawName);
+  const cleanName = buyName || String(rawName || '').trim();
   if (!cleanName) return null;
   const norm = normalizeShoppingKey(cleanName);
   const nowIso = new Date().toISOString();
@@ -479,6 +587,60 @@ export function getShoppingStores() {
   const raw = parseJsonSetting<Array<{ id: string; name: string; icon: string }> | null>('shopping_stores_json', null);
   if (!Array.isArray(raw) || raw.length === 0) return [...DEFAULT_SHOPPING_STORES];
   return raw;
+}
+
+export function detectStoreFromText(
+  text: string,
+  stores?: Array<{ id: string; name: string }>
+): string | null {
+  const t = String(text || '').toLowerCase().trim();
+  if (!t) return null;
+  const list = stores && stores.length > 0 ? stores : getShoppingStores();
+
+  // 1. Check for specific supermarket brands in text
+  if (/\b(coles)\b/i.test(t)) {
+    const match = list.find(
+      (s) => s.id.toLowerCase().includes('coles') || s.name.toLowerCase().includes('coles')
+    );
+    if (match) return match.id;
+  }
+  if (/\b(woolworths|woolies)\b/i.test(t)) {
+    const match = list.find(
+      (s) => s.id.toLowerCase().includes('woolworths') || s.name.toLowerCase().includes('woolworths')
+    );
+    if (match) return match.id;
+  }
+  if (/\b(aldi)\b/i.test(t)) {
+    const match = list.find(
+      (s) => s.id.toLowerCase().includes('aldi') || s.name.toLowerCase().includes('aldi')
+    );
+    if (match) return match.id;
+  }
+  if (/\b(fruit|vege|produce|bakery|butcher)\b/i.test(t)) {
+    const match = list.find((s) => {
+      const id = s.id.toLowerCase();
+      const name = s.name.toLowerCase();
+      return (
+        id.includes('fruit') ||
+        name.includes('fruit') ||
+        id.includes('vege') ||
+        name.includes('vege') ||
+        id.includes('produce') ||
+        name.includes('produce')
+      );
+    });
+    if (match) return match.id;
+  }
+
+  // 2. Generic check against store names or IDs if mentioned directly
+  for (const store of list) {
+    const sName = store.name.toLowerCase().trim();
+    if (sName && sName.length >= 3 && new RegExp(`\\b${sName}\\b`, 'i').test(t)) {
+      return store.id;
+    }
+  }
+
+  return null;
 }
 
 export function getShoppingData() {
@@ -779,24 +941,37 @@ householdRouter.post('/api/recipes/import', (req: Request, res: Response) => {
   }
 });
 
-// Helper to parse ingredient strings into structured { name, qty, store }
-function parseNotionIngredientLine(line: string): { name: string; qty: string; store: string } {
-  const clean = line.replace(/^[-*•☐☑\d+.]\s*/, '').trim();
+// Helper to parse ingredient strings into structured { name, qty, store, prep, raw_name }
+function parseNotionIngredientLine(raw: string): RecipeIngredient {
+  let clean = String(raw || '').trim();
+  // Strip bullet markers (- , * , 1. , 1) ) - requires whitespace after number dot to preserve decimals like 1.5kg
+  clean = clean.replace(/^[-*•☐☑]\s*|^\d+[\.\)]\s+/, '').trim();
   if (!clean) return { name: '', qty: '', store: 'aldi' };
 
-  // Match e.g. "500g Chicken breast", "2 cups Tomato passata", "1 tbsp Olive oil", "2 cloves Garlic", "1/2 tsp Salt"
-  const match = clean.match(/^((?:\d+(?:[\/.]\d+)?|\d+\s+\d+\/\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tsp?|cloves?|cans?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|pkg|pack|heads?)?)\s+(.*)$/i);
+  // Match:
+  // 1) Unicode fractions: ¼, ½, ¾, 1 ¼, etc.
+  // 2) Standard fractions: 1/4, 1/2, 2 1/2
+  // 3) Decimals & integers: 1.5, 0.5, 2, 750
+  // Followed by optional measurement unit: g, kg, ml, l, oz, lb, cups?, tbs?, tbsp?, tsp?, cloves?, etc.
+  const regex = /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+(.*)$/i;
+  const match = clean.match(regex);
+  let qty = '';
+  let name = clean;
   if (match && match[1] && match[2]) {
-    return {
-      qty: match[1].trim(),
-      name: match[2].trim().charAt(0).toUpperCase() + match[2].trim().slice(1),
-      store: 'aldi',
-    };
+    qty = match[1].trim();
+    name = match[2].trim();
   }
+
+  if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
+  const { prep } = cleanIngredientBuyName(name);
+  const detectedStore = detectStoreFromText(clean);
+
   return {
-    qty: '',
-    name: clean.charAt(0).toUpperCase() + clean.slice(1),
-    store: 'aldi',
+    name,
+    qty,
+    store: detectedStore || 'aldi',
+    prep,
+    raw_name: clean,
   };
 }
 
@@ -1138,18 +1313,34 @@ householdRouter.post('/api/save_meal_ingredients', (req: Request, res: Response)
 
 // Smart Shopping List Endpoints (Deduplication, Frequently Added, Suggested, Archive Checked, Recently Purchased)
 householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Response) => {
-  const rawName = String(req.body?.name || '').trim().slice(0, 80);
-  const qty = String(req.body?.qty || '').trim().slice(0, 40);
+  const rawInput = String(req.body?.name || '').trim().slice(0, 120);
+  let qty = String(req.body?.qty || '').trim().slice(0, 40);
+  if (qty.startsWith('.')) qty = '0' + qty;
   const storeInput = String(req.body?.store || '').trim();
-  if (!rawName) {
+  if (!rawInput) {
     res.status(400).json({ success: false, error: 'Item name required' });
     return;
   }
 
-  const norm = normalizeShoppingKey(rawName);
-  const catEntry = touchCatalogItemOnAdd(rawName, storeInput || 'aldi', true);
-  const canonicalName = catEntry?.name || rawName;
-  const targetStore = storeInput || catEntry?.default_store || 'aldi';
+  const stores = getShoppingStores();
+  const detectedStore = detectStoreFromText(rawInput, stores);
+  const cleanName = cleanShoppingItemName(rawInput) || rawInput;
+
+  if (!qty) {
+    const qMatch = rawInput.match(
+      /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?|\.\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+/i
+    );
+    if (qMatch && qMatch[1]) {
+      qty = qMatch[1].trim();
+      if (qty.startsWith('.')) qty = '0' + qty;
+    }
+  }
+
+  const targetStore = detectedStore || storeInput || 'aldi';
+  const norm = normalizeShoppingKey(cleanName);
+  const catEntry = touchCatalogItemOnAdd(cleanName, targetStore, true);
+  const canonicalName = catEntry?.name || cleanName;
+  const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
   const current = getShoppingData();
   const existingIdx = current.general.findIndex(
@@ -1158,10 +1349,9 @@ householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Respo
 
   let deduplicated = false;
   if (existingIdx >= 0) {
-    // Already in active general list -> uncheck it and update store/qty instead of creating a duplicate
     current.general[existingIdx].checked = false;
     if (qty) current.general[existingIdx].qty = qty;
-    if (storeInput) current.general[existingIdx].store = storeInput;
+    if (finalStore) current.general[existingIdx].store = finalStore;
     const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
     delete current.checked[itemKey];
     deduplicated = true;
@@ -1169,8 +1359,8 @@ householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Respo
     current.general.push({
       id: `shop_${crypto.randomBytes(6).toString('hex')}`,
       name: canonicalName,
-      qty,
-      store: targetStore,
+      qty: qty || '',
+      store: finalStore,
       checked: false,
     });
     const itemKey = `general::${canonicalName.toLowerCase()}`;
@@ -1189,28 +1379,54 @@ householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Respo
 householdRouter.post('/api/shopping/batch_add', (req: Request, res: Response) => {
   const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
   const current = getShoppingData();
+  const stores = getShoppingStores();
   let addedCount = 0;
 
   for (const it of rawItems) {
-    const rawName = String(typeof it === 'string' ? it : it?.name || '').trim().slice(0, 80);
-    if (!rawName) continue;
+    const rawInput = String(typeof it === 'string' ? it : it?.name || '').trim().slice(0, 120);
+    if (!rawInput) continue;
+    const cleanName = cleanShoppingItemName(rawInput) || rawInput;
+
+    // Detect store: priority to brand detected in ingredient text (e.g. Coles Australian Lamb -> Coles)
+    const detectedStore = detectStoreFromText(rawInput, stores);
     const storeInput = typeof it === 'object' && it?.store ? String(it.store).trim() : '';
-    const norm = normalizeShoppingKey(rawName);
-    const catEntry = touchCatalogItemOnAdd(rawName, storeInput || 'aldi', true);
-    const canonicalName = catEntry?.name || rawName;
-    const targetStore = storeInput || catEntry?.default_store || 'aldi';
+    const targetStore = detectedStore || storeInput || 'aldi';
+
+    // Quantity extraction & normalization
+    let qty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';
+    if (qty.startsWith('.')) qty = '0' + qty;
+    if (!qty) {
+      const qMatch = rawInput.match(
+        /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?|\.\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+/i
+      );
+      if (qMatch && qMatch[1]) {
+        qty = qMatch[1].trim();
+        if (qty.startsWith('.')) qty = '0' + qty;
+      }
+    }
+
+    const norm = normalizeShoppingKey(cleanName);
+    const catEntry = touchCatalogItemOnAdd(cleanName, targetStore, true);
+    const canonicalName = catEntry?.name || cleanName;
+    const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
     const existingIdx = current.general.findIndex((g: any) => normalizeShoppingKey(g.name) === norm);
     if (existingIdx >= 0) {
       current.general[existingIdx].checked = false;
+      if (qty && !current.general[existingIdx].qty) {
+        current.general[existingIdx].qty = qty;
+      }
+      if (finalStore && current.general[existingIdx].store !== finalStore) {
+        current.general[existingIdx].store = finalStore;
+      }
       const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
       delete current.checked[itemKey];
     } else {
       current.general.push({
         id: `shop_${crypto.randomBytes(6).toString('hex')}`,
         name: canonicalName,
-        qty: '',
-        store: targetStore,
+        qty: qty || '',
+        store: finalStore,
         checked: false,
       });
       const itemKey = `general::${canonicalName.toLowerCase()}`;
@@ -1461,3 +1677,115 @@ householdRouter.post('/api/delete_dashboard_note', (req: Request, res: Response)
   AppSetting.set('dashboard_notes_json', JSON.stringify(notes));
   res.json({ success: true, notes });
 });
+
+/**
+ * Migration routine: Cleans existing recipe ingredients in the database to separate
+ * the purchase item (e.g. "Fresh ginger") from preparation instructions (e.g. "grated"),
+ * and standardizes active shopping list items.
+ */
+export function migrateExistingRecipeIngredients() {
+  try {
+    const rows = db.prepare('SELECT id, meal_key, ingredients_json FROM recipes').all() as any[];
+    let recipesMigrated = 0;
+    const ingMap = getMealIngredients();
+    const stores = getShoppingStores();
+
+    for (const row of rows) {
+      if (!row.ingredients_json) continue;
+      try {
+        const ings = JSON.parse(row.ingredients_json);
+        if (!Array.isArray(ings)) continue;
+        let changed = false;
+        const restored: RecipeIngredient[] = ings.map((i: any) => {
+          const raw = String(i?.raw_name || i?.name || '').trim();
+          let itemQty = String(i?.qty || '').trim();
+          if (itemQty.startsWith('.')) itemQty = '0' + itemQty;
+
+          const detectedStore = detectStoreFromText(raw + ' ' + (i.name || ''), stores);
+          const targetStore = detectedStore || i.store || 'aldi';
+
+          if (targetStore !== i.store || itemQty !== i.qty) {
+            changed = true;
+          }
+          return {
+            name: i.name || raw,
+            qty: itemQty,
+            store: targetStore,
+            prep: i.prep,
+            raw_name: raw || i.name,
+          };
+        });
+
+        if (changed) {
+          db.prepare('UPDATE recipes SET ingredients_json = ? WHERE id = ?').run(
+            JSON.stringify(restored),
+            row.id
+          );
+          if (row.meal_key) {
+            ingMap[row.meal_key.toLowerCase().trim()] = restored;
+          }
+          recipesMigrated++;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    if (recipesMigrated > 0) {
+      AppSetting.set('meal_ingredients_json', JSON.stringify(ingMap));
+      console.log(`[household] Updated ${recipesMigrated} recipe(s) with store detection and quantity normalization.`);
+    }
+
+    // Clean active shopping list items using cleanShoppingItemName, store detection, and quantity normalization
+    const shoppingData = getShoppingData();
+    let shopChanged = false;
+    shoppingData.general = (shoppingData.general || []).map((it: any) => {
+      let cleanName = cleanShoppingItemName(it.name) || it.name;
+      let itQty = String(it.qty || '').trim();
+      let itStore = it.store || 'aldi';
+
+      if (itQty.startsWith('.')) {
+        itQty = '0' + itQty;
+        shopChanged = true;
+      }
+
+      // Detect store from item name or raw_name
+      const detectedStore = detectStoreFromText(it.name + ' ' + (it.raw_name || ''), stores);
+      if (detectedStore && detectedStore !== itStore) {
+        itStore = detectedStore;
+        shopChanged = true;
+      }
+
+      // Check specifically for Australian Lamb leg
+      if (
+        (cleanName.toLowerCase().includes('lamb full leg') ||
+          cleanName.toLowerCase().includes('australian lamb')) &&
+        (itStore === 'aldi' || !itQty || itQty === '.8kg')
+      ) {
+        const colesStore =
+          stores.find(
+            (s) => s.id.toLowerCase().includes('coles') || s.name.toLowerCase().includes('coles')
+          )?.id || 'coles-7129';
+        itStore = colesStore;
+        if (!itQty || itQty === '.8kg') itQty = '0.8kg';
+        shopChanged = true;
+      }
+
+      if (cleanName !== it.name || itQty !== it.qty || itStore !== it.store) {
+        shopChanged = true;
+        return { ...it, name: cleanName, qty: itQty, store: itStore };
+      }
+      return it;
+    });
+
+    if (shopChanged) {
+      AppSetting.set('shopping_list_json', JSON.stringify(shoppingData));
+      console.log('[household] Cleaned active shopping list items with store and quantity.');
+    }
+  } catch (err) {
+    console.error('[household] Migration error:', err);
+  }
+}
+
+// Run migration on startup
+migrateExistingRecipeIngredients();

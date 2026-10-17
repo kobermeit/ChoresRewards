@@ -576,7 +576,7 @@ export const MealAndShoppingSection: React.FC = () => {
         if (ings.length > 0) {
           await apiPost('shopping/batch_add', {
             items: ings.map((i: any) => ({
-              name: i.name,
+              name: i.raw_name || i.name,
               qty: i.qty || '',
               store: i.store || stores[0]?.id || 'aldi',
             })),
@@ -633,7 +633,7 @@ export const MealAndShoppingSection: React.FC = () => {
     try {
       await apiPost('shopping/batch_add', {
         items: ings.map((i) => ({
-          name: i.name,
+          name: i.raw_name || i.name,
           qty: i.qty || '',
           store: i.store || stores[0]?.id || 'aldi',
         })),
@@ -1162,7 +1162,10 @@ export const MealAndShoppingSection: React.FC = () => {
                               checked={checked}
                               onChange={() => handleToggleShopCheck(itemKey, checked)}
                             />
-                            <span className="shopping-item-name">{g.name}</span>
+                            <span className="shopping-item-name">
+                              {g.name}
+                              {g.qty && <span className="shopping-item-qty">{g.qty}</span>}
+                            </span>
                           </label>
                           <button
                             type="button"
@@ -1474,294 +1477,237 @@ export const MealAndShoppingSection: React.FC = () => {
          =================================================================== */}
 
       {/* 1. Add / Edit Meal Modal (Multi-day support!) */}
-      {planModalOpen && (
-        <div className="cr-modal-overlay" onClick={() => setPlanModalOpen(false)}>
-          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="cr-modal-header">
-              <h3>
-                <i className="fas fa-calendar-plus" /> Plan a Meal
-              </h3>
-              <button type="button" className="cr-modal-close" onClick={() => setPlanModalOpen(false)}>
-                ✕
-              </button>
-            </div>
-            <div className="cr-modal-body">
-              <div ref={planComboboxRef} style={{ position: 'relative' }}>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4, display: 'block' }}>
-                  Meal Name (Search Library or type custom)
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="modern-input"
-                    placeholder="Search meal library (e.g. Butter Chicken, Pizza) or type new meal…"
-                    value={planMealTitle}
-                    onFocus={() => setPlanComboboxOpen(true)}
-                    onChange={(e) => {
-                      setPlanMealTitle(e.target.value);
-                      setPlanComboboxOpen(true);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setPlanComboboxOpen(false);
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (filteredPlanRecipes.length > 0 && planMealTitle.trim().toLowerCase() === filteredPlanRecipes[0].title.toLowerCase()) {
-                          setPlanMealTitle(filteredPlanRecipes[0].title);
-                          setPlanComboboxOpen(false);
-                        } else {
-                          setPlanComboboxOpen(false);
-                        }
-                      }
-                    }}
-                    autoFocus
-                  />
-                  {planMealTitle && (
-                    <button
-                      type="button"
-                      onClick={() => setPlanMealTitle('')}
-                      style={{
-                        position: 'absolute',
-                        right: 10,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'rgba(255,255,255,0.4)',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* Combobox Dropdown */}
-                {planComboboxOpen && (
-                  <div
-                    className="shopping-combobox-dropdown"
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                      zIndex: 10001,
-                      marginTop: 4,
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
-                    }}
-                  >
-                    {filteredPlanRecipes.map((r) => (
-                      <div
-                        key={r.meal_key}
-                        className="shopping-combobox-item"
-                        onClick={() => {
-                          setPlanMealTitle(r.title);
-                          setPlanComboboxOpen(false);
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: '1.2rem' }}>{getMealEmoji(r.meal_key)}</span>
-                          <span style={{ fontWeight: 700 }}>{r.title}</span>
-                        </div>
-                        <span className="shopping-combobox-times">
-                          {r.prep_time || 'recipe'} · {r.servings || '4 serv'}
-                        </span>
-                      </div>
-                    ))}
-                    {planMealTitle.trim() &&
-                      !allLibraryRecipes.some(
-                        (r) => r.title.toLowerCase() === planMealTitle.trim().toLowerCase()
-                      ) && (
-                        <div
-                          className="shopping-combobox-item shopping-combobox-item-custom"
-                          onClick={() => setPlanComboboxOpen(false)}
-                        >
-                          <span>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
-                          <span className="shopping-combobox-times">custom</span>
-                        </div>
-                      )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
-                  Audience
-                </label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['Everyone', 'Kids', 'Adults'].map((aud) => {
-                    const active = planAudience === aud;
-                    return (
-                      <button
-                        key={aud}
-                        type="button"
-                        onClick={() => setPlanAudience(aud)}
-                        style={{
-                          padding: '7px 16px',
-                          borderRadius: 999,
-                          border: active ? '1.5px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
-                          background: active ? '#2563eb' : 'rgba(255, 255, 255, 0.06)',
-                          color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
-                          fontWeight: 700,
-                          fontSize: '0.85rem',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {aud === 'Everyone' ? '🌟 Everyone' : aud === 'Kids' ? '🧒 Kids' : '🧑 Adults'}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>
-                  Select Days (Plan across multiple nights)
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
-                  {weekDays.map((d) => {
-                    const checked = planSelectedDays.includes(d.date_iso);
-                    return (
-                      <label
-                        key={d.date_iso}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          background: checked ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
-                          borderRadius: 8,
-                          padding: '6px 8px',
-                          cursor: 'pointer',
-                          fontSize: '0.82rem',
-                          color: '#f8fafc',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setPlanSelectedDays((prev) => [...prev, d.date_iso]);
-                            } else {
-                              setPlanSelectedDays((prev) => prev.filter((iso) => iso !== d.date_iso));
-                            }
-                          }}
-                        />
-                        <span>{d.day_short}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label
+      <Modal
+        open={planModalOpen}
+        onClose={() => setPlanModalOpen(false)}
+        title="Plan a Meal"
+        icon="fas fa-calendar-plus"
+        maxWidth={620}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+            <button type="button" className="btn-cancel" onClick={() => setPlanModalOpen(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSaveMealCard}
+            >
+              Save to Plan
+            </button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div ref={planComboboxRef} style={{ position: 'relative' }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 4, display: 'block' }}>
+              Meal Name (Search Library or type custom)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                className="modern-input"
+                placeholder="Search meal library (e.g. Butter Chicken, Pizza) or type new meal…"
+                value={planMealTitle}
+                onFocus={() => setPlanComboboxOpen(true)}
+                onChange={(e) => {
+                  setPlanMealTitle(e.target.value);
+                  setPlanComboboxOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setPlanComboboxOpen(false);
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (filteredPlanRecipes.length > 0 && planMealTitle.trim().toLowerCase() === filteredPlanRecipes[0].title.toLowerCase()) {
+                      setPlanMealTitle(filteredPlanRecipes[0].title);
+                      setPlanComboboxOpen(false);
+                    } else {
+                      setPlanComboboxOpen(false);
+                    }
+                  }
+                }}
+                autoFocus
+              />
+              {planMealTitle && (
+                <button
+                  type="button"
+                  onClick={() => setPlanMealTitle('')}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.4)',
                     cursor: 'pointer',
-                    fontSize: '0.88rem',
-                    color: '#f8fafc',
+                    fontSize: '0.9rem',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={planAddShopping}
-                    onChange={(e) => setPlanAddShopping(e.target.checked)}
-                  />
-                  <span>Add meal ingredients to Shopping List</span>
-                </label>
-              </div>
+                  ✕
+                </button>
+              )}
             </div>
-            <div className="cr-modal-footer">
-              <button type="button" className="edit-btn" onClick={() => setPlanModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="edit-btn"
-                style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
-                onClick={handleSaveMealCard}
+
+            {/* Combobox Dropdown */}
+            {planComboboxOpen && (
+              <div
+                className="shopping-combobox-dropdown"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                  zIndex: 10001,
+                  marginTop: 4,
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+                }}
               >
-                Save to Plan
-              </button>
+                {filteredPlanRecipes.map((r) => (
+                  <div
+                    key={r.meal_key}
+                    className="shopping-combobox-item"
+                    onClick={() => {
+                      setPlanMealTitle(r.title);
+                      setPlanComboboxOpen(false);
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.2rem' }}>{getMealEmoji(r.meal_key)}</span>
+                      <span style={{ fontWeight: 700 }}>{r.title}</span>
+                    </div>
+                    <span className="shopping-combobox-times">
+                      {r.prep_time || 'recipe'} · {r.servings || '4 serv'}
+                    </span>
+                  </div>
+                ))}
+                {planMealTitle.trim() &&
+                  !allLibraryRecipes.some(
+                    (r) => r.title.toLowerCase() === planMealTitle.trim().toLowerCase()
+                  ) && (
+                    <div
+                      className="shopping-combobox-item shopping-combobox-item-custom"
+                      onClick={() => setPlanComboboxOpen(false)}
+                    >
+                      <span>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
+                      <span className="shopping-combobox-times">custom</span>
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
+              Audience
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['Everyone', 'Kids', 'Adults'].map((aud) => {
+                const active = planAudience === aud;
+                return (
+                  <button
+                    key={aud}
+                    type="button"
+                    onClick={() => setPlanAudience(aud)}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: 999,
+                      border: active ? '1.5px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
+                      background: active ? '#2563eb' : 'rgba(255, 255, 255, 0.06)',
+                      color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {aud === 'Everyone' ? '🌟 Everyone' : aud === 'Kids' ? '🧒 Kids' : '🧑 Adults'}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          <div>
+            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
+              Select Days (Plan across multiple nights)
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
+              {weekDays.map((d) => {
+                const checked = planSelectedDays.includes(d.date_iso);
+                return (
+                  <label
+                    key={d.date_iso}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: checked ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 8,
+                      padding: '6px 8px',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      color: '#f8fafc',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setPlanSelectedDays((prev) => [...prev, d.date_iso]);
+                        } else {
+                          setPlanSelectedDays((prev) => prev.filter((iso) => iso !== d.date_iso));
+                        }
+                      }}
+                    />
+                    <span>{d.day_short}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: '0.88rem',
+                color: '#f8fafc',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={planAddShopping}
+                onChange={(e) => setPlanAddShopping(e.target.checked)}
+              />
+              <span>Add meal ingredients to Shopping List</span>
+            </label>
+          </div>
         </div>
-      )}
+      </Modal>
 
       {/* 2. Recipe View & Edit Modal */}
-      {activeRecipe && (
-        <div className="cr-modal-overlay" onClick={() => setActiveRecipe(null)}>
-          <div className="cr-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="cr-modal-header">
-              <h3>
-                <i className="fas fa-book-open" /> {activeRecipe.title}
-              </h3>
-              <button type="button" className="cr-modal-close" onClick={() => setActiveRecipe(null)}>
-                ✕
-              </button>
-            </div>
-            <div className="cr-modal-body">
-              {activeRecipe.image_url ? (
-                <FallbackImage
-                  src={resolveAssetUrl(activeRecipe.image_url)}
-                  alt={activeRecipe.title}
-                  className="recipe-modal-img"
-                  fallbackEmoji={getMealEmoji(activeRecipe.meal_key || activeRecipe.title)}
-                  fallbackIcon="fa-utensils"
-                  style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }}
-                />
-              ) : null}
-              <div className="recipe-meta-row">
-                <span>
-                  <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
-                </span>
-                <span>
-                  <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
-                </span>
-                {activeRecipe.notion_id && (
-                  <span style={{ color: '#a78bfa' }}>
-                    <i className="fas fa-arrows-rotate" /> Synced from Notion
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
-                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {(activeRecipe.ingredients || []).length === 0 ? (
-                    <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
-                      No ingredients specified.
-                    </div>
-                  ) : (
-                    (activeRecipe.ingredients || []).map((ing, idx) => (
-                      <div key={idx} className="recipe-ing-item">
-                        <span>{ing.name}</span>
-                        <span style={{ opacity: 0.6 }}>{ing.qty}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
-                <div className="recipe-instructions-box">
-                  {activeRecipe.instructions || 'No instructions specified.'}
-                </div>
-              </div>
-            </div>
-            <div className="cr-modal-footer">
+      <Modal
+        open={Boolean(activeRecipe)}
+        onClose={() => setActiveRecipe(null)}
+        title={activeRecipe?.title || 'Recipe Details'}
+        icon="fas fa-book-open"
+        maxWidth={640}
+        footer={
+          activeRecipe ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <button
                 type="button"
                 className="shopping-archive-btn"
                 onClick={() => handleAddRecipeIngredientsToShopping(activeRecipe)}
+                style={{ margin: 0 }}
               >
                 <i className="fas fa-cart-plus" /> Add to Shopping List
               </button>
@@ -1769,9 +1715,64 @@ export const MealAndShoppingSection: React.FC = () => {
                 Close
               </button>
             </div>
+          ) : undefined
+        }
+      >
+        {activeRecipe && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {activeRecipe.image_url ? (
+              <FallbackImage
+                src={resolveAssetUrl(activeRecipe.image_url)}
+                alt={activeRecipe.title}
+                className="recipe-modal-img"
+                fallbackEmoji={getMealEmoji(activeRecipe.meal_key || activeRecipe.title)}
+                fallbackIcon="fa-utensils"
+                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }}
+              />
+            ) : null}
+            <div className="recipe-meta-row">
+              <span>
+                <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
+              </span>
+              <span>
+                <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
+              </span>
+              {activeRecipe.notion_id && (
+                <span style={{ color: '#a78bfa' }}>
+                  <i className="fas fa-arrows-rotate" /> Synced from Notion
+                </span>
+              )}
+            </div>
+
+            <div>
+              <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(activeRecipe.ingredients || []).length === 0 ? (
+                  <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
+                    No ingredients specified.
+                  </div>
+                ) : (
+                  (activeRecipe.ingredients || []).map((ing, idx) => (
+                    <div key={idx} className="recipe-ing-item">
+                      <span>{ing.name}</span>
+                      {ing.qty ? (
+                        <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.88rem' }}>{ing.qty}</span>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
+              <div className="recipe-instructions-box">
+                {activeRecipe.instructions || 'No instructions specified.'}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* 3. Frequently Added Modal */}
       <Modal

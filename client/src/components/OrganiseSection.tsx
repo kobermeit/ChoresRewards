@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { Modal } from './common/Modal';
 
 export const OrganiseSection: React.FC = () => {
   const { showToast } = useApp();
@@ -173,8 +173,6 @@ export const OrganiseSection: React.FC = () => {
 
   const cars = items.filter((i) => i.category === 'car');
   const bills = items.filter((i) => i.category !== 'car');
-
-  useBodyScrollLock(Boolean(showAddModal || activeVehicle));
 
   return (
     <>
@@ -494,177 +492,147 @@ export const OrganiseSection: React.FC = () => {
       </section>
 
       {/* Add Item Modal */}
-      {showAddModal && (
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setShowAddModal(false)}
-        >
-          <div
-            className="card"
-            style={{ maxWidth: 480, width: '100%', padding: 24, borderRadius: 18 }}
-            onClick={(e) => e.stopPropagation()}
+      <Modal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Add to Organise"
+        icon="fas fa-folder-plus"
+        maxWidth={500}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setShowAddModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleCreateItem}
+            >
+              Save Item
+            </button>
+          </div>
+        }
+      >
+        <form onSubmit={handleCreateItem} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <select
+            className="modern-select"
+            value={addCategory}
+            onChange={(e) => setAddCategory(e.target.value)}
           >
-            <h3 style={{ marginTop: 0 }}>➕ Add to Organise</h3>
-            <form onSubmit={handleCreateItem} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <select
-                value={addCategory}
-                onChange={(e) => setAddCategory(e.target.value)}
-                style={{ padding: '10px 12px', borderRadius: 10 }}
-              >
-                <option value="car">🚗 Vehicle</option>
-                <option value="rego">🪪 Registration (Rego)</option>
-                <option value="insurance">🛡️ Insurance</option>
-                <option value="electricity">⚡ Electricity / Gas</option>
-                <option value="internet">🌐 Internet / Phone</option>
-                <option value="rates">🏡 Council Rates / Water</option>
-                <option value="subscription">📺 Subscription</option>
-              </select>
+            <option value="car">🚗 Vehicle</option>
+            <option value="rego">🪪 Registration (Rego)</option>
+            <option value="insurance">🛡️ Insurance</option>
+            <option value="electricity">⚡ Electricity / Gas</option>
+            <option value="internet">🌐 Internet / Phone</option>
+            <option value="rates">🏡 Council Rates / Water</option>
+            <option value="subscription">📺 Subscription</option>
+          </select>
 
+          <input
+            type="text"
+            className="modern-input"
+            placeholder={addCategory === 'car' ? 'Vehicle Nickname (e.g. Family SUV)' : 'Title (e.g. Home Insurance)'}
+            value={addTitle}
+            onChange={(e) => setAddTitle(e.target.value)}
+            required
+          />
+
+          {addCategory === 'car' ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <input
+                  type="text"
+                  className="modern-input"
+                  placeholder="Make (e.g. Toyota)"
+                  value={addMake}
+                  onChange={(e) => setAddMake(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="modern-input"
+                  placeholder="Model (e.g. RAV4)"
+                  value={addModel}
+                  onChange={(e) => setAddModel(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <input
+                  type="number"
+                  className="modern-input"
+                  placeholder="Year"
+                  value={addYear}
+                  onChange={(e) => setAddYear(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="modern-input"
+                  placeholder="Rego Plate"
+                  value={addRego}
+                  onChange={(e) => setAddRego(e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="modern-input"
+                  placeholder="Odometer (km)"
+                  value={addOdometer}
+                  onChange={(e) => setAddOdometer(e.target.value)}
+                />
+              </div>
+            </>
+          ) : (
+            <>
               <input
                 type="text"
-                placeholder={addCategory === 'car' ? 'Vehicle Nickname (e.g. Family SUV)' : 'Title (e.g. Home Insurance)'}
-                value={addTitle}
-                onChange={(e) => setAddTitle(e.target.value)}
-                required
-                style={{ padding: '10px 12px', borderRadius: 10 }}
+                className="modern-input"
+                placeholder="Provider (e.g. NRMA, Origin)"
+                value={addProvider}
+                onChange={(e) => setAddProvider(e.target.value)}
               />
-
-              {addCategory === 'car' ? (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <input
-                      type="text"
-                      placeholder="Make (e.g. Toyota)"
-                      value={addMake}
-                      onChange={(e) => setAddMake(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Model (e.g. RAV4)"
-                      value={addModel}
-                      onChange={(e) => setAddModel(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                    <input
-                      type="number"
-                      placeholder="Year"
-                      value={addYear}
-                      onChange={(e) => setAddYear(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Rego Plate"
-                      value={addRego}
-                      onChange={(e) => setAddRego(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Odometer (km)"
-                      value={addOdometer}
-                      onChange={(e) => setAddOdometer(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    placeholder="Provider (e.g. NRMA, Origin)"
-                    value={addProvider}
-                    onChange={(e) => setAddProvider(e.target.value)}
-                    style={{ padding: '10px 12px', borderRadius: 10 }}
-                  />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <input
-                      type="date"
-                      value={addDueDate}
-                      onChange={(e) => setAddDueDate(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Cost ($)"
-                      value={addCost}
-                      onChange={(e) => setAddCost(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: 10 }}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  style={{
-                    padding: '9px 16px',
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.08)',
-                    color: 'inherit',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary" style={{ padding: '9px 20px', borderRadius: 10, fontWeight: 700 }}>
-                  Save
-                </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <input
+                  type="date"
+                  className="modern-input"
+                  value={addDueDate}
+                  onChange={(e) => setAddDueDate(e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="modern-input"
+                  step="0.01"
+                  placeholder="Cost ($)"
+                  value={addCost}
+                  onChange={(e) => setAddCost(e.target.value)}
+                />
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </>
+          )}
+        </form>
+      </Modal>
 
       {/* Vehicle Service History Modal */}
-      {activeVehicle && (
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.75)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setActiveVehicle(null)}
-        >
-          <div
-            className="card"
-            style={{ maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 24, borderRadius: 18 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h3 style={{ margin: 0 }}>🔧 {activeVehicle.title} — Service Log</h3>
-              <button
-                type="button"
-                onClick={() => setActiveVehicle(null)}
-                style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.3rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
+      <Modal
+        open={Boolean(activeVehicle)}
+        onClose={() => setActiveVehicle(null)}
+        title={activeVehicle ? `🔧 ${activeVehicle.title} — Service Log` : 'Service Log'}
+        maxWidth={580}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setActiveVehicle(null)}
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        {activeVehicle && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <form
               onSubmit={handleAddService}
               style={{
@@ -674,102 +642,108 @@ export const OrganiseSection: React.FC = () => {
                 padding: 14,
                 borderRadius: 12,
                 background: 'rgba(255,255,255,0.04)',
-                marginBottom: 16,
               }}
             >
               <input
                 type="text"
+                className="modern-input"
                 placeholder="Service Type"
                 value={srvType}
                 onChange={(e) => setSrvType(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="date"
+                className="modern-input"
                 value={srvDate}
                 onChange={(e) => setSrvDate(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="number"
+                className="modern-input"
                 placeholder="Odometer (km)"
                 value={srvMileage}
                 onChange={(e) => setSrvMileage(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="number"
+                className="modern-input"
                 step="0.01"
                 placeholder="Cost ($)"
                 value={srvCost}
                 onChange={(e) => setSrvCost(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="date"
+                className="modern-input"
                 title="Next Service Due Date"
                 value={srvNextDate}
                 onChange={(e) => setSrvNextDate(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="number"
+                className="modern-input"
                 placeholder="Next Due Odometer (km)"
                 value={srvNextMileage}
                 onChange={(e) => setSrvNextMileage(e.target.value)}
-                style={{ padding: 8, borderRadius: 8 }}
               />
               <input
                 type="text"
+                className="modern-input"
                 placeholder="Mechanic / Workshop"
                 value={srvProvider}
                 onChange={(e) => setSrvProvider(e.target.value)}
-                style={{ gridColumn: '1 / -1', padding: 8, borderRadius: 8 }}
+                style={{ gridColumn: '1 / -1' }}
               />
               <button
                 type="submit"
                 className="btn-primary"
-                style={{ gridColumn: '1 / -1', padding: '9px', borderRadius: 8, fontWeight: 700 }}
+                style={{ gridColumn: '1 / -1', padding: '10px' }}
               >
                 + Log Service Entry
               </button>
             </form>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {services.map((s) => (
-                <div
-                  key={s.id}
-                  style={{
-                    padding: 12,
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.06)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 700 }}>
-                      {s.service_type} — {s.service_date}
-                    </div>
-                    <div style={{ fontSize: '0.82rem', opacity: 0.75 }}>
-                      {s.mileage ? `${s.mileage} km` : ''} {s.cost ? `• $${s.cost}` : ''}{' '}
-                      {s.provider ? `• ${s.provider}` : ''}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteService(s.id)}
-                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                  >
-                    ✕
-                  </button>
+              {services.length === 0 ? (
+                <div style={{ padding: 12, textAlign: 'center', opacity: 0.6, fontSize: '0.88rem' }}>
+                  No service records logged yet.
                 </div>
-              ))}
+              ) : (
+                services.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      padding: 12,
+                      borderRadius: 10,
+                      background: 'rgba(255,255,255,0.06)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700 }}>
+                        {s.service_type} — {s.service_date}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', opacity: 0.75 }}>
+                        {s.mileage ? `${s.mileage} km` : ''} {s.cost ? `• $${s.cost}` : ''}{' '}
+                        {s.provider ? `• ${s.provider}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteService(s.id)}
+                      style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </>
   );
 };

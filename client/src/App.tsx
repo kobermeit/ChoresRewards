@@ -40,32 +40,8 @@ const MainShell: React.FC<{
     );
   }
 
-  const versionBadge = data?.app_version ? (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 8,
-        right: 12,
-        fontSize: '0.74rem',
-        color: '#94a3b8',
-        opacity: 0.6,
-        pointerEvents: 'none',
-        zIndex: 9000,
-        fontWeight: 500,
-        letterSpacing: '0.3px',
-      }}
-    >
-      v{data.app_version}
-    </div>
-  ) : null;
-
   if (data?.needs_setup) {
-    return (
-      <>
-        <SetupWizard />
-        {versionBadge}
-      </>
-    );
+    return <SetupWizard />;
   }
 
   return (
@@ -110,7 +86,6 @@ const MainShell: React.FC<{
         onAdultPinSuccess={onAdultPinSuccess}
       />
       <Overlays />
-      {versionBadge}
     </>
   );
 };

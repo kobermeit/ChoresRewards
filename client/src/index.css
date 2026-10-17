@@ -24,3 +24,24 @@
   width: 92%;
   color: #fff;
 }
+
+/* Unified Form Controls & Input Heights */
+.modern-input, .modern-select, select.modern-input, input.modern-input {
+  height: 44px !important;
+  min-height: 44px !important;
+  padding: 8px 14px !important;
+  font-size: 0.95rem !important;
+  box-sizing: border-box !important;
+  line-height: 1.4 !important;
+  border-radius: 10px !important;
+}
+
+/* Prevent horizontal modal scroll and clean dialog sizing */
+.cr-modal-dialog {
+  max-width: 620px;
+  width: 100%;
+  overflow-x: hidden !important;
+}
+.cr-modal-body {
+  overflow-x: hidden !important;
+}

@@ -162,12 +162,12 @@ export const AppProvider: React.FC<{
       })
       .catch(() => {});
 
-    // 60-second background heartbeat + page focus check so midnight chore reset rolls over automatically on wall tablets
+    // 20-second background poll + page focus check for seamless multi-device live updates without interfering with users
     const interval = setInterval(() => {
       if (!document.hidden) {
         refresh();
       }
-    }, 60 * 1000);
+    }, 20 * 1000);
     const onVisChange = () => {
       if (!document.hidden) {
         refresh();

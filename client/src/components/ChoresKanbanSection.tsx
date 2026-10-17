@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAvatarUrl } from '../api';
 import { BadgeItem, Chore, ExtraChore, Person } from '../types';
@@ -1847,207 +1847,119 @@ export const ChoresKanbanSection: React.FC = () => {
       </Modal>
 
       {/* EDIT NAME MODAL */}
-      {editingPersonModal && (
-        <div
-          id="edit-name-modal"
-          style={{
-            display: 'flex',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'var(--cr-modal-overlay)',
-            zIndex: 9999,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          onClick={() => setEditingPersonModal(null)}
-        >
-          <div
-            style={{
-              background: 'var(--cr-modal-surface)',
-              padding: '32px 24px',
-              borderRadius: 12,
-              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-              minWidth: 320,
-              textAlign: 'center',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ color: 'var(--cr-text-primary)', margin: '0 0 12px' }}>Edit Name</h3>
-            <input
-              type="text"
-              value={editingNameVal}
-              onChange={(e) => setEditingNameVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveName();
-                if (e.key === 'Escape') setEditingPersonModal(null);
-              }}
-              autoFocus
-              placeholder="Enter new name"
-              style={{
-                padding: 8,
-                borderRadius: 6,
-                border: '1px solid var(--cr-subtle-panel-border)',
-                background: 'var(--cr-subtle-panel)',
-                color: 'var(--cr-text-primary)',
-                width: '80%',
-                marginBottom: 18,
-                outline: 'none',
-              }}
-            />
-            <div style={{ marginTop: 10, display: 'flex', gap: 16, justifyContent: 'center' }}>
-              <button
-                type="button"
-                className="confirm-btn"
-                onClick={handleSaveName}
-                style={{
-                  background: '#2d2d2d',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 18px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Confirm
-              </button>
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => setEditingPersonModal(null)}
-              >
-                Cancel
-              </button>
-            </div>
+      <Modal
+        open={Boolean(editingPersonModal)}
+        onClose={() => setEditingPersonModal(null)}
+        title="Edit Name"
+        icon="fas fa-user-edit"
+        maxWidth={440}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setEditingPersonModal(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSaveName}
+            >
+              Save Name
+            </button>
           </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--cr-text-secondary)' }}>
+            Enter new name
+          </label>
+          <input
+            type="text"
+            className="modern-input"
+            value={editingNameVal}
+            onChange={(e) => setEditingNameVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveName();
+            }}
+            autoFocus
+            placeholder="Enter new name"
+          />
         </div>
-      )}
+      </Modal>
 
       {/* DELETE / SKIP CHORE MODAL */}
-      {choreToDelete && (
-        <div
-          style={{
-            display: 'flex',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'var(--cr-modal-overlay)',
-            zIndex: 9999,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          onClick={() => setChoreToDelete(null)}
-        >
-          <div
-            style={{
-              background: 'var(--cr-modal-surface)',
-              padding: '32px 24px',
-              borderRadius: 12,
-              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-              minWidth: 320,
-              maxWidth: 440,
-              textAlign: 'center',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '2.5em', marginBottom: 10 }}>
-              <i className="fas fa-trash-alt" style={{ color: '#e53935' }} />
-            </div>
-            <div style={{ fontSize: '1.15em', marginBottom: 22, color: 'var(--cr-text-primary)' }}>
-              {choreToDelete.is_daily || choreToDelete.days_of_week
-                ? 'Do you want to delete this daily chore permanently, or just for today?'
-                : 'Are you sure you want to delete this chore?'}
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => handleDeleteChore(choreToDelete, true)}
-                style={{
-                  background: '#e53935',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 18px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {choreToDelete.is_daily || choreToDelete.days_of_week ? 'Delete Permanently' : 'Delete'}
-              </button>
-              {(choreToDelete.is_daily || choreToDelete.days_of_week) && (
-                <button
-                  type="button"
-                  onClick={() => handleDeleteChore(choreToDelete, false)}
-                  style={{
-                    background: '#fbc02d',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '10px 18px',
-                    borderRadius: 6,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Delete for Today
-                </button>
-              )}
+      <Modal
+        open={Boolean(choreToDelete)}
+        onClose={() => setChoreToDelete(null)}
+        title={choreToDelete?.is_daily || choreToDelete?.days_of_week ? 'Delete Daily Chore' : 'Delete Chore'}
+        icon="fas fa-trash-alt"
+        maxWidth={480}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setChoreToDelete(null)}
+            >
+              Cancel
+            </button>
+            {(choreToDelete?.is_daily || choreToDelete?.days_of_week) && (
               <button
                 type="button"
                 className="btn-cancel"
-                onClick={() => setChoreToDelete(null)}
+                style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.4)' }}
+                onClick={() => handleDeleteChore(choreToDelete, false)}
               >
-                Cancel
+                Skip for Today
               </button>
+            )}
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ background: '#ef4444', borderColor: '#dc2626' }}
+              onClick={() => choreToDelete && handleDeleteChore(choreToDelete, true)}
+            >
+              {choreToDelete?.is_daily || choreToDelete?.days_of_week ? 'Delete Permanently' : 'Delete Chore'}
+            </button>
+          </div>
+        }
+      >
+        {choreToDelete && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: '1.05rem', color: 'var(--cr-text-primary)', lineHeight: 1.4 }}>
+              {choreToDelete.is_daily || choreToDelete.days_of_week
+                ? 'Do you want to delete this daily chore permanently, or just for today?'
+                : `Are you sure you want to delete "${choreToDelete.title}"?`}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* EXTRA CHORES MODAL */}
-      {extraModalPerson && (
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'var(--cr-modal-overlay)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setExtraModalPerson(null)}
-        >
-          <div
-            style={{
-              background: 'var(--cr-modal-surface)',
-              maxWidth: 520,
-              width: '100%',
-              maxHeight: '85vh',
-              overflowY: 'auto',
-              padding: 24,
-              borderRadius: 18,
-              color: 'var(--cr-text-primary)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h3 style={{ margin: 0 }}>⚡ Extra Chores for {extraModalPerson.name}</h3>
-              <button
-                type="button"
-                onClick={() => setExtraModalPerson(null)}
-                style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.3rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-            <p style={{ opacity: 0.75, fontSize: '0.88rem', marginTop: 0 }}>
+      <Modal
+        open={Boolean(extraModalPerson)}
+        onClose={() => setExtraModalPerson(null)}
+        title={extraModalPerson ? `Extra Chores for ${extraModalPerson.name}` : 'Extra Chores'}
+        icon="fas fa-bolt"
+        maxWidth={540}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setExtraModalPerson(null)}
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        {extraModalPerson && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ opacity: 0.75, fontSize: '0.88rem', margin: 0 }}>
               Want to earn extra rewards? Pick an extra job below!
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2102,144 +2014,102 @@ export const ChoresKanbanSection: React.FC = () => {
                 ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* PROFILE & BADGES MODAL */}
-      {profileModalPerson && (
-        <div
-          id="profile-modal-overlay"
-          onClick={() => setProfileModalPerson(null)}
-          style={{
-            display: 'flex',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'var(--cr-modal-overlay)',
-            zIndex: 99990,
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-            overflowY: 'auto',
-            boxSizing: 'border-box',
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'var(--cr-modal-surface)',
-              borderRadius: 20,
-              maxWidth: 500,
-              width: '100%',
-              margin: 'auto',
-              position: 'relative',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
-            }}
-          >
+      <Modal
+        open={Boolean(profileModalPerson)}
+        onClose={() => setProfileModalPerson(null)}
+        title={profileModalPerson ? `${profileModalPerson.name}'s Profile` : 'Profile & Badges'}
+        icon="fas fa-id-badge"
+        maxWidth={540}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
             <button
               type="button"
+              className="btn-cancel"
               onClick={() => setProfileModalPerson(null)}
-              style={{
-                position: 'absolute',
-                top: 12,
-                right: 14,
-                background: 'var(--cr-subtle-panel)',
-                border: 'none',
-                color: 'var(--cr-text-primary)',
-                fontSize: '1.5em',
-                width: 38,
-                height: 38,
-                borderRadius: '50%',
-                cursor: 'pointer',
-                zIndex: 1,
-                lineHeight: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
             >
-              ×
+              Close
             </button>
-            <div id="profile-modal-content" style={{ padding: '28px 20px 36px', color: 'var(--cr-text-primary)' }}>
-              {(() => {
-                const pColor = profileModalPerson.color || '#555';
-                const totalPts = Number((profileModalPerson.points || 0) + (profileModalPerson.bonus_points || 0));
-                const streak = profileDetails?.streak?.current_streak ?? profileModalPerson.streak?.current_streak ?? 0;
-                const bestStreak = profileDetails?.streak?.longest_streak ?? profileModalPerson.streak?.longest_streak ?? 0;
-                const totalDone = profileDetails?.total_completed ?? profileModalPerson.total_completed ?? 0;
-                const allBadges = profileDetails?.badges || data.badge_definitions || [];
-                const earnedCount = allBadges.filter((b) => b.earned).length;
+          </div>
+        }
+      >
+        {profileModalPerson && (() => {
+          const pColor = profileModalPerson.color || '#555';
+          const totalPts = Number((profileModalPerson.points || 0) + (profileModalPerson.bonus_points || 0));
+          const streak = profileDetails?.streak?.current_streak ?? profileModalPerson.streak?.current_streak ?? 0;
+          const bestStreak = profileDetails?.streak?.longest_streak ?? profileModalPerson.streak?.longest_streak ?? 0;
+          const totalDone = profileDetails?.total_completed ?? profileModalPerson.total_completed ?? 0;
+          const allBadges = profileDetails?.badges || data.badge_definitions || [];
+          const earnedCount = allBadges.filter((b) => b.earned).length;
 
-                return (
-                  <>
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                className="profile-hero"
+                style={{ background: `${pColor}22`, border: `2px solid ${pColor}` }}
+              >
+                <img
+                  src={resolveAvatarUrl(profileModalPerson.avatar)}
+                  alt={profileModalPerson.name}
+                  className="profile-avatar"
+                />
+                <h1 className="profile-name">{profileModalPerson.name}</h1>
+                <div className="profile-stats-row">
+                  <div className="profile-stat">
+                    <div className="profile-stat-value">{totalDone}</div>
+                    <div className="profile-stat-label">Chores Done</div>
+                  </div>
+                  <div className="profile-stat">
+                    <div className="profile-stat-value">
+                      {isCash ? `$${totalPts.toFixed(2)}` : totalPts.toFixed(2)}
+                    </div>
+                    <div className="profile-stat-label">{isCash ? 'Balance' : 'Points'}</div>
+                  </div>
+                  <div className="profile-stat">
+                    <div className="profile-stat-value">🔥 {streak}</div>
+                    <div className="profile-stat-label">Day Streak</div>
+                  </div>
+                  <div className="profile-stat">
+                    <div className="profile-stat-value">
+                      {earnedCount}/{allBadges.length}
+                    </div>
+                    <div className="profile-stat-label">Badges</div>
+                  </div>
+                </div>
+                {bestStreak > streak && bestStreak > 0 && (
+                  <div className="profile-best-streak">Best streak: {bestStreak} days 🏅</div>
+                )}
+              </div>
+              <h2 className="profile-section-title" style={{ marginTop: 12 }}>
+                Badge Collection
+              </h2>
+              <div className="profile-badge-grid">
+                {allBadges.map((b) => {
+                  const earned = Boolean(b.earned);
+                  return (
                     <div
-                      className="profile-hero"
-                      style={{ background: `${pColor}22`, border: `2px solid ${pColor}` }}
+                      key={b.key}
+                      className={`profile-badge-card ${earned ? 'badge-earned' : 'badge-locked'}`}
                     >
-                      <img
-                        src={resolveAvatarUrl(profileModalPerson.avatar)}
-                        alt={profileModalPerson.name}
-                        className="profile-avatar"
-                      />
-                      <h1 className="profile-name">{profileModalPerson.name}</h1>
-                      <div className="profile-stats-row">
-                        <div className="profile-stat">
-                          <div className="profile-stat-value">{totalDone}</div>
-                          <div className="profile-stat-label">Chores Done</div>
+                      <div className="profile-badge-emoji">{b.emoji}</div>
+                      <div className="profile-badge-name">{b.name}</div>
+                      <div className="profile-badge-desc">{b.desc}</div>
+                      {!earned && (
+                        <div className="badge-locked-label">
+                          <i className="fas fa-lock" /> Locked
                         </div>
-                        <div className="profile-stat">
-                          <div className="profile-stat-value">
-                            {isCash ? `$${totalPts.toFixed(2)}` : totalPts.toFixed(2)}
-                          </div>
-                          <div className="profile-stat-label">{isCash ? 'Balance' : 'Points'}</div>
-                        </div>
-                        <div className="profile-stat">
-                          <div className="profile-stat-value">🔥 {streak}</div>
-                          <div className="profile-stat-label">Day Streak</div>
-                        </div>
-                        <div className="profile-stat">
-                          <div className="profile-stat-value">
-                            {earnedCount}/{allBadges.length}
-                          </div>
-                          <div className="profile-stat-label">Badges</div>
-                        </div>
-                      </div>
-                      {bestStreak > streak && bestStreak > 0 && (
-                        <div className="profile-best-streak">Best streak: {bestStreak} days 🏅</div>
                       )}
                     </div>
-                    <h2 className="profile-section-title" style={{ marginTop: 20 }}>
-                      Badge Collection
-                    </h2>
-                    <div className="profile-badge-grid">
-                      {allBadges.map((b) => {
-                        const earned = Boolean(b.earned);
-                        return (
-                          <div
-                            key={b.key}
-                            className={`profile-badge-card ${earned ? 'badge-earned' : 'badge-locked'}`}
-                          >
-                            <div className="profile-badge-emoji">{b.emoji}</div>
-                            <div className="profile-badge-name">{b.name}</div>
-                            <div className="profile-badge-desc">{b.desc}</div>
-                            {!earned && (
-                              <div className="badge-locked-label">
-                                <i className="fas fa-lock" /> Locked
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                );
-              })()}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
+      </Modal>
 
       {/* ALL-DONE CELEBRATION MODAL */}
       {celebrationPerson && (

@@ -173,12 +173,20 @@ export interface VehicleService {
   notes: string | null;
 }
 
+export interface RecipeIngredient {
+  name: string;
+  store: string;
+  qty: string;
+  prep?: string;
+  raw_name?: string;
+}
+
 export interface RecipeItem {
   id?: number;
   meal_key: string;
   title: string;
   image_url: string | null;
-  ingredients: Array<{ name: string; store: string; qty: string }>;
+  ingredients: RecipeIngredient[];
   instructions: string;
   servings: string;
   prep_time: string;

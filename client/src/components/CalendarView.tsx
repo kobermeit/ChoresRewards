@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CalendarEvent } from '../types';
 import { apiPost } from '../api';
+import { Modal } from './common/Modal';
 
 export const CalendarView: React.FC = () => {
   const { data, refresh, showToast, isParent } = useApp();
@@ -839,72 +840,47 @@ export const CalendarView: React.FC = () => {
       )}
 
       {/* Event Details Popover / Modal */}
-      {selectedEvent && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
-          onClick={() => setSelectedEvent(null)}
-        >
-          <div
-            style={{
-              background: '#0f172a',
-              borderRadius: 18,
-              maxWidth: 480,
-              width: '100%',
-              padding: 24,
-              border: `1px solid rgba(255,255,255,0.12)`,
-              borderTop: `6px solid ${selectedEvent.color || '#38bdf8'}`,
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-              position: 'relative',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <span style={{ fontSize: '2rem' }}>{selectedEvent.emoji || '📅'}</span>
+      <Modal
+        open={Boolean(selectedEvent)}
+        onClose={() => setSelectedEvent(null)}
+        title={selectedEvent?.title || 'Event Details'}
+        icon="fas fa-calendar-day"
+        maxWidth={520}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => setSelectedEvent(null)}
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        {selectedEvent && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: '2.2rem' }}>{selectedEvent.emoji || '📅'}</span>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
-                  {selectedEvent.title}
-                </h3>
                 <span
                   style={{
                     display: 'inline-block',
-                    marginTop: 4,
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
+                    padding: '3px 10px',
+                    borderRadius: 8,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
                     color: selectedEvent.all_day ? '#4ade80' : '#38bdf8',
                     background: 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${selectedEvent.color || '#38bdf8'}44`,
                   }}
                 >
                   {selectedEvent.time_display || 'All Day'}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedEvent(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  fontSize: '1.2rem',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕
-              </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.88rem', color: '#cbd5e1' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.9rem', color: '#cbd5e1' }}>
               <div>
                 <strong style={{ color: '#94a3b8', display: 'block', marginBottom: 2 }}>📅 Date:</strong>
                 {new Date(`${selectedEvent.start_date_iso}T00:00:00`).toLocaleDateString(undefined, {
@@ -938,28 +914,9 @@ export const CalendarView: React.FC = () => {
                 </div>
               )}
             </div>
-
-            <div style={{ marginTop: 22, textAlign: 'right' }}>
-              <button
-                type="button"
-                onClick={() => setSelectedEvent(null)}
-                style={{
-                  padding: '8px 18px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: 'rgba(255,255,255,0.1)',
-                  color: '#ffffff',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

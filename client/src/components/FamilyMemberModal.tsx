@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Person, UserRole } from '../types';
 import { apiPost, resolveAssetUrl } from '../api';
 import { useApp } from '../context/AppContext';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { Modal } from './common/Modal';
 
 const PRESET_COLORS = [
   '#3b82f6', // Blue
@@ -23,7 +23,6 @@ interface FamilyMemberModalProps {
 }
 
 export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, member, onClose }) => {
-  useBodyScrollLock(isOpen);
   const { refresh, showToast } = useApp();
 
   const [name, setName] = useState('');
@@ -123,64 +122,34 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(8px)',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        style={{
-          width: '100%',
-          maxWidth: '480px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-          borderRadius: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-          padding: '24px',
-          color: '#f8fafc',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px',
-          animation: 'crModalFadeIn 0.18s ease-out',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <i className="fas fa-user-circle" style={{ color }} />
-            {member ? `Edit ${member.name}` : 'Add Family Member'}
-          </h2>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title={member ? `Edit ${member.name}` : 'Add Family Member'}
+      icon="fas fa-user-circle"
+      maxWidth={520}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
           <button
             type="button"
+            className="btn-cancel"
             onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              fontSize: '1.2rem',
-              cursor: 'pointer',
-              padding: '4px',
-            }}
+            disabled={saving}
           >
-            <i className="fas fa-times" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : member ? 'Update Member' : 'Add Member'}
           </button>
         </div>
-
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      }
+    >
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Avatar Photo Section */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div
@@ -415,45 +384,7 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             </span>
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              style={{
-                padding: '10px 18px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#cbd5e1',
-                fontWeight: 600,
-                fontSize: '0.92rem',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                padding: '10px 24px',
-                borderRadius: '10px',
-                background: '#2563eb',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.92rem',
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
-              }}
-            >
-              {saving ? 'Saving...' : member ? 'Update Member' : 'Add Member'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 };

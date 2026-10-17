@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { Reward, FamilyMember } from '../types';
@@ -741,7 +741,7 @@ export const RewardsSection: React.FC = () => {
         onClose={() => setModalOpen(false)}
         title={editingReward ? 'Edit Reward' : 'Add New Reward'}
         icon={editingReward ? 'fas fa-pencil-alt' : 'fas fa-gift'}
-        maxWidth={520}
+        maxWidth={620}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
             <button

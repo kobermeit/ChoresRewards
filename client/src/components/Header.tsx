@@ -244,18 +244,37 @@ export const Header: React.FC = () => {
               transition: 'height 0.2s, width 0.2s',
             }}
           />
-          <h2
-            style={{
-              color: 'var(--cr-text-primary)',
-              margin: 0,
-              fontSize: headerMinimized ? '1.05rem' : '1.22rem',
-              textTransform: 'none',
-              letterSpacing: 0,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Chores and Rewards
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h2
+              style={{
+                color: 'var(--cr-text-primary)',
+                margin: 0,
+                fontSize: headerMinimized ? '1.05rem' : '1.22rem',
+                textTransform: 'none',
+                letterSpacing: 0,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Chores and Rewards
+            </h2>
+            {data?.app_version && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  color: 'var(--cr-text-secondary)',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  letterSpacing: '0.02em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                v{data.app_version}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Clock Widget */}
@@ -374,6 +393,31 @@ export const Header: React.FC = () => {
               flexWrap: 'nowrap',
             }}
           >
+            {/* Refresh Button */}
+            <button
+              type="button"
+              id="header-refresh-btn"
+              onClick={() => window.location.reload()}
+              title="Full page refresh"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--cr-surface-border)',
+                color: 'var(--cr-text-primary)',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <i className="fas fa-arrows-rotate" />
+              <span>Refresh</span>
+            </button>
+
             {/* Notification Bell */}
             <div className="header-notif-wrap" id="header-notif-wrap" ref={notifWrapRef}>
               <button
