@@ -7,6 +7,23 @@ const IS_HA_ADDON = Boolean(process.env.SUPERVISOR_TOKEN) || fs.existsSync('/dat
 
 export const PORT = Number(process.env.PORT || 8099);
 
+function readYamlVersion(): string {
+  if (process.env.APP_VERSION) return process.env.APP_VERSION;
+  try {
+    const cfgPath = path.join(REPO_ROOT, 'choresrewards', 'config.yaml');
+    if (fs.existsSync(cfgPath)) {
+      const raw = fs.readFileSync(cfgPath, 'utf-8');
+      const m = raw.match(/^version:\s*["']?([^"'\r\n]+)["']?/m);
+      if (m && m[1]) return m[1].trim();
+    }
+  } catch {
+    // ignore
+  }
+  return '1.0.0';
+}
+
+export const APP_VERSION = readYamlVersion();
+
 export const DATA_DIR = process.env.DATA_DIR || (IS_HA_ADDON ? '/data' : path.join(REPO_ROOT, 'instance'));
 export const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'database.db');
 export const STATIC_DIR = path.join(REPO_ROOT, 'static');

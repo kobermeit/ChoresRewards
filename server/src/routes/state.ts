@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import { db, AppSetting, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
-import { UPLOADS_DIR } from '../config';
+import { UPLOADS_DIR, APP_VERSION } from '../config';
 import { hashPin } from './auth';
 import { getAppTimezone, getMondayOfWeek, isChoreOverdue } from '../utils/time';
 import { ensureDailyReset, getExtraChores, loadQuizQuestions } from '../services/chores';
@@ -167,6 +167,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
+      app_version: APP_VERSION,
       needs_setup: needsSetup,
       current_date: familyToday,
       timezone: getAppTimezone(),

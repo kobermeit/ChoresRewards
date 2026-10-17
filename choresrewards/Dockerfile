@@ -37,6 +37,7 @@ COPY --from=builder /build/server/node_modules ./server/node_modules
 COPY --from=builder /build/server/dist ./server/dist
 COPY --from=builder /build/client/dist ./client/dist
 COPY --from=builder /build/static ./static
+COPY --from=builder /build/choresrewards/config.yaml ./choresrewards/config.yaml
 
 RUN mkdir -p /data/uploads
 

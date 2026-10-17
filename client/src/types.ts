@@ -171,6 +171,7 @@ export interface VehicleService {
 
 export interface BootstrapData {
   success: boolean;
+  app_version?: string;
   needs_setup: boolean;
   current_date: string;
   timezone: string;
