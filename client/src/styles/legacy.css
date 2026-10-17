@@ -5509,7 +5509,30 @@ label,
     border-bottom-color: rgba(96,165,250,0.18);
 }
 
-.shopping-meal-group-name {\n    flex: 1;\n    min-width: 0;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    white-space: nowrap;\n}\n\n.shopping-meal-group-remove {\n    flex-shrink: 0;\n    margin-left: auto;\n    font-size: 0.8rem;\n    padding: 2px 6px;\n    opacity: 0.55;\n    transition: opacity 0.15s;\n}\n\n.shopping-meal-group-remove:hover {\n    opacity: 1;\n    color: #f87171;\n    background: rgba(248,113,113,0.1);\n}\n\n.shopping-planned-badge {
+.shopping-meal-group-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shopping-meal-group-remove {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.shopping-meal-group-remove:hover {
+    opacity: 1;
+    color: #f87171;
+    background: rgba(248,113,113,0.1);
+}
+
+.shopping-planned-badge {
     font-size: 0.6rem;
     font-weight: 700;
     background: rgba(96,165,250,0.18);
@@ -5750,8 +5773,7 @@ label,
 .shopping-archived-actions {
     padding: 8px 4px 4px;
 }
-
-
+.shopping-empty-hint {
     color: rgba(255,255,255,0.38);
     font-size: 0.8rem;
     font-style: italic;
@@ -6681,6 +6703,7 @@ label,
 .shopping-icon-picker-opt:hover {
     background: rgba(255,255,255,0.12);
 }
+.shopping-lib-store-badge {
     font-size: 0.68rem;
     font-weight: 700;
     border-radius: 999px;
