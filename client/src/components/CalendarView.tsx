@@ -273,28 +273,26 @@ export const CalendarView: React.FC = () => {
             >
               <i className="fas fa-list-ul" /> Agenda
             </button>
-            {gcal?.embed_url && (
-              <button
-                type="button"
-                onClick={() => setViewMode('embed')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: viewMode === 'embed' ? '#0284c7' : 'transparent',
-                  color: viewMode === 'embed' ? '#ffffff' : '#94a3b8',
-                  fontWeight: 600,
-                  fontSize: '0.86rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s',
-                }}
-              >
-                <i className="fas fa-globe" /> Google View
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setViewMode('embed')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: viewMode === 'embed' ? '#0284c7' : 'transparent',
+                color: viewMode === 'embed' ? '#ffffff' : '#94a3b8',
+                fontWeight: 600,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s',
+              }}
+            >
+              <i className="fas fa-globe" /> Embed View
+            </button>
           </div>
 
           <button
@@ -320,27 +318,25 @@ export const CalendarView: React.FC = () => {
             {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
 
-          {isParent && (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen((prev) => !prev)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: settingsOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
-                color: settingsOpen ? '#38bdf8' : '#f8fafc',
-                fontSize: '0.86rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <i className="fas fa-gear" /> {settingsOpen ? 'Close Settings' : 'Calendar Setup'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: settingsOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
+              color: settingsOpen ? '#38bdf8' : '#f8fafc',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <i className="fas fa-gear" /> {settingsOpen ? 'Close Settings' : 'Calendar Setup'}
+          </button>
         </div>
       </div>
 
@@ -817,27 +813,90 @@ export const CalendarView: React.FC = () => {
       )}
 
       {/* 3. GOOGLE CALENDAR EMBED VIEW */}
-      {viewMode === 'embed' && gcal?.embed_url && (
-        <div
-          style={{
-            background: 'rgba(15, 23, 42, 0.8)',
-            borderRadius: 16,
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          }}
-        >
-          <iframe
-            src={gcal.embed_url}
-            title="Google Calendar"
+      {viewMode === 'embed' && (
+        gcal?.embed_url ? (
+          <div
             style={{
-              width: '100%',
-              height: '780px',
-              border: 'none',
+              background: 'rgba(15, 23, 42, 0.8)',
               borderRadius: 16,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
             }}
-          />
-        </div>
+          >
+            <iframe
+              src={gcal.embed_url}
+              title="Google Calendar"
+              style={{
+                width: '100%',
+                height: '780px',
+                border: 'none',
+                borderRadius: 16,
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.8)',
+              borderRadius: 16,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              padding: '64px 24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: '50%',
+                background: 'rgba(2, 132, 199, 0.15)',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem',
+              }}
+            >
+              <i className="fas fa-globe" />
+            </div>
+            <div style={{ maxWidth: 480 }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
+                No Google Calendar Embed URL Configured
+              </h3>
+              <p style={{ color: '#94a3b8', fontSize: '0.92rem', lineHeight: 1.5, margin: 0 }}>
+                You must provide a Google Calendar Embed URL to display the interactive web calendar iframe here.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              style={{
+                marginTop: 6,
+                padding: '10px 22px',
+                borderRadius: 10,
+                border: 'none',
+                background: '#0284c7',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+              }}
+            >
+              <i className="fas fa-gear" /> Configure Embed URL
+            </button>
+          </div>
+        )
       )}
 
       {/* Event Details Popover / Modal */}

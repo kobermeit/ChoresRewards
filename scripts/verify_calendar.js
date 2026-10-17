@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 8099;
+const PORT = 8098;
 const URL = `http://localhost:${PORT}/`;
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const TEMP_USER_DATA = path.join(process.env.TEMP || 'C:\\Temp', 'edge_test_profile_' + Date.now());
@@ -159,12 +159,12 @@ async function run() {
 
   console.log('Calendar view DOM evaluation:', evalCalendar?.result?.value);
 
-  // Click Google Embed tab if present
-  console.log('4. Testing Calendar view sub-tabs...');
+  // Click Embed tab
+  console.log('4. Testing Calendar Embed View tab & empty state...');
   const evalClickEmbed = await send('Runtime.evaluate', {
     expression: `(() => {
       const btns = Array.from(document.querySelectorAll('button'));
-      const embedBtn = btns.find(b => b.textContent.includes('Google Embed') || b.textContent.includes('Embed'));
+      const embedBtn = btns.find(b => b.textContent.includes('Embed View') || b.textContent.includes('Embed'));
       if (embedBtn) {
         embedBtn.click();
         return { clicked: true };
@@ -175,6 +175,41 @@ async function run() {
   });
   console.log('Click Embed result:', evalClickEmbed?.result?.value);
   await sleep(1000);
+
+  const evalEmbedContent = await send('Runtime.evaluate', {
+    expression: `(() => {
+      const text = document.body.innerText;
+      const hasEmptyNote = text.includes('No Google Calendar Embed URL Configured') || text.includes('You must provide a Google Calendar Embed URL');
+      const hasConfigBtn = Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Configure Embed URL')));
+      return { hasEmptyNote, hasConfigBtn };
+    })()`,
+    returnByValue: true,
+  });
+  console.log('Embed view evaluation:', evalEmbedContent?.result?.value);
+
+  // Test saving calendar settings from unauthenticated / family mode (MUST NOT be 403)
+  console.log('5. Testing save_calendar_settings endpoint permissions...');
+  const evalSaveCalendar = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const res = await fetch('./api/save_calendar_settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gcal_ical_url: 'https://calendar.google.com/calendar/ical/test_family%40gmail.com/private-12345/basic.ics',
+          gcal_embed_url: '',
+          google_calendar_enabled: true,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      return { status: res.status, ok: res.ok, json };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log('Save calendar settings API response:', evalSaveCalendar?.result?.value);
+  if (evalSaveCalendar?.result?.value?.status === 403) {
+    errors.push('save_calendar_settings returned 403 Forbidden!');
+  }
 
   // Click Month tab back
   const evalClickMonth = await send('Runtime.evaluate', {
