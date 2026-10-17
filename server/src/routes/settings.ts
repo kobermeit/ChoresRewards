@@ -401,7 +401,7 @@ settingsRouter.post('/api/reset_daily_chores_now', (_req: Request, res: Response
   res.json({ success: true, date: today });
 });
 
-settingsRouter.post('/api/save_calendar_settings', async (req: Request, res: Response) => {
+settingsRouter.post('/api/save_calendar_settings', requireAdult, async (req: Request, res: Response) => {
   const data = req.body || {};
   if (data.gcal_ical_url !== undefined || data.ical_url !== undefined) {
     AppSetting.set('gcal_ical_url', String(data.gcal_ical_url ?? data.ical_url ?? '').trim());

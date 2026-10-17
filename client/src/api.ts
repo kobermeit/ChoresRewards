@@ -33,17 +33,48 @@ export function resolveApiUrl(endpoint: string): string {
   return `./api/${clean}`;
 }
 
+export class ApiError extends Error {
+  status: number;
+  data: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok || (data && typeof data === 'object' && data.success === false)) {
+    const errorMsg =
+      data?.error ||
+      data?.message ||
+      (res.status === 403
+        ? 'Access forbidden — Parent authorisation required'
+        : res.status === 401
+        ? 'Authentication required — please sign in'
+        : `Request failed (HTTP ${res.status})`);
+    throw new ApiError(errorMsg, res.status, data);
+  }
+
+  return (data !== null ? data : { success: true }) as T;
+}
+
 export async function apiGet<T = any>(endpoint: string): Promise<T> {
   const res = await fetch(resolveApiUrl(endpoint), {
     method: 'GET',
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });
-  const data = await res.json();
-  if (!res.ok && !data) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  return data as T;
+  return handleResponse<T>(res);
 }
 
 export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T> {
@@ -56,8 +87,7 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
       : { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: isFormData ? body : JSON.stringify(body ?? {}),
   });
-  const data = await res.json().catch(() => ({ success: res.ok }));
-  return data as T;
+  return handleResponse<T>(res);
 }
 
 export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> {
@@ -67,7 +97,7 @@ export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> 
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body ?? {}),
   });
-  return (await res.json()) as T;
+  return handleResponse<T>(res);
 }
 
 export async function apiDelete<T = any>(endpoint: string): Promise<T> {
@@ -76,5 +106,5 @@ export async function apiDelete<T = any>(endpoint: string): Promise<T> {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });
-  return (await res.json()) as T;
+  return handleResponse<T>(res);
 }

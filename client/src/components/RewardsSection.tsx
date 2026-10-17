@@ -5,6 +5,7 @@ import { Reward, FamilyMember } from '../types';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
+import { FormErrorAlert } from './FormErrorAlert';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -76,6 +77,7 @@ export const RewardsSection: React.FC = () => {
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Picker modal for "Everyone" rewards when redeeming without a filtered person
   const [redeemPickerReward, setRedeemPickerReward] = useState<Reward | null>(null);
@@ -117,6 +119,7 @@ export const RewardsSection: React.FC = () => {
   }, [availableRewards, selectedPerson]);
 
   const openAddModal = () => {
+    setFormError(null);
     setEditingReward(null);
     setFormTitle('');
     setFormPoints('10');
@@ -132,6 +135,7 @@ export const RewardsSection: React.FC = () => {
   };
 
   const openEditModal = (r: Reward) => {
+    setFormError(null);
     setEditingReward(r);
     setFormTitle(r.title);
     setFormPoints(String(r.points_required));
@@ -152,6 +156,7 @@ export const RewardsSection: React.FC = () => {
     e.preventDefault();
     if (!formTitle.trim()) return;
 
+    setFormError(null);
     setSubmitting(true);
     try {
       const assignedPerson = family.find((p) => p.name === formAssignedTo);
@@ -204,17 +209,16 @@ export const RewardsSection: React.FC = () => {
           fd.append('stock_image_url', formStockImageUrl);
         }
 
-        const res = await apiPost<{ success: boolean; error?: string }>('add_reward', fd);
-        if (res.success === false) {
-          throw new Error(res.error || 'Failed to add reward');
-        }
+        await apiPost('add_reward', fd);
         showToast(`🎁 Created reward "${formTitle.trim()}"`);
       }
 
       setModalOpen(false);
       await refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to save reward', { type: 'error' });
+      const msg = err.message || 'Failed to save reward';
+      setFormError(msg);
+      showToast(msg, { type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -324,7 +328,7 @@ export const RewardsSection: React.FC = () => {
             </span>
           </h2>
 
-          {!isChild && (
+          {isParent && (
             <button
               type="button"
               className="btn-primary"
@@ -443,9 +447,11 @@ export const RewardsSection: React.FC = () => {
             <p className="subtitle" style={{ margin: '0 0 14px', fontSize: '0.9rem', color: 'var(--cr-text-secondary)' }}>
               {selectedPerson ? `No rewards created for ${selectedPerson.name} or Everyone yet.` : 'Create some amazing rewards to motivate everyone!'}
             </p>
-            <button type="button" className="btn-primary" onClick={openAddModal}>
-              <i className="fas fa-plus" /> Add First Reward
-            </button>
+            {isParent && (
+              <button type="button" className="btn-primary" onClick={openAddModal}>
+                <i className="fas fa-plus" /> Add First Reward
+              </button>
+            )}
           </div>
         )}
 
@@ -705,7 +711,7 @@ export const RewardsSection: React.FC = () => {
                       <i className="fas fa-check-circle" /> Redeem
                     </button>
 
-                    {!isChild && (
+                    {isParent && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <button
                           type="button"
@@ -763,6 +769,8 @@ export const RewardsSection: React.FC = () => {
         }
       >
         <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+
           {/* Title with Autocomplete */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>

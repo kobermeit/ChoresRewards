@@ -216,7 +216,7 @@ export const SideNav: React.FC = () => {
         >
           <i className="fas fa-circle-question" />
         </button>
-        {!isChild && (
+        {isParent && (
           <button
             type="button"
             className={`side-nav-btn side-nav-link ${activeView === 'settings' ? 'side-nav-active' : ''}`}

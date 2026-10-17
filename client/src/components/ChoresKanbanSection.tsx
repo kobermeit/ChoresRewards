@@ -5,6 +5,7 @@ import { BadgeItem, Chore, ExtraChore, Person } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { FormErrorAlert } from './FormErrorAlert';
 
 const CHORE_EMOJI_OPTIONS = [
   '', '✅', '🍽️', '🧺', '🗑️', '🧹', '🚿', '🦷', '👕', '🌱', '🍳', '🥗',
@@ -157,6 +158,7 @@ export const ChoresKanbanSection: React.FC = () => {
   const [hasDueDatetime, setHasDueDatetime] = useState(false);
   const [newDueDatetime, setNewDueDatetime] = useState('');
   const [submittingChore, setSubmittingChore] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Column interactions
   const [editingPersonModal, setEditingPersonModal] = useState<Person | null>(null);
@@ -491,6 +493,7 @@ export const ChoresKanbanSection: React.FC = () => {
       return;
     }
 
+    setFormError(null);
     setSubmittingChore(true);
     try {
       await apiPost('add_chore', {
@@ -512,7 +515,9 @@ export const ChoresKanbanSection: React.FC = () => {
       showToast(`Added chore "${newTitle.trim()}" for ${assigned}`);
       await refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to add chore', { type: 'error' });
+      const msg = err.message || 'Failed to add chore';
+      setFormError(msg);
+      showToast(msg, { type: 'error' });
     } finally {
       setSubmittingChore(false);
     }
@@ -801,28 +806,30 @@ export const ChoresKanbanSection: React.FC = () => {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      style={{
-                        padding: '8px 13px',
-                        borderRadius: 10,
-                        border: '1px solid rgba(96,165,250,0.45)',
-                        background: 'rgba(59,130,246,0.22)',
-                        color: '#93c5fd',
-                        fontWeight: 800,
-                        fontSize: '0.84rem',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                      onClick={() => {
-                        setNewAssignedTo(person.name);
-                        setAddChoreModalOpen(true);
-                      }}
-                    >
-                      <i className="fas fa-plus" /> Add Chore
-                    </button>
+                    {isParent && (
+                      <button
+                        type="button"
+                        style={{
+                          padding: '8px 13px',
+                          borderRadius: 10,
+                          border: '1px solid rgba(96,165,250,0.45)',
+                          background: 'rgba(59,130,246,0.22)',
+                          color: '#93c5fd',
+                          fontWeight: 800,
+                          fontSize: '0.84rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                        onClick={() => {
+                          setNewAssignedTo(person.name);
+                          setAddChoreModalOpen(true);
+                        }}
+                      >
+                        <i className="fas fa-plus" /> Add Chore
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -929,15 +936,17 @@ export const ChoresKanbanSection: React.FC = () => {
                                     {daysLabel}
                                   </span>
                                 )}
-                                <button
-                                  type="button"
-                                  className="btn-delete-chore-sm admin-only"
-                                  style={{ position: 'static', width: 22, height: 22 }}
-                                  onClick={() => setChoreToDelete(chore)}
-                                  aria-label="Delete chore"
-                                >
-                                  <i className="fas fa-times" />
-                                </button>
+                                {isParent && (
+                                  <button
+                                    type="button"
+                                    className="btn-delete-chore-sm admin-only"
+                                    style={{ position: 'static', width: 22, height: 22 }}
+                                    onClick={() => setChoreToDelete(chore)}
+                                    aria-label="Delete chore"
+                                  >
+                                    <i className="fas fa-times" />
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -1336,15 +1345,17 @@ export const ChoresKanbanSection: React.FC = () => {
                                   {daysLabel}
                                 </span>
                               )}
-                              <button
-                                type="button"
-                                className="btn-delete-chore-sm admin-only"
-                                style={{ position: 'static', width: 22, height: 22 }}
-                                onClick={() => setChoreToDelete(chore)}
-                                aria-label="Delete chore"
-                              >
-                                <i className="fas fa-times" />
-                              </button>
+                              {isParent && (
+                                <button
+                                  type="button"
+                                  className="btn-delete-chore-sm admin-only"
+                                  style={{ position: 'static', width: 22, height: 22 }}
+                                  onClick={() => setChoreToDelete(chore)}
+                                  aria-label="Delete chore"
+                                >
+                                  <i className="fas fa-times" />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -1434,30 +1445,36 @@ export const ChoresKanbanSection: React.FC = () => {
                           <h4 className="chores-completed-header" style={{ color: 'var(--text-color)', marginTop: 0 }}>
                             Completed Chores:
                           </h4>
-                          <button
-                            type="button"
-                            className="clear-all-completed-btn admin-only"
-                            style={{
-                              background: '#f44336',
-                              color: '#fff',
-                              border: 'none',
-                              padding: '6px 16px',
-                              borderRadius: 6,
-                              fontSize: '0.95em',
-                              cursor: 'pointer',
-                              marginBottom: 6,
-                            }}
-                            onClick={() => handleClearCompleted(person.name)}
+                          {isParent && (
+                            <>
+                              <button
+                                type="button"
+                                className="clear-all-completed-btn admin-only"
+                                style={{
+                                  background: '#f44336',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '6px 16px',
+                                  borderRadius: 6,
+                                  fontSize: '0.95em',
+                                  cursor: 'pointer',
+                                  marginBottom: 6,
+                                }}
+                                onClick={() => handleClearCompleted(person.name)}
+                              >
+                                <i className="fas fa-trash" /> Clear All
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {isParent && (
+                          <div
+                            className="clear-all-hint admin-only"
+                            style={{ fontSize: '0.95em', color: 'var(--cr-text-secondary)', marginBottom: 6 }}
                           >
-                            <i className="fas fa-trash" /> Clear All
-                          </button>
-                        </div>
-                        <div
-                          className="clear-all-hint admin-only"
-                          style={{ fontSize: '0.95em', color: 'var(--cr-text-secondary)', marginBottom: 6 }}
-                        >
-                          (clears this list for today)
-                        </div>
+                            (clears this list for today)
+                          </div>
+                        )}
                         {completedChores.map((chore) => (
                           <div
                             key={chore.id}
@@ -1471,14 +1488,16 @@ export const ChoresKanbanSection: React.FC = () => {
                               paddingRight: 34,
                             }}
                           >
-                            <button
-                              type="button"
-                              className="btn-delete-chore-sm admin-only"
-                              onClick={() => setChoreToDelete(chore)}
-                              aria-label="Delete chore"
-                            >
-                              <i className="fas fa-times" />
-                            </button>
+                            {isParent && (
+                              <button
+                                type="button"
+                                className="btn-delete-chore-sm admin-only"
+                                onClick={() => setChoreToDelete(chore)}
+                                aria-label="Delete chore"
+                              >
+                                <i className="fas fa-times" />
+                              </button>
+                            )}
                             <div className="chore-header">
                               <span className="chore-icon">
                                 <i className="fas fa-check-circle" style={{ color: '#10b981' }} />
@@ -1533,16 +1552,18 @@ export const ChoresKanbanSection: React.FC = () => {
                 )}
 
                 {/* + Add Chore tile */}
-                <button
-                  type="button"
-                  className="chore-kanban-add-btn"
-                  onClick={() => {
-                    setNewAssignedTo(person.name);
-                    setAddChoreModalOpen(true);
-                  }}
-                >
-                  <i className="fas fa-plus" /> Add Chore
-                </button>
+                {isParent && (
+                  <button
+                    type="button"
+                    className="chore-kanban-add-btn"
+                    onClick={() => {
+                      setNewAssignedTo(person.name);
+                      setAddChoreModalOpen(true);
+                    }}
+                  >
+                    <i className="fas fa-plus" /> Add Chore
+                  </button>
+                )}
 
                 {/* Drag handle for Kanban column */}
                 <div className="column-footer">
@@ -1663,6 +1684,7 @@ export const ChoresKanbanSection: React.FC = () => {
 
         {/* Add Chore Form */}
         <form id="add-chore-form" onSubmit={handleAddChoreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
           <div className="chore-field-group">
             <label className="chore-field-label" htmlFor="chore-title-input">
               <i className="fas fa-tag" /> Chore Title

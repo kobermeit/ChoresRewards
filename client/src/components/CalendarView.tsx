@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { CalendarEvent } from '../types';
 import { apiPost } from '../api';
 import { Modal } from './common/Modal';
+import { FormErrorAlert } from './FormErrorAlert';
 
 export const CalendarView: React.FC = () => {
   const { data, refresh, showToast, isParent } = useApp();
@@ -16,6 +17,7 @@ export const CalendarView: React.FC = () => {
   const [icalUrlInput, setIcalUrlInput] = useState(gcal?.ical_url || '');
   const [embedUrlInput, setEmbedUrlInput] = useState(gcal?.embed_url || '');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Calendar month navigation state
   const todayDate = new Date();
@@ -46,6 +48,7 @@ export const CalendarView: React.FC = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setSavingSettings(true);
     try {
       await apiPost('save_calendar_settings', {
@@ -57,7 +60,9 @@ export const CalendarView: React.FC = () => {
       setSettingsOpen(false);
       await refresh();
     } catch (err: any) {
-      showToast(err?.message || 'Failed to save settings', { type: 'error' });
+      const msg = err?.message || 'Failed to save calendar settings';
+      setFormError(msg);
+      showToast(msg, { type: 'error' });
     } finally {
       setSavingSettings(false);
     }
@@ -318,139 +323,197 @@ export const CalendarView: React.FC = () => {
             {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((prev) => !prev)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: settingsOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
-              color: settingsOpen ? '#38bdf8' : '#f8fafc',
-              fontSize: '0.86rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <i className="fas fa-gear" /> {settingsOpen ? 'Close Settings' : 'Calendar Setup'}
-          </button>
+          {isParent && (
+            <button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setSettingsOpen((prev) => !prev);
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: settingsOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
+                color: settingsOpen ? '#38bdf8' : '#f8fafc',
+                fontSize: '0.86rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <i className="fas fa-gear" /> {settingsOpen ? 'Close Settings' : 'Calendar Setup'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Setup & Connection Banner (if not connected or settings toggled open) */}
-      {(settingsOpen || !hasConfig) && (
-        <div
-          style={{
-            marginBottom: 24,
-            padding: 22,
-            borderRadius: 16,
-            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(30, 41, 59, 0.7))',
-            border: '1px solid rgba(56, 189, 248, 0.25)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-            <div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', fontWeight: 700, color: '#38bdf8' }}>
-                🔗 Connect Your Google Calendar
-              </h3>
-              <p style={{ margin: '0 0 14px', fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.5 }}>
-                Sync your family events directly without needing any Google Cloud developer accounts or API keys:
-              </p>
-              <ol style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: '0.86rem', color: '#94a3b8', lineHeight: 1.6 }}>
-                <li>Open <strong>Google Calendar</strong> on your desktop.</li>
-                <li>In the left sidebar under "My calendars", hover over your Family calendar and click <strong>⋮ &rarr; Settings and sharing</strong>.</li>
-                <li>Scroll down to <strong>"Integrate calendar"</strong> and copy the <strong>"Secret address in iCal format"</strong> (ends with <code>.ics</code>).</li>
-                <li>(Optional) You can also copy the <strong>"Embed code"</strong> link for the full interactive Google Calendar iframe.</li>
-              </ol>
+      {/* Setup & Connection Banner */}
+      {isParent ? (
+        (settingsOpen || !hasConfig) && (
+          <div
+            style={{
+              marginBottom: 24,
+              padding: 22,
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(30, 41, 59, 0.7))',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', fontWeight: 700, color: '#38bdf8' }}>
+                  🔗 Connect Your Google Calendar
+                </h3>
+                <p style={{ margin: '0 0 14px', fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                  Sync your family events directly without needing any Google Cloud developer accounts or API keys:
+                </p>
+                <ol style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: '0.86rem', color: '#94a3b8', lineHeight: 1.6 }}>
+                  <li>Open <strong>Google Calendar</strong> on your desktop.</li>
+                  <li>In the left sidebar under "My calendars", hover over your Family calendar and click <strong>⋮ &rarr; Settings and sharing</strong>.</li>
+                  <li>Scroll down to <strong>"Integrate calendar"</strong> and copy the <strong>"Secret address in iCal format"</strong> (ends with <code>.ics</code>).</li>
+                  <li>(Optional) You can also copy the <strong>"Embed code"</strong> link for the full interactive Google Calendar iframe.</li>
+                </ol>
+              </div>
+              {hasConfig && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError(null);
+                    setSettingsOpen(false);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
-            {hasConfig && (
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  fontSize: '1.2rem',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕
-              </button>
-            )}
+
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
+                  Secret address in iCal format (.ics URL):
+                </label>
+                <input
+                  type="url"
+                  value={icalUrlInput}
+                  onChange={(e) => {
+                    setFormError(null);
+                    setIcalUrlInput(e.target.value);
+                  }}
+                  placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(15, 23, 42, 0.7)',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
+                  Google Calendar Embed URL (Optional for iframe view):
+                </label>
+                <input
+                  type="url"
+                  value={embedUrlInput}
+                  onChange={(e) => {
+                    setFormError(null);
+                    setEmbedUrlInput(e.target.value);
+                  }}
+                  placeholder="https://calendar.google.com/calendar/embed?src=..."
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(15, 23, 42, 0.7)',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: savingSettings ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <i className="fas fa-check" />
+                  {savingSettings ? 'Saving...' : 'Save & Sync Calendar'}
+                </button>
+              </div>
+            </form>
           </div>
-
-          <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        )
+      ) : (
+        !hasConfig && (
+          <div
+            style={{
+              marginBottom: 24,
+              padding: '16px 20px',
+              borderRadius: 14,
+              background: 'rgba(15, 23, 42, 0.6)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: 'rgba(56, 189, 248, 0.12)',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.15rem',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-calendar-alt" />
+            </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
-                Secret address in iCal format (.ics URL):
-              </label>
-              <input
-                type="url"
-                value={icalUrlInput}
-                onChange={(e) => setIcalUrlInput(e.target.value)}
-                placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  color: '#ffffff',
-                  fontSize: '0.88rem',
-                }}
-              />
+              <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.94rem' }}>
+                Google Calendar Not Connected
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: 2 }}>
+                Switch to a Parent profile to connect your family Google Calendar.
+              </div>
             </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
-                Google Calendar Embed URL (Optional for iframe view):
-              </label>
-              <input
-                type="url"
-                value={embedUrlInput}
-                onChange={(e) => setEmbedUrlInput(e.target.value)}
-                placeholder="https://calendar.google.com/calendar/embed?src=..."
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  color: '#ffffff',
-                  fontSize: '0.88rem',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button
-                type="submit"
-                disabled={savingSettings}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: savingSettings ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <i className="fas fa-check" />
-                {savingSettings ? 'Saving...' : 'Save & Sync Calendar'}
-              </button>
-            </div>
-          </form>
-        </div>
+          </div>
+        )
       )}
 
       {/* Month Navigation Row (For Month View) */}
@@ -874,27 +937,36 @@ export const CalendarView: React.FC = () => {
                 You must provide a Google Calendar Embed URL to display the interactive web calendar iframe here.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              style={{
-                marginTop: 6,
-                padding: '10px 22px',
-                borderRadius: 10,
-                border: 'none',
-                background: '#0284c7',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '0.92rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
-              }}
-            >
-              <i className="fas fa-gear" /> Configure Embed URL
-            </button>
+            {isParent ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormError(null);
+                  setSettingsOpen(true);
+                }}
+                style={{
+                  marginTop: 6,
+                  padding: '10px 22px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                }}
+              >
+                <i className="fas fa-gear" /> Configure Embed URL
+              </button>
+            ) : (
+              <p style={{ color: '#64748b', fontSize: '0.86rem', marginTop: 4 }}>
+                Switch to a Parent profile to configure the Google Calendar Embed URL.
+              </p>
+            )}
           </div>
         )
       )}
