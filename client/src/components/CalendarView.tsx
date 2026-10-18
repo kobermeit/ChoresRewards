@@ -4,6 +4,7 @@ import { CalendarEvent } from '../types';
 import { apiPost, resolveAvatarUrl } from '../api';
 import { Modal } from './common/Modal';
 import { FormErrorAlert } from './FormErrorAlert';
+import { Button, Card, Input } from './ui';
 
 export const CalendarView: React.FC = () => {
   const { data, refresh, showToast, isParent, setActiveView } = useApp();
@@ -251,94 +252,48 @@ export const CalendarView: React.FC = () => {
               display: 'inline-flex',
               background: 'rgba(0,0,0,0.25)',
               padding: 4,
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 'var(--btn-radius)',
+              border: '1px solid var(--color-border-subtle)',
+              gap: 4,
             }}
           >
-            <button
-              type="button"
+            <Button
+              variant={viewMode === 'month' ? 'primary' : 'ghost'}
+              size="sm"
+              icon="fas fa-calendar-days"
               onClick={() => setViewMode('month')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background: viewMode === 'month' ? '#0284c7' : 'transparent',
-                color: viewMode === 'month' ? '#ffffff' : '#94a3b8',
-                fontWeight: 600,
-                fontSize: '0.86rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
             >
-              <i className="fas fa-calendar-days" /> Month
-            </button>
-            <button
-              type="button"
+              Month
+            </Button>
+            <Button
+              variant={viewMode === 'schedule' ? 'primary' : 'ghost'}
+              size="sm"
+              icon="fas fa-list-ul"
               onClick={() => setViewMode('schedule')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background: viewMode === 'schedule' ? '#0284c7' : 'transparent',
-                color: viewMode === 'schedule' ? '#ffffff' : '#94a3b8',
-                fontWeight: 600,
-                fontSize: '0.86rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
             >
-              <i className="fas fa-list-ul" /> Schedule
-            </button>
-            <button
-              type="button"
+              Schedule
+            </Button>
+            <Button
+              variant={viewMode === 'embed' ? 'primary' : 'ghost'}
+              size="sm"
+              icon="fas fa-globe"
               onClick={() => setViewMode('embed')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background: viewMode === 'embed' ? '#0284c7' : 'transparent',
-                color: viewMode === 'embed' ? '#ffffff' : '#94a3b8',
-                fontWeight: 600,
-                fontSize: '0.86rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
             >
-              <i className="fas fa-globe" /> Embed View
-            </button>
+              Embed View
+            </Button>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleSync}
             disabled={syncing}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(255,255,255,0.06)',
-              color: '#f8fafc',
-              fontSize: '0.86rem',
-              fontWeight: 600,
-              cursor: syncing ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            isLoading={syncing}
+            icon={syncing ? undefined : 'fas fa-rotate'}
             title="Refresh events from Google"
           >
-            <i className={`fas fa-rotate ${syncing ? 'fa-spin' : ''}`} style={{ color: '#38bdf8' }} />
             {syncing ? 'Syncing...' : 'Sync Now'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -478,76 +433,40 @@ export const CalendarView: React.FC = () => {
             <form onSubmit={handleSaveInitialSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
-                  Secret address in iCal format (.ics URL):
-                </label>
-                <input
-                  type="url"
-                  value={icalUrlInput}
-                  onChange={(e) => {
-                    setFormError(null);
-                    setIcalUrlInput(e.target.value);
-                  }}
-                  placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(15, 23, 42, 0.7)',
-                    color: '#ffffff',
-                    fontSize: '0.88rem',
-                  }}
-                  required
-                />
-              </div>
+              <Input
+                type="url"
+                label="Secret address in iCal format (.ics URL):"
+                value={icalUrlInput}
+                onChange={(e) => {
+                  setFormError(null);
+                  setIcalUrlInput(e.target.value);
+                }}
+                placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+                required
+              />
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
-                  Google Calendar Embed URL (Optional for iframe view):
-                </label>
-                <input
-                  type="url"
-                  value={embedUrlInput}
-                  onChange={(e) => {
-                    setFormError(null);
-                    setEmbedUrlInput(e.target.value);
-                  }}
-                  placeholder="https://calendar.google.com/calendar/embed?src=..."
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(15, 23, 42, 0.7)',
-                    color: '#ffffff',
-                    fontSize: '0.88rem',
-                  }}
-                />
-              </div>
+              <Input
+                type="url"
+                label="Google Calendar Embed URL (Optional for iframe view):"
+                value={embedUrlInput}
+                onChange={(e) => {
+                  setFormError(null);
+                  setEmbedUrlInput(e.target.value);
+                }}
+                placeholder="https://calendar.google.com/calendar/embed?src=..."
+              />
 
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button
+                <Button
                   type="submit"
+                  variant="primary"
+                  size="md"
+                  icon="fas fa-check"
                   disabled={savingSettings}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#0284c7',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    fontSize: '0.9rem',
-                    cursor: savingSettings ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
+                  isLoading={savingSettings}
                 >
-                  <i className="fas fa-check" />
                   {savingSettings ? 'Saving...' : 'Save & Sync Calendar'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -616,65 +535,31 @@ export const CalendarView: React.FC = () => {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={goToday}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: 6,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(255,255,255,0.06)',
-                  color: '#f8fafc',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.15s',
-                }}
               >
                 Today
-              </button>
+              </Button>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={prevMonth}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#f8fafc',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                  }}
+                  icon="fas fa-chevron-left"
                   title="Previous Month"
-                >
-                  <i className="fas fa-chevron-left" />
-                </button>
-                <button
-                  type="button"
+                  style={{ minWidth: 32, padding: 0 }}
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={nextMonth}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#f8fafc',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                  }}
+                  icon="fas fa-chevron-right"
                   title="Next Month"
-                >
-                  <i className="fas fa-chevron-right" />
-                </button>
+                  style={{ minWidth: 32, padding: 0 }}
+                />
               </div>
 
               <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>

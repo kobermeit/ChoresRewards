@@ -6,6 +6,7 @@ import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FormErrorAlert } from './FormErrorAlert';
+import { Button, Input, Card, Badge } from './ui';
 
 const CHORE_EMOJI_OPTIONS = [
   '', '✅', '🍽️', '🧺', '🗑️', '🧹', '🚿', '🦷', '👕', '🌱', '🍳', '🥗',
@@ -1886,39 +1887,32 @@ export const ChoresKanbanSection: React.FC = () => {
         maxWidth={440}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
-            <button
-              type="button"
-              className="btn-cancel"
+            <Button
+              variant="secondary"
               onClick={() => setEditingPersonModal(null)}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveName}
             >
               Save Name
-            </button>
+            </Button>
           </div>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--cr-text-secondary)' }}>
-            Enter new name
-          </label>
-          <input
-            type="text"
-            className="modern-input"
-            value={editingNameVal}
-            onChange={(e) => setEditingNameVal(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveName();
-            }}
-            autoFocus
-            placeholder="Enter new name"
-          />
-        </div>
+        <Input
+          label="Enter new name"
+          type="text"
+          value={editingNameVal}
+          onChange={(e) => setEditingNameVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSaveName();
+          }}
+          autoFocus
+          placeholder="Enter new name"
+        />
       </Modal>
 
       {/* DELETE / SKIP CHORE MODAL */}
@@ -1930,31 +1924,27 @@ export const ChoresKanbanSection: React.FC = () => {
         maxWidth={480}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-cancel"
+            <Button
+              variant="secondary"
               onClick={() => setChoreToDelete(null)}
             >
               Cancel
-            </button>
+            </Button>
             {(choreToDelete?.is_daily || choreToDelete?.days_of_week) && (
-              <button
-                type="button"
-                className="btn-cancel"
+              <Button
+                variant="secondary"
                 style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.4)' }}
                 onClick={() => handleDeleteChore(choreToDelete, false)}
               >
                 Skip for Today
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ background: '#ef4444', borderColor: '#dc2626' }}
+            <Button
+              variant="danger"
               onClick={() => choreToDelete && handleDeleteChore(choreToDelete, true)}
             >
               {choreToDelete?.is_daily || choreToDelete?.days_of_week ? 'Delete Permanently' : 'Delete Chore'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -1978,13 +1968,12 @@ export const ChoresKanbanSection: React.FC = () => {
         maxWidth={540}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-            <button
-              type="button"
-              className="btn-cancel"
+            <Button
+              variant="secondary"
               onClick={() => setExtraModalPerson(null)}
             >
               Close
-            </button>
+            </Button>
           </div>
         }
       >
@@ -2012,9 +2001,9 @@ export const ChoresKanbanSection: React.FC = () => {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '12px 14px',
-                      borderRadius: 12,
+                      borderRadius: 'var(--card-radius)',
                       background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      border: '1px solid var(--color-border-subtle)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2026,21 +2015,13 @@ export const ChoresKanbanSection: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => handleClaimExtraChore(ec, extraModalPerson)}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 10,
-                        background: '#f59e0b',
-                        color: '#0f172a',
-                        border: 'none',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
                     >
                       Pick Job
-                    </button>
+                    </Button>
                   </div>
                 ))}
             </div>
@@ -2057,13 +2038,12 @@ export const ChoresKanbanSection: React.FC = () => {
         maxWidth={540}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-            <button
-              type="button"
-              className="btn-cancel"
+            <Button
+              variant="secondary"
               onClick={() => setProfileModalPerson(null)}
             >
               Close
-            </button>
+            </Button>
           </div>
         }
       >

@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { DashboardStickyNote } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
+import { Button, Input } from './ui';
 
 const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
@@ -521,6 +522,7 @@ export const DashboardSection: React.FC = () => {
               style={{
                 display: 'flex',
                 gap: 8,
+                alignItems: 'center',
                 flexWrap: 'wrap',
                 marginBottom: 12,
                 padding: 10,
@@ -528,21 +530,25 @@ export const DashboardSection: React.FC = () => {
                 background: 'rgba(0,0,0,0.2)',
               }}
             >
-              <input
-                type="text"
-                placeholder="Title (optional)"
-                value={newNoteTitle}
-                onChange={(e) => setNewNoteTitle(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: 8 }}
-              />
-              <input
-                type="text"
-                placeholder="Write a sticky note..."
-                value={newNoteText}
-                onChange={(e) => setNewNoteText(e.target.value)}
-                required
-                style={{ flex: 1, padding: '6px 10px', borderRadius: 8 }}
-              />
+              <div style={{ width: 160 }}>
+                <Input
+                  inputSize="sm"
+                  type="text"
+                  placeholder="Title (optional)"
+                  value={newNoteTitle}
+                  onChange={(e) => setNewNoteTitle(e.target.value)}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <Input
+                  inputSize="sm"
+                  type="text"
+                  placeholder="Write a sticky note..."
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  required
+                />
+              </div>
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {STICKY_COLORS.map((c) => (
                   <button
@@ -560,9 +566,9 @@ export const DashboardSection: React.FC = () => {
                   />
                 ))}
               </div>
-              <button type="submit" className="btn-primary" style={{ padding: '6px 14px', borderRadius: 8 }}>
+              <Button type="submit" variant="primary" size="sm">
                 Post
-              </button>
+              </Button>
             </form>
           )}
 

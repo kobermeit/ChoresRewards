@@ -3,6 +3,7 @@ import { Person } from '../types';
 import { useApp } from '../context/AppContext';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { resolveAvatarUrl } from '../api';
+import { Button } from './ui';
 
 interface ProfileSwitcherModalProps {
   isOpen: boolean;
@@ -189,7 +190,7 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
           width: '100%',
           maxWidth: '520px',
           background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-          borderRadius: '24px',
+          borderRadius: 'var(--modal-radius)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
           padding: '28px',
@@ -601,44 +602,26 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
                 borderTop: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="fas fa-user-plus"
                 onClick={() => {
                   onClose();
                   openEditMemberModal();
                 }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#93c5fd',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 8px',
-                }}
+                style={{ color: '#93c5fd' }}
               >
-                <i className="fas fa-user-plus" /> Add Family Member
-              </button>
+                Add Family Member
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={onClose}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#cbd5e1',
-                  borderRadius: '10px',
-                  padding: '7px 16px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
               >
                 Close
-              </button>
+              </Button>
             </div>
           </>
         )}

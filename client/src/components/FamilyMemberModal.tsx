@@ -3,6 +3,7 @@ import { Person, UserRole } from '../types';
 import { apiPost, resolveAvatarUrl } from '../api';
 import { useApp } from '../context/AppContext';
 import { Modal } from './common/Modal';
+import { Button, Input } from './ui';
 
 const PRESET_COLORS = [
   '#3b82f6', // Blue
@@ -152,22 +153,21 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
       maxWidth={520}
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
-          <button
-            type="button"
-            className="btn-cancel"
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={saving}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={saving}
+            isLoading={saving}
           >
             {saving ? 'Saving...' : member ? 'Update Member' : 'Add Member'}
-          </button>
+          </Button>
         </div>
       }
     >
@@ -240,47 +240,26 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
               style={{ display: 'none' }}
             />
 
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="fas fa-camera"
               onClick={() => fileInputRef.current?.click()}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#93c5fd',
-                borderRadius: '8px',
-                padding: '6px 14px',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
+              style={{ color: '#93c5fd' }}
             >
-              <i className="fas fa-camera" /> {avatarPreview ? 'Change Photo' : 'Upload Photo'}
-            </button>
+              {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+            </Button>
           </div>
 
           {/* Name Input */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Name</label>
-            <input
-              type="text"
-              className="modern-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Abby"
-              required
-              style={{
-                padding: '10px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#fff',
-                fontSize: '0.95rem',
-              }}
-            />
-          </div>
+          <Input
+            label="Name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Abby"
+            required
+          />
 
           {/* Date of Birth & Dynamic Age Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
@@ -412,57 +391,26 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
           </div>
 
           {/* PIN Input (Optional) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>
-              PIN Protection {member?.has_pin && <span style={{ color: '#10b981' }}>(Current PIN set)</span>}
-            </label>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={8}
-              className="modern-input"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep)' : 'Optional 4-digit PIN'}
-              style={{
-                padding: '10px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#fff',
-                fontSize: '0.95rem',
-              }}
-            />
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              Used when switching to this profile on the shared tablet.
-            </span>
-          </div>
+          <Input
+            label={member?.has_pin ? 'PIN Protection (Current PIN set)' : 'PIN Protection (Optional)'}
+            type="password"
+            inputMode="numeric"
+            maxLength={8}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+            placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep)' : 'Optional 4-digit PIN'}
+            helperText="Used when switching to this profile on the shared tablet."
+          />
 
           {/* Personal Google Calendar (.ics) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="fas fa-calendar-alt" style={{ color }} />
-              Personal Google Calendar (.ics URL)
-            </label>
-            <input
-              type="url"
-              className="modern-input"
-              value={calendarIcalUrl}
-              onChange={(e) => setCalendarIcalUrl(e.target.value)}
-              placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
-              style={{
-                padding: '10px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#fff',
-                fontSize: '0.85rem',
-              }}
-            />
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              Events from this sub-calendar will automatically appear with {name ? `${name}'s` : 'this person\'s'} color ({color}).
-            </span>
-          </div>
+          <Input
+            label="Personal Google Calendar (.ics URL)"
+            type="url"
+            value={calendarIcalUrl}
+            onChange={(e) => setCalendarIcalUrl(e.target.value)}
+            placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+            helperText={`Events from this sub-calendar will automatically appear with ${name ? `${name}'s` : "this person's"} color (${color}).`}
+          />
 
       </form>
     </Modal>

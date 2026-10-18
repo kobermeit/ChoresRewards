@@ -6,6 +6,7 @@ import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
 import { FormErrorAlert } from './FormErrorAlert';
+import { Button, Input, Select, Badge } from './ui';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -756,21 +757,20 @@ export const RewardsSection: React.FC = () => {
         maxWidth={620}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
-            <button
-              type="button"
-              className="btn-cancel"
+            <Button
+              variant="secondary"
               onClick={() => setModalOpen(false)}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
+            </Button>
+            <Button
+              variant="primary"
               disabled={submitting}
+              isLoading={submitting}
               onClick={handleSaveModal}
             >
               {submitting ? 'Saving...' : editingReward ? 'Save Changes' : 'Create Reward'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -778,56 +778,41 @@ export const RewardsSection: React.FC = () => {
           <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
           {/* Title with Autocomplete */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
-              Reward Title <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input
-              type="text"
-              list="reward-suggestions-datalist"
-              placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-              required
-              autoFocus
-              className="modern-input"
-            />
-          </div>
+          <Input
+            label="Reward Title"
+            type="text"
+            list="reward-suggestions-datalist"
+            placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
+            value={formTitle}
+            onChange={(e) => setFormTitle(e.target.value)}
+            required
+            autoFocus
+          />
 
           {/* Points & Assignee Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
-                {isCash ? 'Cost ($)' : 'Points Required'} <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="number"
-                min={isCash ? '0.01' : '1'}
-                step={isCash ? '0.01' : '1'}
-                value={formPoints}
-                onChange={(e) => setFormPoints(e.target.value)}
-                required
-                className="modern-input"
-              />
-            </div>
+            <Input
+              label={isCash ? 'Cost ($)' : 'Points Required'}
+              type="number"
+              min={isCash ? '0.01' : '1'}
+              step={isCash ? '0.01' : '1'}
+              value={formPoints}
+              onChange={(e) => setFormPoints(e.target.value)}
+              required
+            />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
-                Assign To
-              </label>
-              <select
-                value={formAssignedTo}
-                onChange={(e) => setFormAssignedTo(e.target.value)}
-                className="modern-input"
-              >
-                <option value="Everyone">🌟 Everyone (All Family)</option>
-                {family.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Assign To"
+              value={formAssignedTo}
+              onChange={(e) => setFormAssignedTo(e.target.value)}
+            >
+              <option value="Everyone">🌟 Everyone (All Family)</option>
+              {family.map((p) => (
+                <option key={p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
           </div>
 
           {/* Recurring Toggle */}
@@ -964,9 +949,9 @@ export const RewardsSection: React.FC = () => {
         icon="fas fa-gift"
         maxWidth={440}
         footer={
-          <button type="button" className="btn-cancel" onClick={() => setRedeemPickerReward(null)}>
+          <Button variant="secondary" onClick={() => setRedeemPickerReward(null)}>
             Cancel
-          </button>
+          </Button>
         }
       >
         {redeemPickerReward && (
@@ -1048,10 +1033,10 @@ export const RewardsSection: React.FC = () => {
               maxWidth: 440,
               width: '100%',
               padding: 28,
-              borderRadius: 22,
+              borderRadius: 'var(--modal-radius)',
               textAlign: 'center',
               background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-              border: '2px solid #22c55e',
+              border: '2px solid var(--color-success)',
               color: '#fff',
             }}
             onClick={(e) => e.stopPropagation()}
@@ -1061,14 +1046,15 @@ export const RewardsSection: React.FC = () => {
             <p style={{ fontSize: '1.1rem', fontWeight: 700, color: '#4ade80' }}>
               {celebratingReward.personName} unlocked "{celebratingReward.title}"!
             </p>
-            <button
-              type="button"
-              className="save-btn"
-              onClick={() => setCelebratingReward(null)}
-              style={{ marginTop: 16, padding: '10px 24px', borderRadius: 12, fontWeight: 800 }}
-            >
-              Awesome! 🙌
-            </button>
+            <div style={{ marginTop: 16 }}>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => setCelebratingReward(null)}
+              >
+                Awesome! 🙌
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { SetupWizard } from './SetupWizard';
 import { FormErrorAlert } from './FormErrorAlert';
+import { Button, Input, Select, Card, Badge } from './ui';
 
 // ============================================================================
 // 1. SETTINGS VIEW
@@ -446,13 +447,10 @@ export const SettingsView: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>
-                  Daily Chore Reset Time
-                </label>
-                <select
+                <Select
+                  label="Daily Chore Reset Time"
                   value={dailyResetHour}
                   onChange={(e) => setDailyResetHour(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
                 >
                   <option value="0">12:00 AM (Midnight — Recommended)</option>
                   <option value="1">1:00 AM</option>
@@ -461,7 +459,7 @@ export const SettingsView: React.FC = () => {
                   <option value="4">4:00 AM</option>
                   <option value="5">5:00 AM</option>
                   <option value="6">6:00 AM</option>
-                </select>
+                </Select>
               </div>
             </div>
 
@@ -485,89 +483,66 @@ export const SettingsView: React.FC = () => {
                   {settingsData?.last_daily_reset || data?.current_date || 'today'}.
                 </div>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
+                icon="fas fa-rotate"
                 onClick={handleResetDailyChoresNow}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 10,
-                  background: '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
               >
-                🔄 Reset Today's Chores Now
-              </button>
+                Reset Today's Chores Now
+              </Button>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: 4 }}>
-                Reward System
-              </label>
-              <select
-                value={rewardSys}
-                onChange={(e) => setRewardSys(e.target.value as any)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-              >
-                <option value="points">⭐ Points System</option>
-                <option value="cash">💵 Cash / Pocket Money ($)</option>
-              </select>
-            </div>
+            <Select
+              label="Reward System"
+              value={rewardSys}
+              onChange={(e) => setRewardSys(e.target.value as any)}
+            >
+              <option value="points">⭐ Points System</option>
+              <option value="cash">💵 Cash / Pocket Money ($)</option>
+            </Select>
+
+            <Input
+              label="Weather City / Suburb (Open-Meteo)"
+              type="text"
+              placeholder="e.g. Brisbane, Sydney, Melbourne..."
+              value={weatherLoc}
+              onChange={(e) => setWeatherLoc(e.target.value)}
+            />
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 4 }}>
-                Weather City / Suburb (Open-Meteo)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Brisbane, Sydney, Melbourne..."
-                value={weatherLoc}
-                onChange={(e) => setWeatherLoc(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
+              <Input
+                label="Master App Lock PIN (leave blank to keep current)"
+                type="password"
+                placeholder="Set 4-digit Master PIN..."
+                value={masterPin}
+                onChange={(e) => setMasterPin(e.target.value)}
               />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 4 }}>
-                Master App Lock PIN (leave blank to keep current)
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="password"
-                  placeholder="Set 4-digit Master PIN..."
-                  value={masterPin}
-                  onChange={(e) => setMasterPin(e.target.value)}
-                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10 }}
-                />
-                {data?.master_pin_set && (
-                  <button
-                    type="button"
+              {data?.master_pin_set && (
+                <div style={{ marginTop: 8 }}>
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={async () => {
                       await apiPost('clear_pin', {});
                       showToast('Removed Master PIN');
                       await refresh();
                     }}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      background: 'rgba(239,68,68,0.2)',
-                      color: '#f87171',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
                   >
                     Remove PIN
-                  </button>
-                )}
-              </div>
+                  </Button>
+                </div>
+              )}
             </div>
 
-            <button type="submit" className="btn-primary" style={{ padding: '12px', borderRadius: 10, fontWeight: 700 }}>
-              💾 Save General Settings
-            </button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              icon="fas fa-save"
+            >
+              Save General Settings
+            </Button>
           </div>
         </form>
       )}
@@ -577,23 +552,14 @@ export const SettingsView: React.FC = () => {
         <div className="card" style={{ padding: 24, borderRadius: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>👨‍👩‍👧‍👦 Manage Family Members</h3>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
+              icon="fas fa-user-plus"
               onClick={() => openEditMemberModal(null)}
-              className="btn-primary"
-              style={{
-                padding: '8px 16px',
-                borderRadius: 10,
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
             >
-              <i className="fas fa-user-plus" /> Add Member
-            </button>
+              Add Member
+            </Button>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -607,7 +573,7 @@ export const SettingsView: React.FC = () => {
                   flexWrap: 'wrap',
                   gap: 12,
                   padding: '12px 16px',
-                  borderRadius: 12,
+                  borderRadius: 'var(--card-radius)',
                   background: 'rgba(255,255,255,0.05)',
                   borderLeft: `5px solid ${p.color || '#3b82f6'}`,
                 }}
@@ -660,68 +626,36 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon="fas fa-pencil-alt"
                     onClick={() => openEditMemberModal(p)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      background: 'rgba(59,130,246,0.2)',
-                      color: '#93c5fd',
-                      border: 'none',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
                   >
-                    ✏️ Edit
-                  </button>
-                  <button
-                    type="button"
+                    Edit
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleAdjustPoints(p.id, 1)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(34,197,94,0.2)',
-                      color: '#4ade80',
-                      border: 'none',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
                   >
                     +1 pt
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleAdjustPoints(p.id, -1)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(245,158,11,0.2)',
-                      color: '#fbbf24',
-                      border: 'none',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
                   >
                     -1 pt
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon="fas fa-trash-alt"
                     onClick={() => handleDeletePerson(p.id, p.name)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      background: 'rgba(239,68,68,0.2)',
-                      color: '#f87171',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
                   >
-                    🗑️ Delete
-                  </button>
+                    Delete
+                  </Button>
                 </div>
               </div>
             ))}
@@ -729,28 +663,31 @@ export const SettingsView: React.FC = () => {
 
           <h4>➕ Add Family Member</h4>
           <form onSubmit={handleAddPerson} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="Name"
-              value={newPersonName}
-              onChange={(e) => setNewPersonName(e.target.value)}
-              required
-              style={{ padding: '10px 12px', borderRadius: 10 }}
-            />
-            <input
-              type="number"
-              placeholder="Age (optional)"
-              value={newPersonAge}
-              onChange={(e) => setNewPersonAge(e.target.value)}
-              style={{ width: 130, padding: '10px 12px', borderRadius: 10 }}
-            />
+            <div style={{ flex: '1 1 180px' }}>
+              <Input
+                type="text"
+                placeholder="Name"
+                value={newPersonName}
+                onChange={(e) => setNewPersonName(e.target.value)}
+                required
+              />
+            </div>
+            <div style={{ width: 130 }}>
+              <Input
+                type="number"
+                placeholder="Age (optional)"
+                value={newPersonAge}
+                onChange={(e) => setNewPersonAge(e.target.value)}
+              />
+            </div>
             <input
               type="color"
               value={newPersonColor}
               onChange={(e) => setNewPersonColor(e.target.value)}
-              style={{ width: 44, height: 40, border: 'none', background: 'none', cursor: 'pointer' }}
+              style={{ width: 44, height: 42, border: 'none', background: 'none', cursor: 'pointer' }}
+              title="Accent Color"
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={newPersonAdmin}
@@ -759,17 +696,18 @@ export const SettingsView: React.FC = () => {
               Parent / Admin
             </label>
             {newPersonAdmin && (
-              <input
-                type="password"
-                placeholder="Adult PIN (e.g. 1234)"
-                value={newPersonPin}
-                onChange={(e) => setNewPersonPin(e.target.value)}
-                style={{ width: 150, padding: '10px 12px', borderRadius: 10 }}
-              />
+              <div style={{ width: 150 }}>
+                <Input
+                  type="password"
+                  placeholder="Adult PIN"
+                  value={newPersonPin}
+                  onChange={(e) => setNewPersonPin(e.target.value)}
+                />
+              </div>
             )}
-            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>
-              + Add Member
-            </button>
+            <Button type="submit" variant="primary" icon="fas fa-plus">
+              Add Member
+            </Button>
           </form>
         </div>
       )}
@@ -797,16 +735,17 @@ export const SettingsView: React.FC = () => {
                   </strong>{' '}
                   — <span style={{ opacity: 0.8 }}>{c.assigned_to}</span> ({c.points} pts)
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="fas fa-trash-alt"
                   onClick={async () => {
                     await apiPost('delete_chore', { chore_id: c.id, permanent: true });
                     await refresh();
                   }}
-                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
                 >
-                  🗑️ Delete
-                </button>
+                  Delete
+                </Button>
               </div>
             ))}
           </div>
@@ -818,59 +757,58 @@ export const SettingsView: React.FC = () => {
         <div className="card" style={{ padding: 24, borderRadius: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0 }}>⚡ Extra Bonus Chores Pool</h3>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="fas fa-rotate"
               onClick={async () => {
                 await apiPost('extra_chores/reset_defaults', {});
                 showToast('Reset Extra Chores to defaults');
                 await refresh();
               }}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 8,
-                background: 'rgba(255,255,255,0.08)',
-                color: 'inherit',
-                border: 'none',
-                cursor: 'pointer',
-              }}
             >
-              ↺ Reset Defaults
-            </button>
+              Reset Defaults
+            </Button>
           </div>
 
-          <form onSubmit={handleAddExtraChore} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-            <input
-              type="text"
-              value={ecIcon}
-              onChange={(e) => setEcIcon(e.target.value)}
-              style={{ width: 54, textAlign: 'center', padding: 10, borderRadius: 8 }}
-            />
-            <input
-              type="text"
-              placeholder="Extra chore title (e.g. Wash the Car)"
-              value={ecTitle}
-              onChange={(e) => setEcTitle(e.target.value)}
-              required
-              style={{ flex: 1, padding: '10px 12px', borderRadius: 8 }}
-            />
-            <input
-              type="number"
-              step="0.5"
-              placeholder="Points"
-              value={ecPoints}
-              onChange={(e) => setEcPoints(e.target.value)}
-              style={{ width: 90, padding: '10px 12px', borderRadius: 8 }}
-            />
-            <input
-              type="number"
-              placeholder="Min Age"
-              value={ecMinAge}
-              onChange={(e) => setEcMinAge(e.target.value)}
-              style={{ width: 90, padding: '10px 12px', borderRadius: 8 }}
-            />
-            <button type="submit" className="btn-primary" style={{ padding: '10px 18px', borderRadius: 8, fontWeight: 700 }}>
-              + Add Extra Chore
-            </button>
+          <form onSubmit={handleAddExtraChore} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ width: 60 }}>
+              <Input
+                type="text"
+                value={ecIcon}
+                onChange={(e) => setEcIcon(e.target.value)}
+                style={{ textAlign: 'center' }}
+              />
+            </div>
+            <div style={{ flex: '1 1 200px' }}>
+              <Input
+                type="text"
+                placeholder="Extra chore title (e.g. Wash the Car)"
+                value={ecTitle}
+                onChange={(e) => setEcTitle(e.target.value)}
+                required
+              />
+            </div>
+            <div style={{ width: 100 }}>
+              <Input
+                type="number"
+                step="0.5"
+                placeholder="Points"
+                value={ecPoints}
+                onChange={(e) => setEcPoints(e.target.value)}
+              />
+            </div>
+            <div style={{ width: 100 }}>
+              <Input
+                type="number"
+                placeholder="Min Age"
+                value={ecMinAge}
+                onChange={(e) => setEcMinAge(e.target.value)}
+              />
+            </div>
+            <Button type="submit" variant="primary" icon="fas fa-plus">
+              Add Extra Chore
+            </Button>
           </form>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -892,16 +830,15 @@ export const SettingsView: React.FC = () => {
                   </strong>{' '}
                   — +{ec.points} pts (Min age: {ec.min_age}+)
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="fas fa-trash-alt"
                   onClick={async () => {
                     await apiPost('extra_chores/delete', { id: ec.id });
                     await refresh();
                   }}
-                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                >
-                  🗑️
-                </button>
+                />
               </div>
             ))}
           </div>
@@ -944,31 +881,24 @@ export const SettingsView: React.FC = () => {
               >
                 <span>🎵 {s.filename}</span>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon="fas fa-play"
                     onClick={() => playSound(s.url)}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 8,
-                      background: 'rgba(59,130,246,0.2)',
-                      color: '#60a5fa',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
                   >
-                    ▶ Play
-                  </button>
+                    Play
+                  </Button>
                   {s.deletable && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="fas fa-trash-alt"
                       onClick={async () => {
                         await apiPost('delete_sound', { filename: s.filename });
                         await loadSettings();
                       }}
-                      style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                    >
-                      🗑️
-                    </button>
+                    />
                   )}
                 </div>
               </div>
@@ -982,7 +912,7 @@ export const SettingsView: React.FC = () => {
         <form onSubmit={handleSaveGotify} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 600 }}>
           <h3 style={{ marginTop: 0 }}>🔔 Gotify Push Notifications</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={gotifyEnabled}
@@ -990,38 +920,32 @@ export const SettingsView: React.FC = () => {
               />
               Enable Gotify Push Notifications
             </label>
-            <input
+            <Input
+              label="Gotify Server URL"
               type="text"
-              placeholder="Gotify Server URL (e.g. http://192.168.1.50:8080)"
+              placeholder="e.g. http://192.168.1.50:8080"
               value={gotifyUrl}
               onChange={(e) => setGotifyUrl(e.target.value)}
-              style={{ padding: '10px 12px', borderRadius: 10 }}
             />
-            <input
+            <Input
+              label="Gotify App Token"
               type="password"
-              placeholder="Gotify App Token"
+              placeholder="Token string..."
               value={gotifyToken}
               onChange={(e) => setGotifyToken(e.target.value)}
-              style={{ padding: '10px 12px', borderRadius: 10 }}
             />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button type="submit" className="btn-primary" style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <Button type="submit" variant="primary" icon="fas fa-save">
                 Save Gotify Settings
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                icon="fas fa-paper-plane"
                 onClick={handleTestGotify}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.1)',
-                  color: 'inherit',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
               >
-                📨 Send Test Push
-              </button>
+                Send Test Push
+              </Button>
             </div>
           </div>
         </form>
@@ -1032,29 +956,19 @@ export const SettingsView: React.FC = () => {
         <form onSubmit={handleSaveCalendar} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>📅 Google Calendar Integration</h3>
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
+              icon="fas fa-rotate"
               onClick={async () => {
                 await apiPost('sync_calendar', {});
                 showToast('Calendar synced with Google!');
                 await refresh();
               }}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 8,
-                background: 'rgba(56, 189, 248, 0.15)',
-                color: '#38bdf8',
-                border: 'none',
-                fontWeight: 600,
-                fontSize: '0.84rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
             >
-              <i className="fas fa-rotate" /> Sync Now
-            </button>
+              Sync Now
+            </Button>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1064,37 +978,23 @@ export const SettingsView: React.FC = () => {
               Enable Google Calendar Sync
             </label>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                Whole-Family Shared Calendar (.ics URL)
-              </label>
-              <input
-                type="url"
-                placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
-                value={calIcalUrl}
-                onChange={(e) => setCalIcalUrl(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-              />
-              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
-                Events from this shared family calendar will appear in Gold / Yellow (or mapped to a person if their name is in the event title).
-              </span>
-            </div>
+            <Input
+              label="Whole-Family Shared Calendar (.ics URL)"
+              type="url"
+              placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+              value={calIcalUrl}
+              onChange={(e) => setCalIcalUrl(e.target.value)}
+              helperText="Events from this shared family calendar will appear in Gold / Yellow (or mapped to a person if their name is in the event title)."
+            />
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                Combined Google Calendar Embed URL (Optional for Iframe View)
-              </label>
-              <input
-                type="url"
-                placeholder="https://calendar.google.com/calendar/embed?src=..."
-                value={calEmbedUrl}
-                onChange={(e) => setCalEmbedUrl(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
-              />
-              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
-                In Google Calendar settings &rarr; "Integrate calendar", click <strong>Customise</strong> to select all family sub-calendars together in one single combined embed view.
-              </span>
-            </div>
+            <Input
+              label="Combined Google Calendar Embed URL (Optional for Iframe View)"
+              type="url"
+              placeholder="https://calendar.google.com/calendar/embed?src=..."
+              value={calEmbedUrl}
+              onChange={(e) => setCalEmbedUrl(e.target.value)}
+              helperText="In Google Calendar settings &rarr; 'Integrate calendar', click Customise to select all family sub-calendars together in one single combined embed view."
+            />
 
             {/* Family Members Sub-Calendars Summary */}
             <div
@@ -1149,30 +1049,27 @@ export const SettingsView: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon="fas fa-edit"
                       onClick={() => openEditMemberModal(m)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        color: '#cbd5e1',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        fontSize: '0.76rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
                     >
-                      <i className="fas fa-edit" style={{ marginRight: 4 }} /> Edit
-                    </button>
+                      Edit
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
 
-            <button type="submit" className="btn-primary" style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 700 }}>
-              💾 Save Calendar Settings
-            </button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              icon="fas fa-save"
+            >
+              Save Calendar Settings
+            </Button>
           </div>
         </form>
       )}
@@ -1208,9 +1105,14 @@ export const SettingsView: React.FC = () => {
                 />
               </div>
             </div>
-            <button type="submit" className="btn-primary" style={{ padding: '10px', borderRadius: 10, fontWeight: 700 }}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              icon="fas fa-save"
+            >
               Save Screensaver Settings
-            </button>
+            </Button>
           </form>
 
           <h4>📷 Upload Slideshow Photos / Videos</h4>
@@ -1319,38 +1221,24 @@ export const SettingsView: React.FC = () => {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: '0.86rem', fontWeight: 700 }}>
-                Notion Integration Token <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="password"
-                value={notionToken}
-                onChange={(e) => setNotionToken(e.target.value)}
-                placeholder="secret_..."
-                className="modern-input"
-                autoComplete="off"
-              />
-              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>
-                Create an internal integration at <strong>notion.so/my-integrations</strong> and paste the secret token here.
-              </span>
-            </div>
+            <Input
+              label="Notion Integration Token *"
+              type="password"
+              value={notionToken}
+              onChange={(e) => setNotionToken(e.target.value)}
+              placeholder="secret_..."
+              autoComplete="off"
+              helperText="Create an internal integration at notion.so/my-integrations and paste the secret token here."
+            />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: '0.86rem', fontWeight: 700 }}>
-                Notion Database ID or URL <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={notionDbId}
-                onChange={(e) => setNotionDbId(e.target.value)}
-                placeholder="e.g. 1a2b3c4d5e6f... or full Notion database URL"
-                className="modern-input"
-              />
-              <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)' }}>
-                Copy the 32-character ID from your Notion database URL (or paste the entire database URL).
-              </span>
-            </div>
+            <Input
+              label="Notion Database ID or URL *"
+              type="text"
+              value={notionDbId}
+              onChange={(e) => setNotionDbId(e.target.value)}
+              placeholder="e.g. 1a2b3c4d5e6f... or full Notion database URL"
+              helperText="Copy the 32-character ID from your Notion database URL (or paste the entire database URL)."
+            />
 
             {/* Guide notice */}
             <div
@@ -1368,26 +1256,24 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-              <button
+              <Button
                 type="button"
-                className="btn-cancel"
-                disabled={testingNotion}
+                variant="secondary"
+                isLoading={testingNotion}
+                icon="fas fa-plug"
                 onClick={handleTestNotion}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <i className={testingNotion ? 'fas fa-spinner fa-spin' : 'fas fa-plug'} />
-                {testingNotion ? 'Testing...' : 'Test Connection'}
-              </button>
+                Test Connection
+              </Button>
 
-              <button
+              <Button
                 type="submit"
-                className="btn-primary"
-                disabled={savingNotion}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                variant="primary"
+                isLoading={savingNotion}
+                icon="fas fa-check"
               >
-                <i className="fas fa-check" />
-                {savingNotion ? 'Saving...' : 'Save Notion Settings'}
-              </button>
+                Save Notion Settings
+              </Button>
             </div>
           </div>
         </form>
@@ -1417,29 +1303,29 @@ export const ActivityLogView: React.FC = () => {
     <div style={{ padding: '20px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ margin: 0 }}>📜 Activity & Point Log</h2>
-        <button
+        <Button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="btn-primary"
-          style={{ padding: '8px 18px', borderRadius: 10 }}
+          variant="primary"
+          size="sm"
+          icon="fas fa-arrow-left"
         >
-          ← Back to Dashboard
-        </button>
+          Back to Dashboard
+        </Button>
       </div>
 
       <div className="card" style={{ padding: 20, borderRadius: 16 }}>
-        <div style={{ marginBottom: 14 }}>
-          <select
+        <div style={{ marginBottom: 14, maxWidth: 300 }}>
+          <Select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8 }}
           >
             <option value="">All Activity Types</option>
             <option value="chore_completed">Chore Completed</option>
             <option value="reward_redeemed">Reward Redeemed</option>
             <option value="bonus_points">Bonus Points</option>
             <option value="badge_earned">Badge Earned</option>
-          </select>
+          </Select>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1489,14 +1375,15 @@ export const ChoreHistoryView: React.FC = () => {
     <div style={{ padding: '20px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ margin: 0 }}>📊 Chore History & Stats (Last 30 Days)</h2>
-        <button
+        <Button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="btn-primary"
-          style={{ padding: '8px 18px', borderRadius: 10 }}
+          variant="primary"
+          size="sm"
+          icon="fas fa-arrow-left"
         >
-          ← Back to Dashboard
-        </button>
+          Back to Dashboard
+        </Button>
       </div>
 
       {historyData && (
