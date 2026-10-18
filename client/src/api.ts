@@ -12,17 +12,25 @@ export function resolveAssetUrl(url: string | null | undefined): string {
   if (url.startsWith('/')) {
     return `.${url}`;
   }
+  if (url.startsWith('static/')) {
+    return `./${url}`;
+  }
+  if (url.startsWith('uploads/')) {
+    return `./static/${url}`;
+  }
   return `./static/uploads/${url}`;
 }
 
 export function resolveAvatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar === 'default_avatar.png') {
+  if (!avatar || avatar === 'default_avatar.png' || avatar.endsWith('/default_avatar.png')) {
     return './static/uploads/default_avatar.png';
   }
-  if (avatar.startsWith('http') || avatar.startsWith('./') || avatar.startsWith('/')) {
-    return resolveAssetUrl(avatar);
+  if (avatar.startsWith('http://') || avatar.startsWith('https://') || avatar.startsWith('data:')) {
+    return avatar;
   }
-  return `./static/uploads/${avatar}`;
+  // Strip any leading ./, /, static/, uploads/ to avoid duplicate folder segments
+  const clean = avatar.replace(/^(\.\/)?\/?(static\/)?(uploads\/)?/, '');
+  return `./static/uploads/${clean}`;
 }
 
 export function resolveApiUrl(endpoint: string): string {

@@ -281,8 +281,33 @@ authRouter.post('/api/adult_logout', (req: Request, res: Response) => {
 
 authRouter.post('/api/switch_user', (req: Request, res: Response) => {
   const { person_id, pin } = req.body || {};
-  if (!person_id) {
+  if (person_id === undefined || person_id === null) {
     res.status(400).json({ success: false, error: 'person_id is required' });
+    return;
+  }
+
+  if (Number(person_id) === -1) {
+    req.session.authenticated = true;
+    delete req.session.person_id;
+    req.session.person_name = 'Family Kiosk';
+    req.session.adult_mode = false;
+    delete req.session.adult_name;
+
+    const kioskRow = db.prepare("SELECT * FROM person WHERE role = 'family'").get() as any;
+    const kioskUser = {
+      id: kioskRow?.id || -1,
+      name: kioskRow?.name || 'Family Kiosk',
+      role: 'family',
+      avatar: kioskRow?.avatar || 'default_avatar.png',
+      color: kioskRow?.color || '#3b82f6',
+      is_admin: false,
+      has_pin: false,
+    };
+
+    res.json({
+      success: true,
+      active_user: kioskUser,
+    });
     return;
   }
 

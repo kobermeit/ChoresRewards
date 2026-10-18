@@ -181,7 +181,9 @@ export function initDatabase() {
 
   // Safe migrations for existing databases
   ensureColumn('person', 'age', 'INTEGER');
+  ensureColumn('person', 'dob', 'DATE');
   ensureColumn('person', 'role', "VARCHAR(20) DEFAULT 'child'");
+  ensureColumn('person', 'calendar_ical_url', 'TEXT');
   ensureColumn('chore', 'icon', 'VARCHAR(20)');
   ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
   ensureColumn('chore', 'extra_id', 'VARCHAR(32)');

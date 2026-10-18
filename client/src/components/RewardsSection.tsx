@@ -413,6 +413,9 @@ export const RewardsSection: React.FC = () => {
                 <img
                   src={resolveAvatarUrl(person.avatar)}
                   alt={person.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
                   style={{
                     width: 24,
                     height: 24,
@@ -591,6 +594,9 @@ export const RewardsSection: React.FC = () => {
                         <img
                           src={resolveAvatarUrl(assignedPerson?.avatar)}
                           alt={reward.assigned_to}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                          }}
                           style={{
                             width: 18,
                             height: 18,
@@ -991,6 +997,9 @@ export const RewardsSection: React.FC = () => {
                       <img
                         src={resolveAvatarUrl(person.avatar)}
                         alt={person.name}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                        }}
                         style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
                       />
                       <div>
@@ -1170,6 +1179,9 @@ export const RedeemedRewardsSection: React.FC = () => {
                   <img
                     src={resolveAvatarUrl(person?.avatar)}
                     alt={reward.assigned_to}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                    }}
                     style={{
                       width: 20,
                       height: 20,

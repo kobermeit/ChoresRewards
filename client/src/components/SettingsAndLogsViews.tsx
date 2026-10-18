@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { SetupWizard } from './SetupWizard';
+import { FormErrorAlert } from './FormErrorAlert';
 
 // ============================================================================
 // 1. SETTINGS VIEW
@@ -49,6 +50,7 @@ export const SettingsView: React.FC = () => {
   const [calEnabled, setCalEnabled] = useState(false);
   const [calIcalUrl, setCalIcalUrl] = useState('');
   const [calEmbedUrl, setCalEmbedUrl] = useState('');
+  const [calFormError, setCalFormError] = useState<string | null>(null);
 
   // Screensaver state
   const [ssConfig, setSsConfig] = useState<any>(null);
@@ -70,10 +72,10 @@ export const SettingsView: React.FC = () => {
           setGotifyUrl(res.gotify.url || '');
           setGotifyToken(res.gotify.token || '');
         }
-        if (res.google_calendar || res.gcal_ical_url) {
+        if (res.google_calendar || res.gcal_ical_url !== undefined || res.gcal_embed_url !== undefined) {
           setCalEnabled(Boolean(res.google_calendar_enabled ?? res.google_calendar?.enabled));
-          setCalIcalUrl(res.gcal_ical_url || '');
-          setCalEmbedUrl(res.gcal_embed_url || '');
+          setCalIcalUrl(res.gcal_ical_url || res.google_calendar?.ical_url || '');
+          setCalEmbedUrl(res.gcal_embed_url || res.google_calendar?.embed_url || '');
         }
       }
     } catch {
@@ -277,14 +279,21 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveCalendar = async (e: React.FormEvent) => {
     e.preventDefault();
-    await apiPost('save_calendar_settings', {
-      google_calendar_enabled: calEnabled,
-      gcal_ical_url: calIcalUrl.trim(),
-      gcal_embed_url: calEmbedUrl.trim(),
-    });
-    showToast('Saved Google Calendar settings & synced!');
-    await refresh();
-    await loadSettings();
+    setCalFormError(null);
+    try {
+      await apiPost('save_calendar_settings', {
+        google_calendar_enabled: calEnabled,
+        gcal_ical_url: calIcalUrl.trim(),
+        gcal_embed_url: calEmbedUrl.trim(),
+      });
+      showToast('Saved Google Calendar settings & synced!');
+      await refresh();
+      await loadSettings();
+    } catch (err: any) {
+      const msg = err.message || 'Failed to save calendar settings';
+      setCalFormError(msg);
+      showToast(msg, { type: 'error' });
+    }
   };
 
   const handleSaveScreensaver = async (e: React.FormEvent) => {
@@ -607,6 +616,9 @@ export const SettingsView: React.FC = () => {
                   <img
                     src={resolveAvatarUrl(p.avatar)}
                     alt={p.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                    }}
                     style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div>
@@ -636,8 +648,13 @@ export const SettingsView: React.FC = () => {
                         {p.role || (p.is_admin ? 'Parent' : 'Child')}
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.82rem', opacity: 0.75 }}>
-                      Balance: {p.points} pts (+{p.bonus_points} bonus) {p.age != null ? `• Age ${p.age}` : ''}
+                    <div style={{ fontSize: '0.82rem', opacity: 0.75, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>Balance: {p.points} pts (+{p.bonus_points} bonus) {p.age != null ? `• Age ${p.age}` : ''}</span>
+                      {p.calendar_ical_url && (
+                        <span style={{ fontSize: '0.72rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <i className="fas fa-calendar-check" /> Cal Linked
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1041,6 +1058,7 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <FormErrorAlert error={calFormError} onDismiss={() => setCalFormError(null)} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.95rem', fontWeight: 600 }}>
               <input type="checkbox" checked={calEnabled} onChange={(e) => setCalEnabled(e.target.checked)} />
               Enable Google Calendar Sync
@@ -1048,7 +1066,7 @@ export const SettingsView: React.FC = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                Secret Address in iCal Format (.ics URL)
+                Whole-Family Shared Calendar (.ics URL)
               </label>
               <input
                 type="url"
@@ -1058,13 +1076,13 @@ export const SettingsView: React.FC = () => {
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
               />
               <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
-                In Google Calendar, go to Family Calendar Settings &rarr; "Integrate calendar" &rarr; copy "Secret address in iCal format".
+                Events from this shared family calendar will appear in Gold / Yellow (or mapped to a person if their name is in the event title).
               </span>
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                Google Calendar Embed URL (Optional)
+                Combined Google Calendar Embed URL (Optional for Iframe View)
               </label>
               <input
                 type="url"
@@ -1074,8 +1092,82 @@ export const SettingsView: React.FC = () => {
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 10 }}
               />
               <span style={{ fontSize: '0.78rem', color: 'var(--cr-text-secondary)', display: 'block', marginTop: 4 }}>
-                Optional embed link if you want the interactive Google Calendar iframe tab on the Calendar page.
+                In Google Calendar settings &rarr; "Integrate calendar", click <strong>Customise</strong> to select all family sub-calendars together in one single combined embed view.
               </span>
+            </div>
+
+            {/* Family Members Sub-Calendars Summary */}
+            <div
+              style={{
+                marginTop: 4,
+                padding: 16,
+                borderRadius: 14,
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <div style={{ marginBottom: 12 }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
+                  👨‍👩‍👧‍👦 Individual Family Member Sub-Calendars
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Sub-calendars are configured per person so their events appear in their own personal accent colour.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(data?.family || []).map((m) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      borderLeft: `4px solid ${m.color || '#3b82f6'}`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={resolveAvatarUrl(m.avatar)}
+                        alt={m.name}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                        }}
+                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{m.name}</span>
+                      {m.calendar_ical_url ? (
+                        <span style={{ fontSize: '0.72rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                          <i className="fas fa-check-circle" /> Connected
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                          No personal calendar set
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openEditMemberModal(m)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        color: '#cbd5e1',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <i className="fas fa-edit" style={{ marginRight: 4 }} /> Edit
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <button type="submit" className="btn-primary" style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 700 }}>
@@ -1414,6 +1506,9 @@ export const ChoreHistoryView: React.FC = () => {
               <img
                 src={resolveAvatarUrl(p.avatar)}
                 alt={p.name}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                }}
                 style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }}
               />
               <h3 style={{ margin: 0 }}>{p.name}</h3>

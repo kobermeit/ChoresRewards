@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CalendarEvent } from '../types';
-import { apiPost } from '../api';
+import { apiPost, resolveAvatarUrl } from '../api';
 import { Modal } from './common/Modal';
 import { FormErrorAlert } from './FormErrorAlert';
 
 export const CalendarView: React.FC = () => {
-  const { data, refresh, showToast, isParent } = useApp();
-  const [viewMode, setViewMode] = useState<'month' | 'agenda' | 'embed'>('month');
+  const { data, refresh, showToast, isParent, setActiveView } = useApp();
+  const [viewMode, setViewMode] = useState<'month' | 'schedule' | 'embed'>('month');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [personFilter, setPersonFilter] = useState<string>('all');
 
-  // Settings form state
+  // Settings form state (for initial onboarding when calendar has not been setup)
   const gcal = data?.google_calendar;
   const [icalUrlInput, setIcalUrlInput] = useState(gcal?.ical_url || '');
   const [embedUrlInput, setEmbedUrlInput] = useState(gcal?.embed_url || '');
@@ -26,8 +26,32 @@ export const CalendarView: React.FC = () => {
 
   if (!data) return null;
 
-  const events: CalendarEvent[] = gcal?.events || [];
+  const rawEvents: CalendarEvent[] = gcal?.events || [];
+  const kidsGroup = data?.groups?.find((g) => g.id === 'kids');
+  const kidsIds = new Set(
+    kidsGroup?.member_ids ||
+      (data?.family || []).filter((m) => m.role === 'child').map((m) => m.id)
+  );
+
+  const events = rawEvents.filter((e) => {
+    if (personFilter === 'all') return true;
+    if (personFilter === 'kids') {
+      return (
+        (e.person_id !== null && e.person_id !== undefined && kidsIds.has(Number(e.person_id))) ||
+        e.person_name?.toLowerCase() === 'kids'
+      );
+    }
+    return (
+      String(e.person_id) === personFilter ||
+      e.person_name?.toLowerCase() === personFilter.toLowerCase()
+    );
+  });
   const localToday = data.current_date; // YYYY-MM-DD
+  const hasConfig = Boolean(
+    gcal?.ical_url ||
+    gcal?.embed_url ||
+    (data?.family || []).some((m) => m.calendar_ical_url)
+  );
 
   const handleSync = async () => {
     setSyncing(true);
@@ -46,7 +70,7 @@ export const CalendarView: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
+  const handleSaveInitialSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setSavingSettings(true);
@@ -57,7 +81,6 @@ export const CalendarView: React.FC = () => {
         google_calendar_enabled: true,
       });
       showToast('Calendar settings saved and synced!', { type: 'success' });
-      setSettingsOpen(false);
       await refresh();
     } catch (err: any) {
       const msg = err?.message || 'Failed to save calendar settings';
@@ -99,14 +122,11 @@ export const CalendarView: React.FC = () => {
   ];
 
   // Build grid for month view
-  // First day of month (0 = Sun, 1 = Mon, etc.)
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-  // Monday-first offset (0 for Mon, 6 for Sun)
   const mondayOffset = (firstDay + 6) % 7;
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
 
-  // Create 42 grid cells (6 rows x 7 cols)
   const calendarCells: Array<{
     dateIso: string;
     dayNum: number;
@@ -164,8 +184,8 @@ export const CalendarView: React.FC = () => {
     });
   }
 
-  // Agenda view: group upcoming events from today onwards
-  const agendaEvents = [...events]
+  // Schedule view: group upcoming events from today onwards
+  const scheduleEvents = [...events]
     .filter((e) => e.start_date_iso >= localToday)
     .sort((a, b) => {
       if (a.start_date_iso !== b.start_date_iso) return a.start_date_iso.localeCompare(b.start_date_iso);
@@ -173,14 +193,11 @@ export const CalendarView: React.FC = () => {
       return (a.start_time_sort || '00:00').localeCompare(b.start_time_sort || '00:00');
     });
 
-  // Group agenda events by date
-  const agendaGroups: Record<string, CalendarEvent[]> = {};
-  for (const ev of agendaEvents) {
-    if (!agendaGroups[ev.start_date_iso]) agendaGroups[ev.start_date_iso] = [];
-    agendaGroups[ev.start_date_iso].push(ev);
+  const scheduleGroups: Record<string, CalendarEvent[]> = {};
+  for (const ev of scheduleEvents) {
+    if (!scheduleGroups[ev.start_date_iso]) scheduleGroups[ev.start_date_iso] = [];
+    scheduleGroups[ev.start_date_iso].push(ev);
   }
-
-  const hasConfig = Boolean(gcal?.ical_url || gcal?.embed_url);
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '16px 20px 64px' }}>
@@ -192,10 +209,10 @@ export const CalendarView: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          marginBottom: 20,
+          marginBottom: 18,
           background: 'rgba(255, 255, 255, 0.04)',
           backdropFilter: 'blur(12px)',
-          padding: '16px 20px',
+          padding: '14px 20px',
           borderRadius: 16,
           border: '1px solid rgba(255, 255, 255, 0.08)',
         }}
@@ -203,24 +220,24 @@ export const CalendarView: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div
             style={{
-              width: 44,
-              height: 44,
+              width: 42,
+              height: 42,
               borderRadius: 12,
               background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.4rem',
+              fontSize: '1.35rem',
               boxShadow: '0 4px 12px rgba(56, 189, 248, 0.25)',
             }}
           >
             📅
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+            <h1 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
               Family Calendar
             </h1>
-            <p style={{ margin: '2px 0 0', fontSize: '0.84rem', color: '#94a3b8' }}>
+            <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
               Synced with Google Calendar
               {gcal?.last_sync && ` • Last synced ${new Date(gcal.last_sync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
             </p>
@@ -260,13 +277,13 @@ export const CalendarView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('agenda')}
+              onClick={() => setViewMode('schedule')}
               style={{
                 padding: '6px 14px',
                 borderRadius: 8,
                 border: 'none',
-                background: viewMode === 'agenda' ? '#0284c7' : 'transparent',
-                color: viewMode === 'agenda' ? '#ffffff' : '#94a3b8',
+                background: viewMode === 'schedule' ? '#0284c7' : 'transparent',
+                color: viewMode === 'schedule' ? '#ffffff' : '#94a3b8',
                 fontWeight: 600,
                 fontSize: '0.86rem',
                 cursor: 'pointer',
@@ -276,7 +293,7 @@ export const CalendarView: React.FC = () => {
                 transition: 'all 0.15s',
               }}
             >
-              <i className="fas fa-list-ul" /> Agenda
+              <i className="fas fa-list-ul" /> Schedule
             </button>
             <button
               type="button"
@@ -322,40 +339,118 @@ export const CalendarView: React.FC = () => {
             <i className={`fas fa-rotate ${syncing ? 'fa-spin' : ''}`} style={{ color: '#38bdf8' }} />
             {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
+        </div>
+      </div>
 
-          {isParent && (
+      {/* Person Filter Pills Bar (Active in Month and Schedule views) */}
+      {viewMode !== 'embed' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            marginBottom: 16,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setPersonFilter('all')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 20,
+              border: personFilter === 'all' ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+              background: personFilter === 'all' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.04)',
+              color: personFilter === 'all' ? '#38bdf8' : '#cbd5e1',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.12s ease',
+            }}
+          >
+            <span>✨</span> All Events ({rawEvents.length})
+          </button>
+
+          {kidsIds.size > 0 && (
             <button
               type="button"
-              onClick={() => {
-                setFormError(null);
-                setSettingsOpen((prev) => !prev);
-              }}
+              onClick={() => setPersonFilter('kids')}
               style={{
-                padding: '8px 14px',
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: settingsOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
-                color: settingsOpen ? '#38bdf8' : '#f8fafc',
-                fontSize: '0.86rem',
-                fontWeight: 600,
+                padding: '6px 14px',
+                borderRadius: 20,
+                border: personFilter === 'kids' ? '2px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                background: personFilter === 'kids' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255,255,255,0.04)',
+                color: personFilter === 'kids' ? '#f472b6' : '#cbd5e1',
+                fontWeight: 700,
+                fontSize: '0.82rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
+                whiteSpace: 'nowrap',
+                transition: 'all 0.12s ease',
               }}
             >
-              <i className="fas fa-gear" /> {settingsOpen ? 'Close Settings' : 'Calendar Setup'}
+              <span>👧</span> Kids ({rawEvents.filter((e) =>
+                (e.person_id !== null && e.person_id !== undefined && kidsIds.has(Number(e.person_id))) ||
+                e.person_name?.toLowerCase() === 'kids'
+              ).length})
             </button>
           )}
-        </div>
-      </div>
 
-      {/* Setup & Connection Banner */}
-      {isParent ? (
-        (settingsOpen || !hasConfig) && (
+          {(data?.family || []).map((m) => {
+            const count = rawEvents.filter(
+              (e) => String(e.person_id) === String(m.id) || e.person_name?.toLowerCase() === m.name.toLowerCase()
+            ).length;
+            const isSelected = personFilter === String(m.id) || personFilter === m.name;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setPersonFilter(String(m.id))}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: isSelected ? `2px solid ${m.color || '#3b82f6'}` : '1px solid rgba(255,255,255,0.1)',
+                  background: isSelected ? `${m.color || '#3b82f6'}33` : 'rgba(255,255,255,0.04)',
+                  color: isSelected ? '#ffffff' : '#cbd5e1',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.12s ease',
+                }}
+              >
+                <img
+                  src={resolveAvatarUrl(m.avatar)}
+                  alt={m.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
+                  style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }}
+                />
+                <span>{m.name}</span>
+                <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Setup & Connection Banner: ONLY shown when calendar has NOT been set up yet */}
+      {!hasConfig && (
+        isParent ? (
           <div
             style={{
-              marginBottom: 24,
+              marginBottom: 20,
               padding: 22,
               borderRadius: 16,
               background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(30, 41, 59, 0.7))',
@@ -375,30 +470,12 @@ export const CalendarView: React.FC = () => {
                   <li>Open <strong>Google Calendar</strong> on your desktop.</li>
                   <li>In the left sidebar under "My calendars", hover over your Family calendar and click <strong>⋮ &rarr; Settings and sharing</strong>.</li>
                   <li>Scroll down to <strong>"Integrate calendar"</strong> and copy the <strong>"Secret address in iCal format"</strong> (ends with <code>.ics</code>).</li>
-                  <li>(Optional) You can also copy the <strong>"Embed code"</strong> link for the full interactive Google Calendar iframe.</li>
+                  <li>(Optional) You can also copy the <strong>"Embed code"</strong> URL for the interactive dark mode Google Calendar iframe.</li>
                 </ol>
               </div>
-              {hasConfig && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormError(null);
-                    setSettingsOpen(false);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#94a3b8',
-                    fontSize: '1.2rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ✕
-                </button>
-              )}
             </div>
 
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={handleSaveInitialSettings} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
               <div>
@@ -422,6 +499,7 @@ export const CalendarView: React.FC = () => {
                     color: '#ffffff',
                     fontSize: '0.88rem',
                   }}
+                  required
                 />
               </div>
 
@@ -473,12 +551,10 @@ export const CalendarView: React.FC = () => {
               </div>
             </form>
           </div>
-        )
-      ) : (
-        !hasConfig && (
+        ) : (
           <div
             style={{
-              marginBottom: 24,
+              marginBottom: 20,
               padding: '16px 20px',
               borderRadius: 14,
               background: 'rgba(15, 23, 42, 0.6)',
@@ -509,93 +585,14 @@ export const CalendarView: React.FC = () => {
                 Google Calendar Not Connected
               </div>
               <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: 2 }}>
-                Switch to a Parent profile to connect your family Google Calendar.
+                Switch to a Parent profile to connect your family Google Calendar in Settings.
               </div>
             </div>
           </div>
         )
       )}
 
-      {/* Month Navigation Row (For Month View) */}
-      {viewMode === 'month' && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            padding: '10px 16px',
-            background: 'rgba(255,255,255,0.03)',
-            borderRadius: 12,
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, color: '#f8fafc' }}>
-              {monthNames[currentMonth]} {currentYear}
-            </h2>
-            <button
-              type="button"
-              onClick={goToday}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#38bdf8',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Today
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              onClick={prevMonth}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#f8fafc',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              title="Previous Month"
-            >
-              <i className="fas fa-chevron-left" />
-            </button>
-            <button
-              type="button"
-              onClick={nextMonth}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#f8fafc',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              title="Next Month"
-            >
-              <i className="fas fa-chevron-right" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 1. MONTH VIEW */}
+      {/* 1. MONTH VIEW (Single Unified Section) */}
       {viewMode === 'month' && (
         <div
           style={{
@@ -607,22 +604,105 @@ export const CalendarView: React.FC = () => {
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
           }}
         >
+          {/* Narrow Controls Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 16px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={goToday}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#f8fafc',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}
+              >
+                Today
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={prevMonth}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: '#f8fafc',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                  }}
+                  title="Previous Month"
+                >
+                  <i className="fas fa-chevron-left" />
+                </button>
+                <button
+                  type="button"
+                  onClick={nextMonth}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: '#f8fafc',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                  }}
+                  title="Next Month"
+                >
+                  <i className="fas fa-chevron-right" />
+                </button>
+              </div>
+
+              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                {monthNames[currentMonth]} {currentYear}
+              </h2>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>
+              {events.filter((e) => e.start_date_iso.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`)).length} events this month
+            </div>
+          </div>
+
           {/* Day of Week Headers */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, 1fr)',
-              background: 'rgba(255, 255, 255, 0.03)',
+              background: 'rgba(255, 255, 255, 0.02)',
               borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
               textAlign: 'center',
               fontWeight: 700,
-              fontSize: '0.82rem',
+              fontSize: '0.78rem',
               color: '#94a3b8',
               letterSpacing: '0.5px',
             }}
           >
             {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((day) => (
-              <div key={day} style={{ padding: '12px 6px' }}>
+              <div key={day} style={{ padding: '8px 4px' }}>
                 {day}
               </div>
             ))}
@@ -715,6 +795,22 @@ export const CalendarView: React.FC = () => {
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {ev.title}
                       </span>
+                      {ev.person_name && ev.person_name !== 'Family' && (
+                        <span
+                          style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: `${ev.color || '#38bdf8'}33`,
+                            color: ev.color || '#38bdf8',
+                            marginLeft: 'auto',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {ev.person_name}
+                        </span>
+                      )}
                     </div>
                   ))}
                   {cell.events.length > 3 && (
@@ -738,75 +834,87 @@ export const CalendarView: React.FC = () => {
         </div>
       )}
 
-      {/* 2. AGENDA / LIST VIEW */}
-      {viewMode === 'agenda' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {Object.keys(agendaGroups).length === 0 ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '48px 20px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: 16,
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-              }}
-            >
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>🌴</div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#f8fafc' }}>No upcoming events scheduled</h3>
-              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>
-                Enjoy your free time, or tap "Sync Now" if you recently added events to Google Calendar.
+      {/* 2. SCHEDULE VIEW (Mimicking Google Calendar Embed Schedule Layout) */}
+      {viewMode === 'schedule' && (
+        <div
+          style={{
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(14px)',
+            borderRadius: 16,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          {/* Schedule Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 16px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                Upcoming Schedule
+              </h2>
+              <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
+                ({scheduleEvents.length} {scheduleEvents.length === 1 ? 'event' : 'events'})
+              </span>
+            </div>
+          </div>
+
+          {scheduleEvents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>🌴</div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#f8fafc' }}>No upcoming events scheduled</h3>
+              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.86rem' }}>
+                Enjoy your free time, or tap "Sync Now" to refresh from Google Calendar.
               </p>
             </div>
           ) : (
-            Object.entries(agendaGroups).map(([dateIso, dayEvents]) => {
-              const isToday = dateIso === localToday;
-              const dateObj = new Date(`${dateIso}T00:00:00`);
-              const dayFormatted = dateObj.toLocaleDateString(undefined, {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-              });
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {Object.entries(scheduleGroups).map(([dateIso, dayEvents], groupIdx) => {
+                const isToday = dateIso === localToday;
+                const dateObj = new Date(`${dateIso}T00:00:00`);
+                const dayName = dateObj.toLocaleDateString(undefined, { weekday: 'short' });
+                const monthDay = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-              return (
-                <div
-                  key={dateIso}
-                  style={{
-                    background: isToday ? 'rgba(2, 132, 199, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-                    borderRadius: 14,
-                    border: isToday
-                      ? '1px solid rgba(56, 189, 248, 0.4)'
-                      : '1px solid rgba(255, 255, 255, 0.06)',
-                    padding: '16px 20px',
-                  }}
-                >
+                return (
                   <div
+                    key={dateIso}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: 12,
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                      paddingBottom: 8,
+                      display: 'grid',
+                      gridTemplateColumns: '130px 1fr',
+                      borderBottom: groupIdx < Object.keys(scheduleGroups).length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
+                      background: isToday ? 'rgba(2, 132, 199, 0.06)' : 'transparent',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span
-                        style={{
-                          fontSize: '1.05rem',
-                          fontWeight: 700,
-                          color: isToday ? '#38bdf8' : '#f8fafc',
-                        }}
-                      >
-                        {dayFormatted}
+                    {/* Left Date Column */}
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, fontSize: '0.9rem', color: isToday ? '#38bdf8' : '#e2e8f0' }}>
+                        {dayName}, {monthDay}
                       </span>
                       {isToday && (
                         <span
                           style={{
+                            alignSelf: 'flex-start',
                             background: '#0284c7',
                             color: '#ffffff',
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.72rem',
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            fontSize: '0.68rem',
                             fontWeight: 700,
                           }}
                         >
@@ -814,73 +922,116 @@ export const CalendarView: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>
-                      {dayEvents.length} {dayEvents.length === 1 ? 'event' : 'events'}
-                    </span>
-                  </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {dayEvents.map((ev) => (
-                      <div
-                        key={ev.id}
-                        onClick={() => setSelectedEvent(ev)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 14,
-                          padding: '10px 14px',
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          borderRadius: 10,
-                          borderLeft: `4px solid ${ev.color || '#38bdf8'}`,
-                          cursor: 'pointer',
-                          transition: 'background 0.15s',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: '1.3rem' }}>{ev.emoji || '📅'}</span>
-                          <div>
-                            <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#f8fafc' }}>
-                              {ev.title}
-                            </div>
-                            {ev.location && (
-                              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 2 }}>
-                                📍 {ev.location}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <span
+                    {/* Right Events Column */}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {dayEvents.map((ev, evIdx) => (
+                        <div
+                          key={ev.id}
+                          onClick={() => setSelectedEvent(ev)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '12px 16px',
+                            borderBottom: evIdx < dayEvents.length - 1 ? '1px solid rgba(255, 255, 255, 0.04)' : 'none',
+                            cursor: 'pointer',
+                            transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          {/* Time */}
+                          <div
                             style={{
+                              width: 140,
+                              flexShrink: 0,
                               fontSize: '0.82rem',
                               fontWeight: 600,
-                              color: ev.all_day ? '#4ade80' : '#38bdf8',
-                              background: 'rgba(0,0,0,0.25)',
-                              padding: '4px 10px',
-                              borderRadius: 6,
+                              color: ev.all_day ? '#4ade80' : '#cbd5e1',
                             }}
                           >
                             {ev.time_display || 'All Day'}
-                          </span>
+                          </div>
+
+                          {/* Dot */}
+                          <span
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              background: ev.color || '#38bdf8',
+                              flexShrink: 0,
+                              boxShadow: `0 0 6px ${ev.color || '#38bdf8'}88`,
+                            }}
+                          />
+
+                          {/* Title & Location */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>{ev.emoji || '📅'}</span>
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                fontSize: '0.92rem',
+                                color: '#f8fafc',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {ev.title}
+                            </span>
+                            {ev.location && (
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: '#94a3b8',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  marginLeft: 6,
+                                }}
+                              >
+                                📍 {ev.location}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Person Badge */}
+                          {ev.person_name && (
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '3px 9px',
+                                borderRadius: 12,
+                                background: `${ev.color || '#38bdf8'}22`,
+                                color: ev.color || '#38bdf8',
+                                border: `1px solid ${ev.color || '#38bdf8'}44`,
+                                flexShrink: 0,
+                                marginLeft: 'auto',
+                              }}
+                            >
+                              {ev.person_name}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       )}
 
-      {/* 3. GOOGLE CALENDAR EMBED VIEW */}
+      {/* 3. GOOGLE CALENDAR EMBED VIEW (DARK MODE) */}
       {viewMode === 'embed' && (
         gcal?.embed_url ? (
           <div
             style={{
-              background: 'rgba(15, 23, 42, 0.8)',
+              background: '#0f172a',
               borderRadius: 16,
               border: '1px solid rgba(255, 255, 255, 0.08)',
               overflow: 'hidden',
@@ -895,6 +1046,8 @@ export const CalendarView: React.FC = () => {
                 height: '780px',
                 border: 'none',
                 borderRadius: 16,
+                filter: 'invert(0.92) hue-rotate(180deg) contrast(0.95)',
+                background: '#0f172a',
               }}
             />
           </div>
@@ -934,16 +1087,13 @@ export const CalendarView: React.FC = () => {
                 No Google Calendar Embed URL Configured
               </h3>
               <p style={{ color: '#94a3b8', fontSize: '0.92rem', lineHeight: 1.5, margin: 0 }}>
-                You must provide a Google Calendar Embed URL to display the interactive web calendar iframe here.
+                To view the interactive Google Calendar embed here, add your Embed URL in Settings.
               </p>
             </div>
             {isParent ? (
               <button
                 type="button"
-                onClick={() => {
-                  setFormError(null);
-                  setSettingsOpen(true);
-                }}
+                onClick={() => setActiveView('settings')}
                 style={{
                   marginTop: 6,
                   padding: '10px 22px',
@@ -960,11 +1110,11 @@ export const CalendarView: React.FC = () => {
                   boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
                 }}
               >
-                <i className="fas fa-gear" /> Configure Embed URL
+                <i className="fas fa-gear" /> Configure in Settings
               </button>
             ) : (
               <p style={{ color: '#64748b', fontSize: '0.86rem', marginTop: 4 }}>
-                Switch to a Parent profile to configure the Google Calendar Embed URL.
+                Switch to a Parent profile to configure the Google Calendar Embed URL in Settings.
               </p>
             )}
           </div>
@@ -1043,6 +1193,25 @@ export const CalendarView: React.FC = () => {
                   <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5, color: '#e2e8f0' }}>
                     {selectedEvent.description}
                   </p>
+                </div>
+              )}
+
+              {selectedEvent.person_name && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
+                  <strong style={{ color: '#94a3b8' }}>👤 Calendar:</strong>
+                  <span
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      color: selectedEvent.color || '#38bdf8',
+                      background: `${selectedEvent.color || '#38bdf8'}22`,
+                      border: `1px solid ${selectedEvent.color || '#38bdf8'}44`,
+                      padding: '2px 8px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    {selectedEvent.person_name}
+                  </span>
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Person, UserRole } from '../types';
-import { apiPost, resolveAssetUrl } from '../api';
+import { apiPost, resolveAvatarUrl } from '../api';
 import { useApp } from '../context/AppContext';
 import { Modal } from './common/Modal';
 
@@ -26,35 +26,54 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
   const { refresh, showToast } = useApp();
 
   const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
   const [age, setAge] = useState<string>('');
   const [role, setRole] = useState<UserRole>('child');
   const [color, setColor] = useState('#3b82f6');
   const [pin, setPin] = useState('');
+  const [calendarIcalUrl, setCalendarIcalUrl] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const computeAgeFromDob = (d: string): number | null => {
+    if (!d) return null;
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const birth = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    const now = new Date();
+    let a = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) a--;
+    return Math.max(0, a);
+  };
+
   useEffect(() => {
     if (member) {
       setName(member.name || '');
-      setAge(member.age !== null && member.age !== undefined ? String(member.age) : '');
+      setDob(member.dob || '');
+      const computed = computeAgeFromDob(member.dob || '');
+      setAge(computed !== null ? String(computed) : (member.age !== null && member.age !== undefined ? String(member.age) : ''));
       setRole(member.role || (member.is_admin ? 'parent' : 'child'));
       setColor(member.color || '#3b82f6');
       setPin('');
+      setCalendarIcalUrl(member.calendar_ical_url || '');
       if (member.avatar && member.avatar !== 'default_avatar.png') {
-        setAvatarPreview(resolveAssetUrl(`uploads/${member.avatar}`));
+        setAvatarPreview(resolveAvatarUrl(member.avatar));
       } else {
         setAvatarPreview(null);
       }
       setSelectedFile(null);
     } else {
       setName('');
+      setDob('');
       setAge('');
       setRole('child');
       setColor('#3b82f6');
       setPin('');
+      setCalendarIcalUrl('');
       setAvatarPreview(null);
       setSelectedFile(null);
     }
@@ -81,11 +100,14 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
 
     setSaving(true);
     try {
+      const computed = computeAgeFromDob(dob);
       const payload: any = {
         name: trimmedName,
-        age: age ? Number(age) : null,
+        dob: dob.trim() || null,
+        age: computed !== null ? computed : (age ? Number(age) : null),
         role,
         color,
+        calendar_ical_url: calendarIcalUrl.trim() || null,
       };
       if (member?.id) {
         payload.id = member.id;
@@ -174,6 +196,9 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                 <img
                   src={avatarPreview}
                   alt={name || 'Avatar'}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
@@ -236,35 +261,65 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             </button>
           </div>
 
-          {/* Name & Age Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+          {/* Name Input */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Name</label>
+            <input
+              type="text"
+              className="modern-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Abby"
+              required
+              style={{
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#fff',
+                fontSize: '0.95rem',
+              }}
+            />
+          </div>
+
+          {/* Date of Birth & Dynamic Age Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Name</label>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🎂 Date of Birth</span>
+              </label>
               <input
-                type="text"
+                type="date"
                 className="modern-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Abby"
-                required
+                value={dob}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDob(val);
+                  const calc = computeAgeFromDob(val);
+                  if (calc !== null) setAge(String(calc));
+                }}
                 style={{
-                  padding: '10px 14px',
+                  padding: '9px 12px',
                   borderRadius: '10px',
                   background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.12)',
                   color: '#fff',
-                  fontSize: '0.95rem',
+                  fontSize: '0.88rem',
                 }}
               />
             </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Age (optional)</label>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Age</span>
+                {dob && <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 700 }}>✓ Auto</span>}
+              </label>
               <input
                 type="number"
                 className="modern-input"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
-                placeholder="e.g. 6"
+                placeholder={dob ? 'Calculated' : 'e.g. 8'}
                 min="0"
                 max="120"
                 style={{
@@ -281,12 +336,11 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
 
           {/* Role Selection */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Role</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Family Role</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {[
-                { id: 'family' as UserRole, label: 'Family', desc: 'Shared tablet view', icon: 'fa-users' },
-                { id: 'child' as UserRole, label: 'Child', desc: 'Chores & games', icon: 'fa-star' },
-                { id: 'parent' as UserRole, label: 'Parent', desc: 'Full admin access', icon: 'fa-shield-alt' },
+                { id: 'child' as UserRole, label: 'Child', desc: 'Chores, rewards & games', icon: 'fa-star' },
+                { id: 'parent' as UserRole, label: 'Parent', desc: 'Full family admin access', icon: 'fa-shield-alt' },
               ].map((r) => {
                 const active = role === r.id;
                 return (
@@ -381,6 +435,32 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             />
             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
               Used when switching to this profile on the shared tablet.
+            </span>
+          </div>
+
+          {/* Personal Google Calendar (.ics) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="fas fa-calendar-alt" style={{ color }} />
+              Personal Google Calendar (.ics URL)
+            </label>
+            <input
+              type="url"
+              className="modern-input"
+              value={calendarIcalUrl}
+              onChange={(e) => setCalendarIcalUrl(e.target.value)}
+              placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+              style={{
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#fff',
+                fontSize: '0.85rem',
+              }}
+            />
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Events from this sub-calendar will automatically appear with {name ? `${name}'s` : 'this person\'s'} color ({color}).
             </span>
           </div>
 

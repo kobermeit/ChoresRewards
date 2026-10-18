@@ -27,6 +27,14 @@ export interface Person {
   role?: UserRole;
   has_pin?: boolean;
   age: number | null;
+  dob?: string | null;
+  birthday_info?: {
+    dob: string;
+    birthdayDisplay: string;
+    daysUntil: number;
+    isToday: boolean;
+  } | null;
+  calendar_ical_url?: string | null;
   streak: PersonStreak;
   badges: BadgeItem[];
   total_completed: number;
@@ -236,6 +244,19 @@ export interface CalendarEvent {
   duration_minutes?: number;
   color?: string;
   emoji?: string;
+  person_id?: number | null;
+  person_name?: string | null;
+  person_avatar?: string | null;
+  is_family?: boolean;
+}
+
+export interface HouseholdGroup {
+  id: 'everyone' | 'kids' | 'parents';
+  name: string;
+  label: string;
+  emoji: string;
+  member_ids: number[];
+  color: string;
 }
 
 export interface BootstrapData {
@@ -255,6 +276,8 @@ export interface BootstrapData {
     active_user?: Person | null;
   };
   family: Person[];
+  kiosk?: Person | null;
+  groups?: HouseholdGroup[];
   chores: Chore[];
   overdue_chore_ids: number[];
   rewards: Reward[];

@@ -23,6 +23,7 @@ import {
   getDashboardNotes,
 } from './household';
 import { getGoogleCalendarData } from '../services/googleCalendar';
+import { calculateAge, getBirthdayInfo, buildHouseholdGroups } from '../utils/people';
 
 const setupUpload = multer({
   storage: multer.diskStorage({
@@ -135,9 +136,13 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     }
 
     const personAges: Record<string, number> = {};
-    const family = peopleRows.map((p) => {
-      if (p.age !== null && p.age !== undefined) {
-        personAges[String(p.id)] = Number(p.age);
+    const realPeopleRows = peopleRows.filter((p) => p.role !== 'family');
+    const kioskRow = peopleRows.find((p) => p.role === 'family') || null;
+
+    const family = realPeopleRows.map((p) => {
+      const dynamicAge = calculateAge(p.dob, p.age);
+      if (dynamicAge !== null) {
+        personAges[String(p.id)] = dynamicAge;
       }
       return {
         id: p.id,
@@ -149,29 +154,56 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         role: p.role || (p.is_admin ? 'parent' : 'child'),
         is_admin: Boolean(p.is_admin),
         has_pin: Boolean(p.pin),
-        age: p.age ?? null,
+        dob: p.dob || null,
+        age: dynamicAge,
+        birthday_info: getBirthdayInfo(p.dob),
+        calendar_ical_url: p.calendar_ical_url || null,
         streak: personStreaks[p.id] || { current_streak: 0, longest_streak: 0, last_completed_date: null },
         badges: personBadges[p.id] || [],
         total_completed: personTotalCompleted[String(p.id)] || 0,
       };
     });
 
+    const kioskUser = kioskRow
+      ? {
+          id: kioskRow.id,
+          name: 'Family Kiosk',
+          role: 'family' as const,
+          avatar: kioskRow.avatar || 'default_avatar.png',
+          color: kioskRow.color || '#3b82f6',
+          is_admin: false,
+          has_pin: false,
+        }
+      : {
+          id: -1,
+          name: 'Family Kiosk',
+          role: 'family' as const,
+          avatar: 'default_avatar.png',
+          color: '#3b82f6',
+          is_admin: false,
+          has_pin: false,
+        };
+
     const activePersonId = req.session?.person_id;
     let activeUserRow = activePersonId ? peopleRows.find((p) => p.id === activePersonId) : null;
     if (!activeUserRow) {
-      activeUserRow = peopleRows.find((p) => p.role === 'family') || peopleRows[0] || null;
+      activeUserRow = kioskRow || realPeopleRows[0] || null;
     }
     const activeUser = activeUserRow
       ? {
           id: activeUserRow.id,
-          name: activeUserRow.name,
+          name: activeUserRow.role === 'family' ? 'Family Kiosk' : activeUserRow.name,
           role: activeUserRow.role || (activeUserRow.is_admin ? 'parent' : 'child'),
           avatar: activeUserRow.avatar || 'default_avatar.png',
           color: activeUserRow.color || '#ffffff',
           is_admin: Boolean(activeUserRow.is_admin),
           has_pin: Boolean(activeUserRow.pin),
+          dob: activeUserRow.dob || null,
+          age: calculateAge(activeUserRow.dob, activeUserRow.age),
         }
-      : null;
+      : kioskUser;
+
+    const groups = buildHouseholdGroups(family);
 
     const mealWeekDays = getWeekDaysList(weekStart);
     const { plan: mealPlan, recurring: mealRecurring } = getMealPlanForWeek(weekStart);
@@ -199,6 +231,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         active_user: activeUser,
       },
       family,
+      kiosk: kioskUser,
+      groups,
       chores,
       overdue_chore_ids: overdueChoreIds,
       rewards,

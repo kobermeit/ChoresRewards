@@ -146,7 +146,14 @@ export const DashboardSection: React.FC = () => {
                   scrollToSection('chores-section-root');
                 }}
               >
-                <img className="dash-person-avatar" src={resolveAvatarUrl(person.avatar)} alt={person.name} />
+                <img
+                  className="dash-person-avatar"
+                  src={resolveAvatarUrl(person.avatar)}
+                  alt={person.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
+                />
                 <div className="dash-person-info">
                   <div className="dash-person-name">{person.name}</div>
                   <div className="dash-person-chores">

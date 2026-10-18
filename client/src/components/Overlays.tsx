@@ -174,6 +174,9 @@ const ScreensaverOverlay: React.FC = () => {
                   <img
                     src={resolveAvatarUrl(p.avatar)}
                     alt={p.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                    }}
                     style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div>

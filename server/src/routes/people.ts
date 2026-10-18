@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import { db, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult, hashPin } from './auth';
+import { invalidateGcalCache } from '../services/googleCalendar';
+import { calculateAge } from '../utils/people';
 
 const avatarUpload = multer({
   storage: multer.diskStorage({
@@ -109,7 +111,7 @@ peopleRouter.post('/delete_person', (req: Request, res: Response) => {
 
 peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
   try {
-    const { id, name, age, color, role, pin } = req.body || {};
+    const { id, name, dob, age, color, role, pin, calendar_ical_url } = req.body || {};
     const trimmedName = String(name || '').trim();
     if (!trimmedName) {
       res.status(400).json({ success: false, error: 'Name is required' });
@@ -118,7 +120,9 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
     const cleanRole = (role === 'parent' || role === 'family') ? role : 'child';
     const isAdmin = cleanRole === 'parent' ? 1 : 0;
     const cleanColor = String(color || '#ffffff');
+    const cleanDob = dob !== undefined ? (String(dob).trim().slice(0, 10) || null) : undefined;
     const cleanAge = age !== undefined && age !== null && age !== '' ? Number(age) : null;
+    const cleanIcalUrl = calendar_ical_url !== undefined ? (String(calendar_ical_url).trim() || null) : undefined;
 
     if (id) {
       const existing = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(id)) as any;
@@ -135,29 +139,38 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
           pinHash = hashPin(rawPin);
         }
       }
+      const finalDob = cleanDob !== undefined ? cleanDob : existing.dob;
+      const finalAge = calculateAge(finalDob, cleanAge !== null ? cleanAge : existing.age);
+      const finalIcalUrl = cleanIcalUrl !== undefined ? cleanIcalUrl : existing.calendar_ical_url;
+
       db.prepare(`
         UPDATE person
-        SET name = ?, age = ?, color = ?, role = ?, is_admin = ?, pin = ?
+        SET name = ?, dob = ?, age = ?, color = ?, role = ?, is_admin = ?, pin = ?, calendar_ical_url = ?
         WHERE id = ?
-      `).run(trimmedName, cleanAge, cleanColor, cleanRole, isAdmin, pinHash, Number(id));
+      `).run(trimmedName, finalDob, finalAge, cleanColor, cleanRole, isAdmin, pinHash, finalIcalUrl, Number(id));
 
       logActivity('family_member_updated', `Family member '${trimmedName}' details updated`, trimmedName);
-      const updated = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(id));
+      invalidateGcalCache();
+      const updated = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(id)) as any;
+      if (updated) updated.age = calculateAge(updated.dob, updated.age);
       res.json({ success: true, person: updated });
     } else {
       let pinHash: string | null = null;
       if (pin && String(pin).trim()) {
         pinHash = hashPin(String(pin).trim());
       }
+      const finalAge = calculateAge(cleanDob, cleanAge);
       const ins = db.prepare(`
-        INSERT INTO person (name, role, points, bonus_points, avatar, color, "order", is_admin, pin, age)
-        VALUES (?, ?, 0, 0, 'default_avatar.png', ?, (SELECT COALESCE(MAX("order"), 0) + 1 FROM person), ?, ?, ?)
-      `).run(trimmedName, cleanRole, cleanColor, isAdmin, pinHash, cleanAge);
+        INSERT INTO person (name, role, points, bonus_points, avatar, color, "order", is_admin, pin, age, dob, calendar_ical_url)
+        VALUES (?, ?, 0, 0, 'default_avatar.png', ?, (SELECT COALESCE(MAX("order"), 0) + 1 FROM person), ?, ?, ?, ?, ?)
+      `).run(trimmedName, cleanRole, cleanColor, isAdmin, pinHash, finalAge, cleanDob || null, cleanIcalUrl || null);
 
       const newId = Number(ins.lastInsertRowid);
       db.prepare('INSERT INTO person_streak (person_id, current_streak, longest_streak) VALUES (?, 0, 0)').run(newId);
       logActivity('family_member_added', `Family member '${trimmedName}' was added`, trimmedName);
-      const inserted = db.prepare('SELECT * FROM person WHERE id = ?').get(newId);
+      invalidateGcalCache();
+      const inserted = db.prepare('SELECT * FROM person WHERE id = ?').get(newId) as any;
+      if (inserted) inserted.age = calculateAge(inserted.dob, inserted.age);
       res.json({ success: true, person: inserted });
     }
   } catch (err: any) {

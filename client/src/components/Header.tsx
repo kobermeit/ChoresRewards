@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { apiGet, apiPost, resolveAssetUrl } from '../api';
+import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 
 function weatherInfo(code: number): { icon: string; color: string; desc: string } {
   if (code === 0) return { icon: 'fa-sun', color: '#fbbf24', desc: 'Clear Sky' };
@@ -541,8 +541,11 @@ export const Header: React.FC = () => {
                 </div>
               ) : activeUser?.avatar && activeUser.avatar !== 'default_avatar.png' ? (
                 <img
-                  src={resolveAssetUrl(`uploads/${activeUser.avatar}`)}
+                  src={resolveAvatarUrl(activeUser.avatar)}
                   alt={activeUser.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
                   style={{
                     width: '30px',
                     height: '30px',

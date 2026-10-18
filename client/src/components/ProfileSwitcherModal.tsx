@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Person } from '../types';
 import { useApp } from '../context/AppContext';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { resolveAssetUrl } from '../api';
+import { resolveAvatarUrl } from '../api';
 
 interface ProfileSwitcherModalProps {
   isOpen: boolean;
@@ -119,8 +119,11 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
     if (p.avatar && p.avatar !== 'default_avatar.png') {
       return (
         <img
-          src={resolveAssetUrl(`uploads/${p.avatar}`)}
+          src={resolveAvatarUrl(p.avatar)}
           alt={p.name}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+          }}
           style={{
             width: size,
             height: size,
@@ -363,6 +366,130 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
               </button>
             </div>
 
+            {/* Family Kiosk (Shared Display) Hero Card */}
+            {(() => {
+              const kiosk = data?.kiosk || {
+                id: -1,
+                name: 'Family Kiosk',
+                role: 'family' as const,
+                points: 0,
+                bonus_points: 0,
+                avatar: 'default_avatar.png',
+                color: '#3b82f6',
+                order: 0,
+                is_admin: false,
+                has_pin: false,
+                age: null,
+                streak: { current_streak: 0, longest_streak: 0, last_completed_date: null },
+                badges: [],
+                total_completed: 0,
+              };
+              const isKioskActive = !activeUser || activeUser.role === 'family' || activeUser.id === kiosk.id;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPerson(kiosk)}
+                    style={{
+                      background: isKioskActive
+                        ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.28) 0%, rgba(30, 58, 138, 0.35) 100%)'
+                        : 'rgba(255, 255, 255, 0.04)',
+                      border: isKioskActive
+                        ? '2px solid #3b82f6'
+                        : '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '18px',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      position: 'relative',
+                      boxShadow: isKioskActive
+                        ? '0 8px 24px rgba(59, 130, 246, 0.35)'
+                        : '0 4px 12px rgba(0, 0, 0, 0.2)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isKioskActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isKioskActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '14px',
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.6rem',
+                        boxShadow: '0 4px 14px rgba(59, 130, 246, 0.45)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      🏠
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.02rem', fontWeight: 700, color: '#f8fafc' }}>
+                          Family Kiosk
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            background: 'rgba(59, 130, 246, 0.2)',
+                            color: '#93c5fd',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          Shared Display
+                        </span>
+                      </div>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.3 }}>
+                        Wall tablet shared dashboard for everyone
+                      </p>
+                    </div>
+
+                    {isKioskActive ? (
+                      <span
+                        style={{
+                          background: '#10b981',
+                          color: '#fff',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        ACTIVE
+                      </span>
+                    ) : (
+                      <i className="fas fa-chevron-right" style={{ color: '#64748b', fontSize: '0.85rem' }} />
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0 -8px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                Individual Profiles
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
+            </div>
+
             <div
               style={{
                 display: 'grid',
@@ -370,9 +497,8 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
                 gap: '14px',
               }}
             >
-              {people.map((p) => {
+              {people.filter((p) => p.role !== 'family').map((p) => {
                 const isActive = activeUser?.id === p.id;
-                const isFamilyUser = p.role === 'family' || p.name.toLowerCase() === 'family';
 
                 return (
                   <button
@@ -387,11 +513,11 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
                         ? '2px solid #3b82f6'
                         : '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '18px',
-                      padding: '18px 12px',
+                      padding: '16px 12px',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '10px',
+                      gap: '8px',
                       cursor: 'pointer',
                       position: 'relative',
                       boxShadow: isActive
@@ -414,38 +540,50 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
                           right: '8px',
                           background: '#10b981',
                           color: '#fff',
-                          fontSize: '0.65rem',
+                          fontSize: '0.62rem',
                           fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: '8px',
+                          padding: '2px 5px',
+                          borderRadius: '6px',
                         }}
                       >
                         ACTIVE
                       </span>
                     )}
 
-                    {renderAvatar(p, 64)}
+                    {renderAvatar(p, 60)}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                      <span style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '100%' }}>
+                      <span style={{ fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
                         {p.name}
                       </span>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          color: p.role === 'parent' ? '#f59e0b' : isFamilyUser ? '#60a5fa' : '#34d399',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}
-                      >
-                        {p.role === 'parent' ? 'Parent' : isFamilyUser ? 'Family Hub' : `${p.points} pts`}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: p.role === 'parent' ? '#f59e0b' : '#34d399',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {p.role === 'parent' ? 'Parent' : `${p.points} pts`}
+                        </span>
+                        {p.age !== null && p.age !== undefined && (
+                          <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                            • {p.age}y
+                          </span>
+                        )}
+                      </div>
+                      {p.birthday_info?.isToday && (
+                        <span style={{ fontSize: '0.65rem', background: '#ec4899', color: '#fff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700, marginTop: '2px' }}>
+                          🎂 Birthday!
+                        </span>
+                      )}
                     </div>
 
                     {p.has_pin && (
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <i className="fas fa-lock" style={{ fontSize: '0.68rem' }} /> PIN
+                      <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                        <i className="fas fa-lock" style={{ fontSize: '0.62rem' }} /> PIN
                       </span>
                     )}
                   </button>

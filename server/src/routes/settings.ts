@@ -21,6 +21,7 @@ import {
   invalidateGcalCache,
 } from '../services/googleCalendar';
 import { sendGotifyNotification } from '../services/gotify';
+import { calculateAge, getBirthdayInfo, buildHouseholdGroups } from '../utils/people';
 
 const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg'];
 const HIDDEN_SOUNDS_PATH = path.join(DATA_DIR, 'hidden_sounds.json');
@@ -152,18 +153,25 @@ function screensaverPhotoUrls(list: Array<{ filename: string; uploaded_at?: numb
 export const settingsRouter = Router();
 
 function handleGetSettings(_req: Request, res: Response) {
-  const family = (db.prepare('SELECT * FROM person ORDER BY "order", id').all() as Array<any>).map((p) => ({
-    id: p.id,
-    name: p.name,
-    points: roundPoints(p.points),
-    bonus_points: roundPoints(p.bonus_points),
-    avatar: p.avatar || 'default_avatar.png',
-    color: p.color || '#ffffff',
-    order: p.order || 0,
-    is_admin: Boolean(p.is_admin),
-    has_pin: Boolean(p.pin),
-    age: p.age ?? null,
-  }));
+  const family = (db.prepare('SELECT * FROM person WHERE role != ? ORDER BY "order", id').all('family') as Array<any>).map((p) => {
+    const dynamicAge = calculateAge(p.dob, p.age);
+    return {
+      id: p.id,
+      name: p.name,
+      points: roundPoints(p.points),
+      bonus_points: roundPoints(p.bonus_points),
+      avatar: p.avatar || 'default_avatar.png',
+      color: p.color || '#ffffff',
+      order: p.order || 0,
+      is_admin: Boolean(p.is_admin),
+      has_pin: Boolean(p.pin),
+      dob: p.dob || null,
+      age: dynamicAge,
+      birthday_info: getBirthdayInfo(p.dob),
+      role: p.role || (p.is_admin ? 'parent' : 'child'),
+      calendar_ical_url: p.calendar_ical_url || null,
+    };
+  });
 
   const allChores = db.prepare('SELECT * FROM chore WHERE deleted = 0 ORDER BY id DESC').all() as Array<any>;
 

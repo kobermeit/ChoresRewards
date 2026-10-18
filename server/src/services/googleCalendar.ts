@@ -90,7 +90,50 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
   const explicitEnabled = (AppSetting.get('google_calendar_enabled', '') || '').toLowerCase();
   const isExplicitlyDisabled = explicitEnabled === 'false' || explicitEnabled === '0' || explicitEnabled === 'off';
 
-  const hasAnyConfig = Boolean(icalUrl || embedUrl);
+  const peopleRows = db
+    .prepare("SELECT id, name, avatar, color, calendar_ical_url FROM person WHERE role != 'family'")
+    .all() as Array<{
+      id: number;
+      name: string;
+      avatar: string;
+      color: string;
+      calendar_ical_url?: string | null;
+    }>;
+
+  interface CalSource {
+    url: string;
+    isFamily: boolean;
+    personId?: number;
+    personName: string;
+    personAvatar?: string;
+    color: string;
+  }
+
+  const sources: CalSource[] = [];
+  if (icalUrl) {
+    sources.push({
+      url: icalUrl,
+      isFamily: true,
+      personName: 'Family',
+      color: '#eab308',
+    });
+  }
+
+  for (const p of peopleRows) {
+    const pUrl = (p.calendar_ical_url || '').trim();
+    if (pUrl) {
+      sources.push({
+        url: pUrl,
+        isFamily: false,
+        personId: p.id,
+        personName: p.name,
+        personAvatar: p.avatar,
+        color: p.color || '#3b82f6',
+      });
+    }
+  }
+
+  const hasAnyConfig = Boolean(sources.length > 0 || embedUrl);
   const enabled = featureEnabled && hasAnyConfig && !isExplicitlyDisabled;
 
   const hourLabels = Array.from({ length: 24 }, (_, h) => {
@@ -135,86 +178,129 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
 
   const tz = getAppTimezone();
   const colorRules = parseManualColorRules(AppSetting.get('google_calendar_color_rules', '') || '');
-  const peopleColors = (db.prepare('SELECT name, color FROM person').all() as Array<{ name: string; color: string }>).map(
-    (p) => ({ name: p.name.toLowerCase(), color: p.color || '#3b82f6' })
-  );
+  const peopleColors = peopleRows.map((p) => ({
+    id: p.id,
+    originalName: p.name,
+    name: p.name.toLowerCase(),
+    color: p.color || '#3b82f6',
+    avatar: p.avatar,
+  }));
 
-  // If iCal URL is provided, fetch and parse directly
-  if (icalUrl) {
+  if (sources.length > 0) {
     try {
-      let fetchUrl = icalUrl;
-      if (fetchUrl.startsWith('webcal://')) {
-        fetchUrl = 'https://' + fetchUrl.slice(9);
-      }
-      const res = await fetch(fetchUrl, {
-        headers: { 'User-Agent': 'ChoresRewards-CalendarSync/1.0' },
-        signal: AbortSignal.timeout(12000),
+      const fetchPromises = sources.map(async (src) => {
+        let fetchUrl = src.url;
+        if (fetchUrl.startsWith('webcal://')) {
+          fetchUrl = 'https://' + fetchUrl.slice(9);
+        }
+        const res = await fetch(fetchUrl, {
+          headers: { 'User-Agent': 'ChoresRewards-CalendarSync/1.0' },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) {
+          throw new Error(`${src.personName} calendar returned HTTP ${res.status}`);
+        }
+        const icsText = await res.text();
+        const items = parseIcsContent(icsText, tz);
+        return { src, items };
       });
 
-      if (!res.ok) {
-        throw new Error(`Google Calendar returned HTTP ${res.status} (${res.statusText})`);
+      const results = await Promise.allSettled(fetchPromises);
+      const allEventsMap = new Map<string, any>();
+      const feedErrors: string[] = [];
+
+      for (const r of results) {
+        if (r.status === 'rejected') {
+          console.warn('[Calendar Sync Feed Error]:', r.reason);
+          feedErrors.push(String(r.reason?.message || r.reason));
+          continue;
+        }
+
+        const { src, items } = r.value;
+        for (const item of items) {
+          let eventColor = src.color;
+          let eventPersonId: number | null = src.personId || null;
+          let eventPersonName = src.personName;
+          let eventPersonAvatar: string | null = src.personAvatar || null;
+
+          if (src.isFamily) {
+            const titleLower = item.summary.toLowerCase();
+            for (const p of peopleColors) {
+              if (titleLower.includes(p.name)) {
+                eventColor = p.color;
+                eventPersonId = p.id;
+                eventPersonName = p.originalName;
+                eventPersonAvatar = p.avatar;
+                break;
+              }
+            }
+            for (const cr of colorRules) {
+              if (titleLower.includes(cr.keyword)) {
+                eventColor = cr.color;
+                break;
+              }
+            }
+          }
+
+          const [y, mo, da] = item.start_date_iso.split('-').map(Number);
+          const dateObj = new Date(Date.UTC(y, mo - 1, da));
+          const weekdayShort = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(dateObj);
+          const dateLabel = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(dateObj);
+
+          let startMinutes = 0;
+          let durationMinutes = 60;
+          if (!item.all_day && item.start_time) {
+            const [h, m] = item.start_time.split(':').map(Number);
+            startMinutes = (h || 0) * 60 + (m || 0);
+            if (item.end_time) {
+              const [eh, em] = item.end_time.split(':').map(Number);
+              durationMinutes = Math.max(15, ((eh || 0) * 60 + (em || 0)) - startMinutes);
+            }
+          }
+
+          const evObj = {
+            id: item.id,
+            title: item.summary,
+            summary: item.summary,
+            location: item.location || '',
+            description: item.description || '',
+            all_day: item.all_day,
+            start_date_iso: item.start_date_iso,
+            end_date_iso: item.end_date_iso || item.start_date_iso,
+            weekday_short: weekdayShort,
+            date_label: dateLabel,
+            time_display: item.time_display,
+            start_time_display: item.all_day ? 'All day' : item.time_display.split(' - ')[0],
+            end_time_display: item.all_day ? '' : (item.time_display.split(' - ')[1] || ''),
+            start_time_sort: item.start_time_sort,
+            start_minutes: startMinutes,
+            duration_minutes: durationMinutes,
+            top_px: Math.round((startMinutes / 60) * 48),
+            height_px: Math.max(22, Math.round((durationMinutes / 60) * 48)),
+            color: eventColor,
+            emoji: item.emoji || '📅',
+            person_id: eventPersonId,
+            person_name: eventPersonName,
+            person_avatar: eventPersonAvatar,
+            is_family: src.isFamily,
+          };
+
+          const dedupKey = item.id && !item.id.startsWith('cal_')
+            ? item.id
+            : `${item.start_date_iso}_${item.summary.toLowerCase().trim()}_${item.start_time || 'all_day'}`;
+
+          if (allEventsMap.has(dedupKey)) {
+            const existing = allEventsMap.get(dedupKey);
+            if (existing.is_family && !src.isFamily) {
+              allEventsMap.set(dedupKey, evObj);
+            }
+          } else {
+            allEventsMap.set(dedupKey, evObj);
+          }
+        }
       }
 
-      const icsText = await res.text();
-      const icsEvents = parseIcsContent(icsText, tz);
-
-      const allEvents: any[] = [];
-      for (const item of icsEvents) {
-        let color = item.color || '#3b82f6';
-        const titleLower = item.summary.toLowerCase();
-        for (const p of peopleColors) {
-          if (titleLower.includes(p.name)) {
-            color = p.color;
-            break;
-          }
-        }
-        for (const r of colorRules) {
-          if (titleLower.includes(r.keyword)) {
-            color = r.color;
-            break;
-          }
-        }
-
-        const [y, mo, da] = item.start_date_iso.split('-').map(Number);
-        const dateObj = new Date(Date.UTC(y, mo - 1, da));
-        const weekdayShort = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(dateObj);
-        const dateLabel = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(dateObj);
-
-        let startMinutes = 0;
-        let durationMinutes = 60;
-        if (!item.all_day && item.start_time) {
-          const [h, m] = item.start_time.split(':').map(Number);
-          startMinutes = (h || 0) * 60 + (m || 0);
-          if (item.end_time) {
-            const [eh, em] = item.end_time.split(':').map(Number);
-            durationMinutes = Math.max(15, ((eh || 0) * 60 + (em || 0)) - startMinutes);
-          }
-        }
-
-        allEvents.push({
-          id: item.id,
-          title: item.summary,
-          summary: item.summary,
-          location: item.location || '',
-          description: item.description || '',
-          all_day: item.all_day,
-          start_date_iso: item.start_date_iso,
-          end_date_iso: item.end_date_iso || item.start_date_iso,
-          weekday_short: weekdayShort,
-          date_label: dateLabel,
-          time_display: item.time_display,
-          start_time_display: item.all_day ? 'All day' : item.time_display.split(' - ')[0],
-          end_time_display: item.all_day ? '' : (item.time_display.split(' - ')[1] || ''),
-          start_time_sort: item.start_time_sort,
-          start_minutes: startMinutes,
-          duration_minutes: durationMinutes,
-          top_px: Math.round((startMinutes / 60) * 48),
-          height_px: Math.max(22, Math.round((durationMinutes / 60) * 48)),
-          color,
-          emoji: item.emoji || '📅',
-        });
-      }
-
+      const allEvents = Array.from(allEventsMap.values());
       allEvents.sort((a, b) => {
         if (a.start_date_iso !== b.start_date_iso) return a.start_date_iso.localeCompare(b.start_date_iso);
         if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
@@ -224,6 +310,7 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
       const todayEvents = allEvents.filter((e) => e.start_date_iso === localToday);
       const weekColumns = buildWeekColumns(weekDates, localToday, allEvents);
       const nowIso = new Date().toISOString();
+      const lastError = feedErrors.length > 0 && allEvents.length === 0 ? feedErrors.join(', ') : null;
 
       cachedGcalResult = {
         timestamp: Date.now(),
@@ -232,7 +319,7 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
         weekColumns,
         embed_url: embedUrl,
         ical_url: icalUrl,
-        error: null,
+        error: lastError,
         last_sync: nowIso,
       };
 
@@ -245,12 +332,12 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
         hourLabels,
         embed_url: embedUrl,
         ical_url: icalUrl,
-        error: null,
+        error: lastError,
         last_sync: nowIso,
       };
     } catch (err: any) {
       console.error('[GCal iCal Sync Error]:', err);
-      const lastError = err?.message || 'Failed to fetch calendar from iCal URL';
+      const lastError = err?.message || 'Failed to fetch calendar feeds';
       return {
         featureEnabled,
         enabled: true,

@@ -619,6 +619,9 @@ export const ChoresKanbanSection: React.FC = () => {
                 <img
                   src={resolveAvatarUrl(person.avatar)}
                   alt={person.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
                   style={{
                     width: 26,
                     height: 26,
@@ -705,6 +708,9 @@ export const ChoresKanbanSection: React.FC = () => {
                       src={resolveAvatarUrl(person.avatar)}
                       alt={person.name}
                       onClick={() => handleOpenProfile(person)}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                      }}
                       style={{
                         width: 52,
                         height: 52,
@@ -1110,6 +1116,9 @@ export const ChoresKanbanSection: React.FC = () => {
                       alt={person.name}
                       className="avatar avatar-tappable"
                       onClick={() => handleOpenProfile(person)}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                      }}
                       title={`View ${person.name}'s badges`}
                       style={{
                         width: 40,
@@ -2076,6 +2085,9 @@ export const ChoresKanbanSection: React.FC = () => {
                 <img
                   src={resolveAvatarUrl(profileModalPerson.avatar)}
                   alt={profileModalPerson.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                  }}
                   className="profile-avatar"
                 />
                 <h1 className="profile-name">{profileModalPerson.name}</h1>
