@@ -9,6 +9,12 @@
 
 ## Versioning Protocol
 - **Only increment version on deploy/push**: Do NOT bump versions multiple times during local development. Only increment when preparing to deploy/push to git, and use a single bump (e.g., `1.2.0` -> `1.2.1` or `1.3.0` depending on release scope).
+- **Update All 4 Version Files in Lockstep**: When bumping versions, you MUST update all 4 of these files together:
+  1. `choresrewards/config.yaml` (`version: "X.Y.Z"`) — **CRITICAL**: Home Assistant Supervisor reads this exact file to detect updates in HAOS. If omitted, Home Assistant will report "No updates available".
+  2. `package.json` (Root workspace `version`)
+  3. `client/package.json` (Frontend client `version`)
+  4. `server/package.json` (Backend server `version`)
+- **Always build production bundles before push**: Run `npm run build` (`npm run build:client` + `npm run build:server`) before committing.
 
 ## Quality Standards & Live Browser Verification
 - **Full UI Regression Test Before Deploy**: Before doing a version push or deploy, run a comprehensive regression test in the local UI across every screen. Verify:
