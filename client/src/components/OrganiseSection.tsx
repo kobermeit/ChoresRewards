@@ -4,8 +4,13 @@ import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
+import { PageContainer, Button, Badge } from './ui';
 
-export const OrganiseSection: React.FC = () => {
+export interface OrganiseSectionProps {
+  isStandalonePage?: boolean;
+}
+
+export const OrganiseSection: React.FC<OrganiseSectionProps> = ({ isStandalonePage = false }) => {
   const { showToast } = useApp();
   const [items, setItems] = useState<OrganiseItem[]>([]);
   const [filterTab, setFilterTab] = useState<'all' | 'cars' | 'bills'>('all');
@@ -176,98 +181,91 @@ export const OrganiseSection: React.FC = () => {
 
   return (
     <>
-      <section className="organise-section admin-only" id="organise-section">
-        <h2
-          className="section-title"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
-        >
-          <i className="fas fa-folder-open" style={{ color: '#38bdf8' }} /> Organise
-          <SectionHelpTip
-            title="Organise (Vehicles, Bills & Renewals)"
-            tips={[
-              'Keep cars, registration, insurance, and recurring household renewals in one place.',
-              'Tap any vehicle card to update odometer kilometres or log service history.',
-              'Click "+12m Renew" on bills/policies to roll the due date forward by a year.',
-            ]}
-          />
-        </h2>
-        <div className="organise-body">
-          <div className="organise-toolbar">
-            <div className="org-toolbar-actions">
-              {(['all', 'cars', 'bills'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setFilterTab(t)}
-                  className="org-quick-btn"
-                  style={{
-                    background: filterTab === t ? 'rgba(59,130,246,0.25)' : undefined,
-                    borderColor: filterTab === t ? '#3b82f6' : undefined,
-                  }}
-                >
-                  {t === 'all' ? 'All' : t === 'cars' ? '🚗 Vehicles' : '📄 Bills & Renewals'}
-                </button>
-              ))}
-              <button
-                id="organise-add-btn"
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="org-add-btn admin-only"
+      <PageContainer
+        title="Organise & Bills"
+        icon="fas fa-folder-open"
+        iconClass="section-icon-organise"
+        badge={items.length}
+        boxed={!isStandalonePage}
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div className="org-quick-wrap admin-only" style={{ position: 'relative' }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setQuickMenuOpen((o) => !o)}
+                title="Templates for car & bills"
               >
-                <i className="fas fa-plus" /> Add
-              </button>
-              <div className="org-quick-wrap admin-only" style={{ position: 'relative' }}>
-                <button
-                  id="org-quick-btn"
-                  className="org-quick-btn"
-                  type="button"
-                  onClick={() => setQuickMenuOpen((o) => !o)}
-                >
-                  <i className="fas fa-car" /> Templates
-                </button>
-                {quickMenuOpen && (
-                  <div id="org-quick-menu" className="org-quick-menu" style={{ display: 'block' }}>
-                    <div className="org-quick-heading">Car</div>
+                <i className="fas fa-car" /> Templates
+              </Button>
+              {quickMenuOpen && (
+                <div id="org-quick-menu" className="org-quick-menu" style={{ display: 'block' }}>
+                  <div className="org-quick-heading">Car</div>
+                  <button
+                    type="button"
+                    className="org-quick-item"
+                    onClick={() => {
+                      setAddCategory('car');
+                      setAddTitle('');
+                      setQuickMenuOpen(false);
+                      setShowAddModal(true);
+                    }}
+                  >
+                    🚗 Add a car
+                  </button>
+                  <div className="org-quick-heading">Attach to a car</div>
+                  {[
+                    { title: 'Registration / Rego', cat: 'rego', icon: '🔖' },
+                    { title: 'CTP / Green Slip', cat: 'insurance', icon: '🛡️' },
+                    { title: 'Comprehensive Insurance', cat: 'insurance', icon: '🛡️' },
+                    { title: 'Roadside Assistance', cat: 'subscription', icon: '🚨' },
+                  ].map((tmpl) => (
                     <button
+                      key={tmpl.title}
                       type="button"
                       className="org-quick-item"
                       onClick={() => {
-                        setAddCategory('car');
-                        setAddTitle('');
+                        setAddCategory(tmpl.cat);
+                        setAddTitle(tmpl.title);
                         setQuickMenuOpen(false);
                         setShowAddModal(true);
                       }}
                     >
-                      🚗 Add a car
+                      {tmpl.icon} {tmpl.title}
                     </button>
-                    <div className="org-quick-heading">Attach to a car</div>
-                    {[
-                      { title: 'Registration / Rego', cat: 'rego', icon: '🔖' },
-                      { title: 'CTP / Green Slip', cat: 'insurance', icon: '🛡️' },
-                      { title: 'Comprehensive Insurance', cat: 'insurance', icon: '🛡️' },
-                      { title: 'Roadside Assistance', cat: 'subscription', icon: '🚨' },
-                    ].map((tmpl) => (
-                      <button
-                        key={tmpl.title}
-                        type="button"
-                        className="org-quick-item"
-                        onClick={() => {
-                          setAddCategory(tmpl.cat);
-                          setAddTitle(tmpl.title);
-                          setQuickMenuOpen(false);
-                          setShowAddModal(true);
-                        }}
-                      >
-                        {tmpl.icon} {tmpl.title}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowAddModal(true)}
+            >
+              <i className="fas fa-plus" /> Add Item
+            </Button>
           </div>
-
-          <div id="organise-items-container">
+        }
+        toolbar={
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['all', 'cars', 'bills'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilterTab(t)}
+                className="org-quick-btn"
+                style={{
+                  background: filterTab === t ? 'rgba(59,130,246,0.25)' : undefined,
+                  borderColor: filterTab === t ? '#3b82f6' : undefined,
+                }}
+              >
+                {t === 'all' ? 'All' : t === 'cars' ? '🚗 Vehicles' : '📄 Bills & Renewals'}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        <div id="organise-items-container">
             {/* Vehicles Grid */}
             {(filterTab === 'all' || filterTab === 'cars') && cars.length > 0 && (
               <div
@@ -488,8 +486,7 @@ export const OrganiseSection: React.FC = () => {
         </p>
       )}
           </div>
-        </div>
-      </section>
+      </PageContainer>
 
       {/* Add Item Modal */}
       <Modal

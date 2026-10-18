@@ -2,10 +2,15 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
 import { SectionHelpTip } from './HelpTooltipAndView';
+import { PageContainer, Button } from './ui';
 
 const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
 
-export const NotesSection: React.FC = () => {
+export interface NotesSectionProps {
+  isStandalonePage?: boolean;
+}
+
+export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = false }) => {
   const { data, refresh, showToast, confirm } = useApp();
 
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
@@ -291,21 +296,23 @@ export const NotesSection: React.FC = () => {
   };
 
   return (
-    <section className="notes-kanban-section" id="notes-kanban-section">
-      <h2
-        className="section-title"
-        style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
-      >
-        <i className="fas fa-sticky-note" style={{ color: '#fbbf24' }} /> <span>Notes</span>
-        <SectionHelpTip
-          title="Sticky Notes & Text Pads"
-          tips={[
-            'Create colour-coded lists for to-dos, school reminders, or family packing lists.',
-            'Tick off notes as you complete them and use "Clear Checked" to archive them.',
-            'Expand "Text Pads" below for longer freeform scratchpads with 1-click copy.',
-          ]}
-        />
-      </h2>
+    <PageContainer
+      title="Notes & Text Pads"
+      icon="fas fa-sticky-note"
+      iconClass="section-icon-notes"
+      badge={activeNotes.length}
+      boxed={!isStandalonePage}
+      actions={
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button variant="secondary" size="sm" onClick={handleClearChecked} title="Clear checked notes">
+            <i className="fas fa-broom" /> Clear Checked
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleAddColumnPrompt} title="Add new sticky list">
+            <i className="fas fa-plus" /> Add List
+          </Button>
+        </div>
+      }
+    >
 
       <div className="notes-kanban-board" id="notes-kanban-board">
         {columns.map((col) => {
@@ -376,7 +383,7 @@ export const NotesSection: React.FC = () => {
                   className="notes-add-btn edit-btn"
                   onClick={() => handleAddNote(col.id)}
                 >
-                  <i className="fas fa-plus" /> Add
+                  <i className="fas fa-plus" /> Add Note
                 </button>
               </div>
             </div>
@@ -384,14 +391,6 @@ export const NotesSection: React.FC = () => {
         })}
       </div>
 
-      <div className="notes-action-row">
-        <button type="button" className="edit-btn" id="notes-add-column-btn" onClick={handleAddColumnPrompt}>
-          <i className="fas fa-plus" /> Add List
-        </button>
-        <button type="button" className="edit-btn" id="notes-clear-checked-btn" onClick={handleClearChecked}>
-          <i className="fas fa-broom" /> Clear Checked
-        </button>
-      </div>
 
       <div
         className={`notes-deleted-wrap collapsible-section${deletedCollapsed ? ' collapsed' : ''}`}
@@ -558,7 +557,7 @@ export const NotesSection: React.FC = () => {
           </div>
         </div>
       </div>
-    </section>
+    </PageContainer>
   );
 };
 

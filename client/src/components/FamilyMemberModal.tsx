@@ -3,7 +3,7 @@ import { Person, UserRole } from '../types';
 import { apiPost, resolveAvatarUrl } from '../api';
 import { useApp } from '../context/AppContext';
 import { Modal } from './common/Modal';
-import { Button, Input } from './ui';
+import { Button, Input, FormGrid, FormField } from './ui';
 
 const PRESET_COLORS = [
   '#3b82f6', // Blue
@@ -124,14 +124,7 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
       if (selectedFile && savedPerson?.id) {
         const formData = new FormData();
         formData.append('avatar', selectedFile);
-        const uploadRes = await fetch(`/api/upload_avatar/${savedPerson.id}`, {
-          method: 'POST',
-          body: formData,
-        });
-        const uploadJson = await uploadRes.json();
-        if (!uploadJson.success) {
-          throw new Error(uploadJson.error || 'Failed to upload photo');
-        }
+        await apiPost(`upload_avatar/${savedPerson.id}`, formData);
       }
 
       showToast(`Saved ${trimmedName}`);
@@ -171,8 +164,9 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
         </div>
       }
     >
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Avatar Photo Section */}
+      <FormGrid onSubmit={handleSave}>
+        {/* Avatar Photo Section */}
+        <FormField colSpan={12}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
@@ -250,8 +244,10 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
               {avatarPreview ? 'Change Photo' : 'Upload Photo'}
             </Button>
           </div>
+        </FormField>
 
-          {/* Name Input */}
+        {/* Name Input */}
+        <FormField colSpan={12}>
           <Input
             label="Name"
             type="text"
@@ -260,63 +256,42 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             placeholder="e.g. Abby"
             required
           />
+        </FormField>
 
-          {/* Date of Birth & Dynamic Age Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🎂 Date of Birth</span>
-              </label>
-              <input
-                type="date"
-                className="modern-input"
-                value={dob}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setDob(val);
-                  const calc = computeAgeFromDob(val);
-                  if (calc !== null) setAge(String(calc));
-                }}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
-                  fontSize: '0.88rem',
-                }}
-              />
-            </div>
+        {/* Date of Birth */}
+        <FormField colSpan={7}>
+          <Input
+            label="🎂 Date of Birth"
+            type="date"
+            value={dob}
+            onChange={(e) => {
+              const val = e.target.value;
+              setDob(val);
+              const calc = computeAgeFromDob(val);
+              if (calc !== null) setAge(String(calc));
+            }}
+          />
+        </FormField>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Age</span>
-                {dob && <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 700 }}>✓ Auto</span>}
-              </label>
-              <input
-                type="number"
-                className="modern-input"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder={dob ? 'Calculated' : 'e.g. 8'}
-                min="0"
-                max="120"
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
-                  fontSize: '0.95rem',
-                }}
-              />
-            </div>
-          </div>
+        {/* Dynamic Age */}
+        <FormField colSpan={5}>
+          <Input
+            label="Age"
+            type="number"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            placeholder={dob ? 'Calculated' : 'e.g. 8'}
+            min={0}
+            max={120}
+            helperText={dob ? '✓ Auto-calculated' : undefined}
+          />
+        </FormField>
 
-          {/* Role Selection */}
+        {/* Role Selection */}
+        <FormField colSpan={12}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Family Role</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Family Role</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '10px' }}>
               {[
                 { id: 'child' as UserRole, label: 'Child', desc: 'Chores, rewards & games', icon: 'fa-star' },
                 { id: 'parent' as UserRole, label: 'Parent', desc: 'Full family admin access', icon: 'fa-shield-alt' },
@@ -329,9 +304,9 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                     onClick={() => setRole(r.id)}
                     style={{
                       padding: '12px 8px',
-                      borderRadius: '10px',
+                      borderRadius: 'var(--radius-md)',
                       background: active ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                      border: active ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                      border: active ? '2px solid #3b82f6' : '1px solid var(--color-border-subtle)',
                       color: active ? '#93c5fd' : '#cbd5e1',
                       cursor: 'pointer',
                       display: 'flex',
@@ -344,16 +319,18 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                   >
                     <i className={`fas ${r.icon}`} style={{ fontSize: '1.2rem', marginBottom: 2 }} />
                     <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>{r.label}</span>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{r.desc}</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{r.desc}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+        </FormField>
 
-          {/* Accent Color Palette */}
+        {/* Accent Color Palette */}
+        <FormField colSpan={12}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Accent Colour</label>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Accent Colour</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
               {PRESET_COLORS.map((c) => (
                 <button
@@ -389,8 +366,10 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
               />
             </div>
           </div>
+        </FormField>
 
-          {/* PIN Input (Optional) */}
+        {/* PIN Input (Optional) */}
+        <FormField colSpan={12}>
           <Input
             label={member?.has_pin ? 'PIN Protection (Current PIN set)' : 'PIN Protection (Optional)'}
             type="password"
@@ -401,8 +380,10 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep)' : 'Optional 4-digit PIN'}
             helperText="Used when switching to this profile on the shared tablet."
           />
+        </FormField>
 
-          {/* Personal Google Calendar (.ics) */}
+        {/* Personal Google Calendar (.ics) */}
+        <FormField colSpan={12}>
           <Input
             label="Personal Google Calendar (.ics URL)"
             type="url"
@@ -411,8 +392,8 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
             placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
             helperText={`Events from this sub-calendar will automatically appear with ${name ? `${name}'s` : "this person's"} color (${color}).`}
           />
-
-      </form>
+        </FormField>
+      </FormGrid>
     </Modal>
   );
 };

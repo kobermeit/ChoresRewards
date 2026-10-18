@@ -321,17 +321,28 @@ const VisualTimerModal: React.FC = () => {
               setRunning((prev) => !prev);
             }}
             style={{
-              padding: '12px 28px',
-              borderRadius: 12,
+              padding: '0 24px',
+              height: 42,
+              minHeight: 42,
+              borderRadius: 'var(--btn-radius)',
               border: 'none',
-              background: running ? '#f59e0b' : '#22c55e',
+              background: running ? 'var(--color-warning)' : 'var(--color-success)',
               color: '#fff',
-              fontWeight: 800,
-              fontSize: '1.05rem',
+              fontWeight: 700,
+              fontSize: '1rem',
               cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transition: 'all 0.15s ease',
+              boxShadow: running
+                ? '0 3px 12px rgba(245, 158, 11, 0.35)'
+                : '0 3px 12px rgba(16, 185, 129, 0.35)',
             }}
           >
-            {running ? '⏸ Pause' : '▶ Start'}
+            <i className={running ? 'fas fa-pause' : 'fas fa-play'} />
+            <span>{running ? 'Pause' : 'Start'}</span>
           </button>
           <button
             type="button"
@@ -340,16 +351,25 @@ const VisualTimerModal: React.FC = () => {
               setRemainingSeconds(totalSeconds);
             }}
             style={{
-              padding: '12px 20px',
-              borderRadius: 12,
-              border: '1px solid rgba(255,255,255,0.18)',
-              background: 'rgba(255,255,255,0.08)',
-              color: 'inherit',
-              fontWeight: 700,
+              padding: '0 20px',
+              height: 42,
+              minHeight: 42,
+              borderRadius: 'var(--btn-radius)',
+              border: '1px solid var(--color-border-medium)',
+              background: 'var(--color-bg-surface-elevated)',
+              color: 'var(--color-text-primary)',
+              fontWeight: 600,
+              fontSize: '0.95rem',
               cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transition: 'all 0.15s ease',
             }}
           >
-            ↺ Reset
+            <i className="fas fa-rotate-left" />
+            <span>Reset</span>
           </button>
         </div>
       </div>

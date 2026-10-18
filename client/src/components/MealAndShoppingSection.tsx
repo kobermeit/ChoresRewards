@@ -6,6 +6,7 @@ import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
+import { PageContainer, Button, Badge } from './ui';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -125,7 +126,15 @@ function renderStoreIcon(icon?: string) {
   return <>{icon || '🛒'}</>;
 }
 
-export const MealAndShoppingSection: React.FC = () => {
+export interface MealAndShoppingSectionProps {
+  subView?: 'all' | 'meals' | 'shopping' | 'library';
+  isStandalonePage?: boolean;
+}
+
+export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
+  subView = 'all',
+  isStandalonePage = false,
+}) => {
   const { data, refresh, showToast, confirm, isChild } = useApp();
 
   // Accordion states matching original index.html
@@ -518,6 +527,19 @@ export const MealAndShoppingSection: React.FC = () => {
       .slice(0, 15);
   }, [allLibraryRecipes, planMealTitle]);
 
+  const totalShoppingItems = useMemo(() => {
+    const generalCount = (shop?.general || []).length;
+    let ingredientCount = 0;
+    Object.entries(ingredientsMap).forEach(([mealKey, ings]) => {
+      const isPlannedOrActive =
+        Boolean(plannedMealsMap[mealKey.toLowerCase()]) || (shop?.active || []).includes(mealKey);
+      if (isPlannedOrActive) {
+        ingredientCount += (ings || []).length;
+      }
+    });
+    return generalCount + ingredientCount;
+  }, [shop, ingredientsMap, plannedMealsMap]);
+
   const catalogPool = intel.catalog || [];
   const filteredCatalog = shoppingSearch.trim()
     ? catalogPool
@@ -703,44 +725,43 @@ export const MealAndShoppingSection: React.FC = () => {
       {/* ===================================================================
           1. WEEKLY MEAL PLANNER (KANBAN DAYS)
          =================================================================== */}
-      <section className="meal-planner-section" id="meal-planner-section">
-        <h2 className="section-title meal-planner-title" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
-          <i className="fas fa-utensils" /> <span>Weekly Meal Planner</span>
-          <SectionHelpTip
-            title="Weekly Meal Planner"
-            text="Plan meals as Kanban columns with multiple tiles per day (e.g. Kids vs Adults). Click any meal tile to open recipe instructions and ingredients, or add them straight to shopping. Select multiple days when cooking big meals to last multiple nights!"
-          />
-        </h2>
-
-        <div className="meal-week-nav">
-          <button
-            type="button"
-            className="meal-nav-btn meal-prev-week-btn"
-            onClick={() => handleNavigateWeek(-7)}
-          >
-            <i className="fas fa-chevron-left" /> Prev
-          </button>
-          <span className="meal-week-nav-label">{formatWeekRangeLabel(currentWeekStart)}</span>
-          {isThisWeek && (
-            <span className="meal-this-week-badge" id="meal-this-week-badge">
-              This week
-            </span>
-          )}
-          <button
-            type="button"
-            className="meal-nav-btn meal-next-week-btn"
-            onClick={() => handleNavigateWeek(7)}
-          >
-            Next <i className="fas fa-chevron-right" />
-          </button>
-          {navLoading && (
-            <span className="meal-nav-spinner">
-              <i className="fas fa-spinner fa-spin" />
-            </span>
-          )}
-        </div>
-
-        {/* 7-Day Kanban Display */}
+      {(subView === 'all' || subView === 'meals') && (
+        <PageContainer
+          title="Weekly Meal Planner"
+          icon="fas fa-utensils"
+          iconClass="section-icon-meals"
+          boxed={!isStandalonePage}
+          actions={
+            <div className="meal-week-nav" style={{ margin: 0 }}>
+              <button
+                type="button"
+                className="meal-nav-btn meal-prev-week-btn"
+                onClick={() => handleNavigateWeek(-7)}
+              >
+                <i className="fas fa-chevron-left" /> Prev
+              </button>
+              <span className="meal-week-nav-label">{formatWeekRangeLabel(currentWeekStart)}</span>
+              {isThisWeek && (
+                <span className="meal-this-week-badge" id="meal-this-week-badge">
+                  This week
+                </span>
+              )}
+              <button
+                type="button"
+                className="meal-nav-btn meal-next-week-btn"
+                onClick={() => handleNavigateWeek(7)}
+              >
+                Next <i className="fas fa-chevron-right" />
+              </button>
+              {navLoading && (
+                <span className="meal-nav-spinner">
+                  <i className="fas fa-spinner fa-spin" />
+                </span>
+              )}
+            </div>
+          }
+        >
+          {/* 7-Day Kanban Display */}
         <div id="meal-planner-editable" className="meal-week-display">
           {weekDays.map((day) => {
             const isToday = day.date_iso === data.current_date;
@@ -862,68 +883,67 @@ export const MealAndShoppingSection: React.FC = () => {
             );
           })}
         </div>
-      </section>
+      </PageContainer>
+      )}
 
       {/* ===================================================================
           2. SHOPPING LIST (SMART CATALOG & DEDUPLICATED)
          =================================================================== */}
-      <section
-        className="meal-planner-section shopping-list-section"
-        id="shopping-list-section"
-      >
-        <h2 className="section-title meal-planner-title" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
-          <i className="fas fa-cart-shopping" /> <span>Shopping List</span>
-          <SectionHelpTip
-            title="Smart Shopping List"
-            text="Catalog tracks frequent items and purchase frequency. Use 'Frequently Added' or 'Suggested' to restock items in bulk with one click. 'Hide Checked' clears ticked items while shopping, and 'Archive Checked' records purchases to history."
-          />
-        </h2>
-
-        {/* Smart Toolbar */}
-        <div className="shopping-smart-toolbar">
-          <button
-            type="button"
-            className="shopping-toolbar-btn"
-            onClick={() => setFrequentlyModalOpen(true)}
-            title="Add frequently purchased staples"
-          >
-            <i className="fas fa-star" /> Frequently Added ({intel.frequently_added?.length || 0})
-          </button>
-          <button
-            type="button"
-            className="shopping-toolbar-btn"
-            onClick={() => setSuggestedModalOpen(true)}
-            title="Items predicted to restock based on purchase frequency"
-          >
-            <i className="fas fa-lightbulb" /> Suggested Restock ({intel.suggested?.length || 0})
-          </button>
-          <button
-            type="button"
-            className="shopping-toolbar-btn"
-            onClick={() => setRecentlyPurchasedOpen(true)}
-            title="View purchased history"
-          >
-            <i className="fas fa-clock-rotate-left" /> History
-          </button>
-          <button
-            type="button"
-            className={`shopping-toolbar-btn shopping-icon-btn${hideChecked ? ' active' : ''}`}
-            onClick={() => setHideChecked((h) => !h)}
-            title={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
-            aria-label={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
-          >
-            <i className={hideChecked ? 'fas fa-eye-slash' : 'fas fa-eye'} />
-          </button>
-          <button
-            type="button"
-            className="shopping-toolbar-btn shopping-archive-btn"
-            style={{ marginLeft: 'auto' }}
-            onClick={handleArchiveChecked}
-            title="Archive checked items as purchased and save to history"
-          >
-            <i className="fas fa-box-archive" /> Archive Checked
-          </button>
-        </div>
+      {(subView === 'all' || subView === 'shopping') && (
+        <PageContainer
+          title="Shopping List"
+          icon="fas fa-cart-shopping"
+          iconClass="section-icon-shopping"
+          badge={totalShoppingItems}
+          boxed={!isStandalonePage}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleArchiveChecked}
+              title="Archive checked items as purchased and save to history"
+            >
+              <i className="fas fa-box-archive" /> Archive Checked
+            </Button>
+          }
+          toolbar={
+            <div className="shopping-smart-toolbar" style={{ margin: 0 }}>
+              <button
+                type="button"
+                className="shopping-toolbar-btn"
+                onClick={() => setFrequentlyModalOpen(true)}
+                title="Add frequently purchased staples"
+              >
+                <i className="fas fa-star" /> Frequently Added ({intel.frequently_added?.length || 0})
+              </button>
+              <button
+                type="button"
+                className="shopping-toolbar-btn"
+                onClick={() => setSuggestedModalOpen(true)}
+                title="Items predicted to restock based on purchase frequency"
+              >
+                <i className="fas fa-lightbulb" /> Suggested Restock ({intel.suggested?.length || 0})
+              </button>
+              <button
+                type="button"
+                className="shopping-toolbar-btn"
+                onClick={() => setRecentlyPurchasedOpen(true)}
+                title="View purchased history"
+              >
+                <i className="fas fa-clock-rotate-left" /> History
+              </button>
+              <button
+                type="button"
+                className={`shopping-toolbar-btn shopping-icon-btn${hideChecked ? ' active' : ''}`}
+                onClick={() => setHideChecked((h) => !h)}
+                title={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
+                aria-label={hideChecked ? 'Show Checked Items' : 'Hide Checked Items'}
+              >
+                <i className={hideChecked ? 'fas fa-eye-slash' : 'fas fa-eye'} />
+              </button>
+            </div>
+          }
+        >
 
         {/* Smart Search Combobox */}
         <div className="shopping-manage-block" style={{ margin: '10px 0 14px 0' }}>
@@ -1004,7 +1024,7 @@ export const MealAndShoppingSection: React.FC = () => {
                 }
               }}
             >
-              Add
+              <i className="fas fa-plus" /> Add Item
             </button>
           </div>
         </div>
@@ -1242,63 +1262,35 @@ export const MealAndShoppingSection: React.FC = () => {
             )}
           </div>
         </div>
-      </section>
+      </PageContainer>
+      )}
 
       {/* ===================================================================
           3. MEAL LIBRARY & RECIPES
          =================================================================== */}
-      <section
-        className="meal-planner-section"
-        id="meal-library-section"
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10,
-            marginBottom: 12,
-          }}
+      {(subView === 'all' || subView === 'library') && (
+        <PageContainer
+          title="Meal Library & Recipes"
+          icon="fas fa-book-open"
+          iconClass="section-icon-library"
+          badge={allLibraryRecipes.length}
+          boxed={!isStandalonePage}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSyncNotion();
+              }}
+              disabled={notionSyncing}
+              title="Sync recipes directly from Notion database"
+            >
+              <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />
+              <span>{notionSyncing ? 'Syncing...' : 'Sync from Notion'}</span>
+            </Button>
+          }
         >
-          <h2
-            className="section-title meal-planner-title"
-            style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <i className="fas fa-book-open" /> <span>Meal Library & Recipes</span>
-            <SectionHelpTip
-              title="Meal Library & Notion Sync"
-              text="Build recipes with ingredients, prep time, servings, and method. Use 'Sync from Notion' to pull recipes directly from your Notion recipe database, or use the webhook API for your Discord/Google Apps Script recipe bot."
-            />
-          </h2>
-
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSyncNotion();
-            }}
-            disabled={notionSyncing}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(99, 102, 241, 0.22)',
-              border: '1px solid rgba(99, 102, 241, 0.45)',
-              color: '#c7d2fe',
-              cursor: notionSyncing ? 'not-allowed' : 'pointer',
-            }}
-            title="Sync recipes directly from Notion database"
-          >
-            <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />
-            <span>{notionSyncing ? 'Syncing...' : 'Sync from Notion'}</span>
-          </button>
-        </div>
 
         {/* Add Ingredients to a Meal */}
         <div className="shopping-manage-block" style={{ marginBottom: 12 }}>
@@ -1470,7 +1462,8 @@ export const MealAndShoppingSection: React.FC = () => {
             </div>
           )}
         </div>
-      </section>
+      </PageContainer>
+      )}
 
       {/* ===================================================================
           MODALS

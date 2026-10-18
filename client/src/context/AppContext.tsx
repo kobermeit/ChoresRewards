@@ -22,11 +22,19 @@ export interface ConfirmOptions {
 
 export type ActiveView =
   | 'dashboard'
+  | 'chores'
+  | 'rewards'
+  | 'redeemed'
+  | 'meals'
+  | 'shopping'
+  | 'library'
+  | 'notes'
+  | 'organise'
+  | 'calendar'
   | 'settings'
   | 'activity_log'
   | 'chore_history'
-  | 'help'
-  | 'calendar';
+  | 'help';
 
 interface AppContextValue {
   data: BootstrapData | null;
@@ -67,6 +75,51 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
+
+export const SLUG_TO_SECTION: Record<string, string> = {
+  dashboard: 'dashboard-section',
+  chores: 'chores-section',
+  rewards: 'rewards-section',
+  redeemed: 'redeemed-section',
+  meals: 'meal-planner-section',
+  'meal-planner': 'meal-planner-section',
+  shopping: 'shopping-list-section',
+  'shopping-list': 'shopping-list-section',
+  library: 'meal-library-section',
+  'meal-library': 'meal-library-section',
+  notes: 'notes-kanban-section',
+  organise: 'organise-section',
+};
+
+export const SECTION_TO_SLUG: Record<string, string> = {
+  'dashboard-section': 'dashboard',
+  'chores-section': 'chores',
+  'rewards-section': 'rewards',
+  'redeemed-section': 'redeemed',
+  'meal-planner-section': 'meals',
+  'shopping-list-section': 'shopping',
+  'meal-library-section': 'library',
+  'notes-kanban-section': 'notes',
+  'organise-section': 'organise',
+};
+
+function getInitialView(): ActiveView {
+  const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  if (hash === 'calendar') return 'calendar';
+  if (hash === 'chores') return 'chores';
+  if (hash === 'rewards') return 'rewards';
+  if (hash === 'redeemed') return 'redeemed';
+  if (hash === 'meals' || hash === 'meal-planner') return 'meals';
+  if (hash === 'shopping' || hash === 'shopping-list') return 'shopping';
+  if (hash === 'library' || hash === 'meal-library') return 'library';
+  if (hash === 'notes') return 'notes';
+  if (hash === 'organise') return 'organise';
+  if (hash === 'settings') return 'settings';
+  if (hash === 'activity-log' || hash === 'activity_log') return 'activity_log';
+  if (hash === 'chore-history' || hash === 'chore_history') return 'chore_history';
+  if (hash === 'help') return 'help';
+  return 'dashboard';
+}
 
 export const AppProvider: React.FC<{
   children: React.ReactNode;
@@ -123,7 +176,24 @@ export const AppProvider: React.FC<{
   }, [confirmConfig]);
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [activeView, setActiveViewState] = useState<ActiveView>(getInitialView);
+
+  const setActiveView = useCallback((v: ActiveView) => {
+    setActiveViewState(v);
+    const slug =
+      v === 'dashboard'
+        ? ''
+        : v === 'activity_log'
+          ? 'activity-log'
+          : v === 'chore_history'
+            ? 'chore-history'
+            : v;
+    const hash = slug ? `#/${slug}` : '#/';
+    if (window.location.hash !== hash) {
+      window.history.pushState(null, '', hash);
+    }
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
   const [selectedChorePersonId, setSelectedChorePersonId] = useState<number | null>(null);
   const [screensaverOpen, setScreensaverOpen] = useState(false);
   const [visualTimerOpen, setVisualTimerOpen] = useState(false);
@@ -291,14 +361,71 @@ export const AppProvider: React.FC<{
   );
 
   const scrollToSection = useCallback((sectionId: string) => {
-    setActiveView('dashboard');
-    setTimeout(() => {
-      const el = document.getElementById(sectionId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 50);
+    const slug = SECTION_TO_SLUG[sectionId] || sectionId;
+    if (slug === 'dashboard') {
+      setActiveView('dashboard');
+    } else if (slug === 'chores') {
+      setActiveView('chores');
+    } else if (slug === 'rewards') {
+      setActiveView('rewards');
+    } else if (slug === 'redeemed') {
+      setActiveView('redeemed');
+    } else if (slug === 'meals' || slug === 'meal-planner') {
+      setActiveView('meals');
+    } else if (slug === 'shopping' || slug === 'shopping-list') {
+      setActiveView('shopping');
+    } else if (slug === 'library' || slug === 'meal-library') {
+      setActiveView('library');
+    } else if (slug === 'notes') {
+      setActiveView('notes');
+    } else if (slug === 'organise') {
+      setActiveView('organise');
+    } else {
+      setActiveView('dashboard');
+    }
+  }, [setActiveView]);
+
+  // Listen to browser Back/Forward (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+      if (rawHash === 'calendar') setActiveViewState('calendar');
+      else if (rawHash === 'chores') setActiveViewState('chores');
+      else if (rawHash === 'rewards') setActiveViewState('rewards');
+      else if (rawHash === 'redeemed') setActiveViewState('redeemed');
+      else if (rawHash === 'meals' || rawHash === 'meal-planner') setActiveViewState('meals');
+      else if (rawHash === 'shopping' || rawHash === 'shopping-list') setActiveViewState('shopping');
+      else if (rawHash === 'library' || rawHash === 'meal-library') setActiveViewState('library');
+      else if (rawHash === 'notes') setActiveViewState('notes');
+      else if (rawHash === 'organise') setActiveViewState('organise');
+      else if (rawHash === 'settings') setActiveViewState('settings');
+      else if (rawHash === 'help') setActiveViewState('help');
+      else if (rawHash === 'activity-log' || rawHash === 'activity_log') setActiveViewState('activity_log');
+      else if (rawHash === 'chore-history' || rawHash === 'chore_history') setActiveViewState('chore_history');
+      else setActiveViewState('dashboard');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Initial deep link scroll on boot
+  useEffect(() => {
+    if (loading) return;
+    const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    if (!rawHash) return;
+    const sectionId = SLUG_TO_SECTION[rawHash];
+    if (sectionId) {
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          const header = document.querySelector('.dashboard-header-sticky');
+          const headerHeight = header ? header.getBoundingClientRect().height : 70;
+          const targetY = el.getBoundingClientRect().top + window.scrollY - headerHeight - 16;
+          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+      }, 250);
+    }
+  }, [loading]);
 
   const openPlayGame = useCallback((game: 'maths' | 'colours' | 'patterns' | 'memory') => {
     setPlayWidgetInitialGame(game);

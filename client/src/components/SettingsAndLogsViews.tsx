@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { SetupWizard } from './SetupWizard';
 import { FormErrorAlert } from './FormErrorAlert';
-import { Button, Input, Select, Card, Badge } from './ui';
+import { Button, Input, Select, Card, Badge, FormGrid, FormField } from './ui';
 
 // ============================================================================
 // 1. SETTINGS VIEW
@@ -662,53 +662,67 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <h4>➕ Add Family Member</h4>
-          <form onSubmit={handleAddPerson} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: '1 1 180px' }}>
+          <FormGrid onSubmit={handleAddPerson} style={{ alignItems: 'flex-end' }}>
+            <FormField colSpan={4}>
               <Input
+                label="Name *"
                 type="text"
                 placeholder="Name"
                 value={newPersonName}
                 onChange={(e) => setNewPersonName(e.target.value)}
                 required
               />
-            </div>
-            <div style={{ width: 130 }}>
+            </FormField>
+            <FormField colSpan={2}>
               <Input
+                label="Age"
                 type="number"
-                placeholder="Age (optional)"
+                placeholder="e.g. 8"
                 value={newPersonAge}
                 onChange={(e) => setNewPersonAge(e.target.value)}
               />
-            </div>
-            <input
-              type="color"
-              value={newPersonColor}
-              onChange={(e) => setNewPersonColor(e.target.value)}
-              style={{ width: 44, height: 42, border: 'none', background: 'none', cursor: 'pointer' }}
-              title="Accent Color"
-            />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={newPersonAdmin}
-                onChange={(e) => setNewPersonAdmin(e.target.checked)}
-              />
-              Parent / Admin
-            </label>
-            {newPersonAdmin && (
-              <div style={{ width: 150 }}>
+            </FormField>
+            <FormField colSpan={2}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>Color</label>
+                <input
+                  type="color"
+                  value={newPersonColor}
+                  onChange={(e) => setNewPersonColor(e.target.value)}
+                  style={{ width: '100%', height: 42, borderRadius: 'var(--input-radius)', border: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-base)', cursor: 'pointer', padding: 2 }}
+                  title="Accent Color"
+                />
+              </div>
+            </FormField>
+            <FormField colSpan={2}>
+              <div style={{ height: 42, display: 'flex', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={newPersonAdmin}
+                    onChange={(e) => setNewPersonAdmin(e.target.checked)}
+                  />
+                  Parent / Admin
+                </label>
+              </div>
+            </FormField>
+            {newPersonAdmin ? (
+              <FormField colSpan={2}>
                 <Input
+                  label="PIN"
                   type="password"
-                  placeholder="Adult PIN"
+                  placeholder="PIN"
                   value={newPersonPin}
                   onChange={(e) => setNewPersonPin(e.target.value)}
                 />
-              </div>
-            )}
-            <Button type="submit" variant="primary" icon="fas fa-plus">
-              Add Member
-            </Button>
-          </form>
+              </FormField>
+            ) : null}
+            <FormField colSpan={newPersonAdmin ? 12 : 2}>
+              <Button type="submit" variant="primary" icon="fas fa-plus" fullWidth={newPersonAdmin}>
+                Add Member
+              </Button>
+            </FormField>
+          </FormGrid>
         </div>
       )}
 
@@ -771,45 +785,51 @@ export const SettingsView: React.FC = () => {
             </Button>
           </div>
 
-          <form onSubmit={handleAddExtraChore} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ width: 60 }}>
+          <FormGrid onSubmit={handleAddExtraChore} style={{ alignItems: 'flex-end', marginBottom: 18 }}>
+            <FormField colSpan={2}>
               <Input
+                label="Icon"
                 type="text"
                 value={ecIcon}
                 onChange={(e) => setEcIcon(e.target.value)}
                 style={{ textAlign: 'center' }}
               />
-            </div>
-            <div style={{ flex: '1 1 200px' }}>
+            </FormField>
+            <FormField colSpan={5}>
               <Input
+                label="Extra Chore Title *"
                 type="text"
-                placeholder="Extra chore title (e.g. Wash the Car)"
+                placeholder="e.g. Wash the Car"
                 value={ecTitle}
                 onChange={(e) => setEcTitle(e.target.value)}
                 required
               />
-            </div>
-            <div style={{ width: 100 }}>
+            </FormField>
+            <FormField colSpan={2}>
               <Input
+                label="Points"
                 type="number"
                 step="0.5"
                 placeholder="Points"
                 value={ecPoints}
                 onChange={(e) => setEcPoints(e.target.value)}
               />
-            </div>
-            <div style={{ width: 100 }}>
+            </FormField>
+            <FormField colSpan={1}>
               <Input
+                label="Min Age"
                 type="number"
-                placeholder="Min Age"
+                placeholder="Min"
                 value={ecMinAge}
                 onChange={(e) => setEcMinAge(e.target.value)}
               />
-            </div>
-            <Button type="submit" variant="primary" icon="fas fa-plus">
-              Add Extra Chore
-            </Button>
-          </form>
+            </FormField>
+            <FormField colSpan={2}>
+              <Button type="submit" variant="primary" icon="fas fa-plus" fullWidth>
+                Add Extra
+              </Button>
+            </FormField>
+          </FormGrid>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {(data?.extra_chores || []).map((ec) => (

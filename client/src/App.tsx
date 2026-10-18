@@ -14,6 +14,7 @@ import { OrganiseSection } from './components/OrganiseSection';
 import { SettingsView, ActivityLogView, ChoreHistoryView } from './components/SettingsAndLogsViews';
 import { HelpView } from './components/HelpTooltipAndView';
 import { Overlays } from './components/Overlays';
+import { Container, Button } from './components/ui';
 
 const MainShell: React.FC<{
   adultPinOpen: boolean;
@@ -50,7 +51,7 @@ const MainShell: React.FC<{
       <div id="site-content">
         <Header />
         {activeView === 'settings' ? (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
+          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
             {isParent ? (
               <SettingsView />
             ) : (
@@ -61,63 +62,67 @@ const MainShell: React.FC<{
                   padding: '36px 24px',
                   textAlign: 'center',
                   background: 'rgba(15, 23, 42, 0.8)',
-                  borderRadius: 18,
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  borderRadius: 'var(--modal-radius)',
+                  border: '1px solid var(--color-border-subtle)',
+                  boxShadow: 'var(--shadow-lg)',
                 }}
               >
                 <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔒</div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
                   Parent Authorisation Required
                 </h2>
-                <p style={{ color: '#94a3b8', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: 24 }}>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: 24 }}>
                   System settings and configuration can only be accessed by a Parent profile.
                 </p>
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  <button
-                    type="button"
-                    className="btn-primary"
+                  <Button
+                    variant="primary"
                     onClick={() => setProfileSwitcherOpen(true)}
-                    style={{ padding: '10px 20px', borderRadius: 10 }}
                   >
                     Switch to Parent
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-cancel"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => setActiveView('dashboard')}
-                    style={{ padding: '10px 20px', borderRadius: 10 }}
                   >
                     Return to Dashboard
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
+          </Container>
         ) : activeView === 'activity_log' ? (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
+          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
             <ActivityLogView />
-          </div>
+          </Container>
         ) : activeView === 'chore_history' ? (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
+          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
             <ChoreHistoryView />
-          </div>
+          </Container>
         ) : activeView === 'help' ? (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 64px' }}>
+          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
             <HelpView />
-          </div>
+          </Container>
         ) : activeView === 'calendar' ? (
           <CalendarView />
+        ) : activeView === 'chores' ? (
+          <ChoresKanbanSection isStandalonePage />
+        ) : activeView === 'rewards' ? (
+          <RewardsSection isStandalonePage />
+        ) : activeView === 'redeemed' ? (
+          <RedeemedRewardsSection isStandalonePage />
+        ) : activeView === 'meals' ? (
+          <MealAndShoppingSection subView="meals" isStandalonePage />
+        ) : activeView === 'shopping' ? (
+          <MealAndShoppingSection subView="shopping" isStandalonePage />
+        ) : activeView === 'library' ? (
+          <MealAndShoppingSection subView="library" isStandalonePage />
+        ) : activeView === 'notes' ? (
+          <NotesSection isStandalonePage />
+        ) : activeView === 'organise' ? (
+          <OrganiseSection isStandalonePage />
         ) : (
-          <>
-            <DashboardSection />
-            <ChoresKanbanSection />
-            <RewardsSection />
-            <RedeemedRewardsSection />
-            <MealAndShoppingSection />
-            <NotesSection />
-            <OrganiseSection />
-          </>
+          <DashboardSection />
         )}
       </div>
 

@@ -6,7 +6,7 @@ import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
 import { FormErrorAlert } from './FormErrorAlert';
-import { Button, Input, Select, Badge } from './ui';
+import { Button, Input, Select, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, UserAvatar } from './ui';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -47,7 +47,11 @@ function getRewardIconClass(title: string): string {
   return 'fa-gift';
 }
 
-export const RewardsSection: React.FC = () => {
+export interface RewardsSectionProps {
+  isStandalonePage?: boolean;
+}
+
+export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage = false }) => {
   const { data, refresh, playSound, showToast, confirm, activeUser, isParent, isChild } = useApp();
 
   // Accordion state
@@ -307,141 +311,109 @@ export const RewardsSection: React.FC = () => {
       </datalist>
 
       {/* Available Rewards Section */}
-      <section className="rewards-section" id="rewards-section">
-        <div className="rewards-header-row">
-          <h2
-            className="section-title"
-            style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}
-          >
-            <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
-            <span>Available Rewards</span>
-            <span
-              style={{
-                fontSize: '0.8rem',
-                padding: '2px 8px',
-                borderRadius: 999,
-                background: 'rgba(167,139,250,0.2)',
-                color: '#c084fc',
-                fontWeight: 700,
-              }}
-            >
-              {filteredRewards.length}
-            </span>
-          </h2>
-
-          {isParent && (
-            <button
-              type="button"
-              className="btn-primary"
+      <PageContainer
+        title="Available Rewards"
+        icon="fas fa-trophy"
+        iconClass="section-icon-rewards"
+        badge={filteredRewards.length}
+        boxed={!isStandalonePage}
+        actions={
+          isParent ? (
+            <Button
+              variant="primary"
+              size="sm"
               onClick={openAddModal}
-              style={{
-                padding: '7px 16px',
-                borderRadius: 10,
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
             >
               <i className="fas fa-plus" /> Add Reward
-            </button>
-          )}
-        </div>
-
-        {/* Person Filter Bar */}
-        <div
-          className="chore-user-filter-bar"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginBottom: 16,
-            padding: '4px 0',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setSelectedPersonId(null)}
+            </Button>
+          ) : undefined
+        }
+        toolbar={
+          <div
+            className="chore-user-filter-bar"
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: 7,
-              padding: '6px 16px',
-              borderRadius: 999,
-              border: selectedPerson === null ? '2px solid #60a5fa' : '1px solid rgba(148,163,184,0.28)',
-              background: selectedPerson === null ? 'rgba(59,130,246,0.22)' : 'rgba(15,23,42,0.45)',
-              color: selectedPerson === null ? '#93c5fd' : 'var(--cr-text-primary)',
-              fontWeight: 800,
-              fontSize: '0.88rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
+              justifyContent: 'flex-start',
+              flexWrap: 'wrap',
+              gap: 8,
+              padding: '2px 0',
             }}
           >
-            <i className="fas fa-users" /> All Family
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPersonId(null)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '6px 16px',
+                borderRadius: 999,
+                border: selectedPerson === null ? '2px solid #60a5fa' : '1px solid rgba(148,163,184,0.28)',
+                background: selectedPerson === null ? 'rgba(59,130,246,0.22)' : 'rgba(15,23,42,0.45)',
+                color: selectedPerson === null ? '#93c5fd' : 'var(--cr-text-primary)',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <i className="fas fa-users" /> All Family
+            </button>
 
-          {family.map((person) => {
-            const isSelected = selectedPerson?.id === person.id;
-            const pts = (person.points || 0) + (person.bonus_points || 0);
-            return (
-              <button
-                key={person.id}
-                type="button"
-                onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '5px 14px 5px 6px',
-                  borderRadius: 999,
-                  border: isSelected
-                    ? `2px solid ${person.color || '#60a5fa'}`
-                    : '1px solid rgba(148,163,184,0.28)',
-                  background: isSelected
-                    ? person.color || 'rgba(59,130,246,0.28)'
-                    : 'rgba(15,23,42,0.45)',
-                  color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
-                  fontWeight: 800,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
-                }}
-              >
-                <img
-                  src={resolveAvatarUrl(person.avatar)}
-                  alt={person.name}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
-                  }}
+            {family.map((person) => {
+              const isSelected = selectedPerson?.id === person.id;
+              const pts = (person.points || 0) + (person.bonus_points || 0);
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
                   style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '1.5px solid rgba(0,0,0,0.35)',
-                  }}
-                />
-                <span>{person.name}</span>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    opacity: 0.85,
-                    padding: '1px 6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '5px 14px 5px 6px',
                     borderRadius: 999,
-                    background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.12)',
-                    color: isSelected ? '#ffffff' : 'var(--cr-text-secondary)',
+                    border: isSelected
+                      ? `2px solid ${person.color || '#60a5fa'}`
+                      : '1px solid rgba(148,163,184,0.28)',
+                    background: isSelected
+                      ? person.color || 'rgba(59,130,246,0.28)'
+                      : 'rgba(15,23,42,0.45)',
+                    color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
                   }}
                 >
-                  {pts} pts
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <UserAvatar
+                    src={resolveAvatarUrl(person.avatar)}
+                    name={person.name}
+                    color={person.color}
+                    size={24}
+                  />
+                  <span>{person.name}</span>
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      opacity: 0.85,
+                      padding: '1px 6px',
+                      borderRadius: 999,
+                      background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.12)',
+                      color: isSelected ? '#ffffff' : 'var(--cr-text-secondary)',
+                    }}
+                  >
+                    {pts} pts
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        }
+      >
 
         {/* Empty State */}
         {filteredRewards.length === 0 && (
@@ -460,7 +432,7 @@ export const RewardsSection: React.FC = () => {
         )}
 
         {/* Netflix / Amazon Experience Rewards Grid */}
-        <div className="rewards-grid-modern" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+        <ResponsiveGrid className="rewards-grid-modern" minColWidth="260px">
           {filteredRewards.map((reward) => {
             const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
             const assignedPerson = !isEveryone ? family.find((p) => p.name === reward.assigned_to) : null;
@@ -698,16 +670,7 @@ export const RewardsSection: React.FC = () => {
                       disabled={targetPerson ? !canRedeem : false}
                       style={{
                         flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        fontWeight: 800,
-                        fontSize: '0.9rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
                         cursor: targetPerson && !canRedeem ? 'not-allowed' : 'pointer',
-                        opacity: targetPerson && !canRedeem ? 0.45 : 1,
                       }}
                       title={
                         targetPerson && !canRedeem
@@ -715,7 +678,7 @@ export const RewardsSection: React.FC = () => {
                           : `Redeem "${reward.title}"`
                       }
                     >
-                      <i className="fas fa-check-circle" /> Redeem
+                      <i className="fas fa-check" /> Redeem
                     </button>
 
                     {isParent && (
@@ -745,8 +708,8 @@ export const RewardsSection: React.FC = () => {
               </div>
             );
           })}
-        </div>
-      </section>
+        </ResponsiveGrid>
+      </PageContainer>
 
       {/* Unified Add / Edit Reward Modal */}
       <Modal
@@ -774,23 +737,27 @@ export const RewardsSection: React.FC = () => {
           </div>
         }
       >
-        <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+        <FormGrid onSubmit={handleSaveModal}>
+          <FormField colSpan={12}>
+            <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+          </FormField>
 
           {/* Title with Autocomplete */}
-          <Input
-            label="Reward Title"
-            type="text"
-            list="reward-suggestions-datalist"
-            placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
-            value={formTitle}
-            onChange={(e) => setFormTitle(e.target.value)}
-            required
-            autoFocus
-          />
+          <FormField colSpan={12}>
+            <Input
+              label="Reward Title"
+              type="text"
+              list="reward-suggestions-datalist"
+              placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              required
+              autoFocus
+            />
+          </FormField>
 
           {/* Points & Assignee Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <FormField colSpan={6}>
             <Input
               label={isCash ? 'Cost ($)' : 'Points Required'}
               type="number"
@@ -800,7 +767,9 @@ export const RewardsSection: React.FC = () => {
               onChange={(e) => setFormPoints(e.target.value)}
               required
             />
+          </FormField>
 
+          <FormField colSpan={6}>
             <Select
               label="Assign To"
               value={formAssignedTo}
@@ -813,132 +782,146 @@ export const RewardsSection: React.FC = () => {
                 </option>
               ))}
             </Select>
-          </div>
+          </FormField>
 
           {/* Recurring Toggle */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 14px',
-              borderRadius: 10,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <input
-              type="checkbox"
-              id="form-recurring-toggle"
-              checked={formIsRecurring}
-              onChange={(e) => setFormIsRecurring(e.target.checked)}
-              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#3b82f6' }}
-            />
-            <label
-              htmlFor="form-recurring-toggle"
-              style={{ cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, userSelect: 'none' }}
+          <FormField colSpan={12}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
             >
-              Repeatable / Recurring Reward
-              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--cr-text-secondary)', fontWeight: 400 }}>
-                Stays in Available Rewards after redemption so kids can earn it again.
-              </span>
-            </label>
-          </div>
-
-          {/* Description */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
-              Description <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
-            </label>
-            <textarea
-              placeholder="Add details, rules, or fun notes..."
-              rows={2}
-              value={formDescription}
-              onChange={(e) => setFormDescription(e.target.value)}
-              className="modern-textarea"
-            />
-          </div>
-
-          {/* Image Picker */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--cr-text-secondary)' }}>
-              Reward Image <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
-            </label>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setStockPickerOpen((p) => !p)}
-                className={`stock-picker-btn${formStockImageUrl ? ' stock-picker-chosen' : ''}`}
-                style={{ flex: 1, minWidth: 160 }}
+              <input
+                type="checkbox"
+                id="form-recurring-toggle"
+                checked={formIsRecurring}
+                onChange={(e) => setFormIsRecurring(e.target.checked)}
+                style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#3b82f6' }}
+              />
+              <label
+                htmlFor="form-recurring-toggle"
+                style={{ cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, userSelect: 'none' }}
               >
-                <i className="fas fa-images" />
-                <span>{formStockLabel}</span>
-                <i className="fas fa-chevron-down" style={{ transform: stockPickerOpen ? 'rotate(180deg)' : '' }} />
-              </button>
-
-              <label className="btn-upload-inline" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <i className="fa-solid fa-upload" /> {formImageFile ? formImageFile.name : 'Upload File'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    setFormImageFile(f);
-                    if (f) {
-                      setFormStockImageUrl('');
-                      setFormStockLabel('Choose a Stock Image');
-                      setFormImageUrl('');
-                    }
-                  }}
-                />
+                Repeatable / Recurring Reward
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 400 }}>
+                  Stays in Available Rewards after redemption so kids can earn it again.
+                </span>
               </label>
             </div>
+          </FormField>
 
-            {stockPickerOpen && (
-              <div
-                className="stock-image-picker"
+          {/* Description */}
+          <FormField colSpan={12}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                Description <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+              </label>
+              <textarea
+                placeholder="Add details, rules, or fun notes..."
+                rows={2}
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                className="cr-textarea"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
-                  gap: 8,
-                  padding: 10,
-                  borderRadius: 10,
-                  background: 'rgba(0,0,0,0.25)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  maxHeight: 180,
-                  overflowY: 'auto',
+                  width: '100%',
+                  borderRadius: 'var(--input-radius)',
+                  background: 'var(--color-bg-base)',
+                  border: '1px solid var(--color-border-subtle)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: '0.9rem',
                 }}
-              >
-                {STOCK_REWARD_IMAGES.map((item) => (
-                  <div
-                    key={item.url}
-                    className={`stock-image-tile${formStockImageUrl === item.url ? ' selected' : ''}`}
-                    onClick={() => {
-                      setFormStockImageUrl(item.url);
-                      setFormStockLabel(`✓ ${item.label}`);
-                      setFormImageUrl('');
-                      setFormImageFile(null);
-                      setStockPickerOpen(false);
+              />
+            </div>
+          </FormField>
+
+          {/* Image Picker */}
+          <FormField colSpan={12}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                Reward Image <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setStockPickerOpen((p) => !p)}
+                  className={`stock-picker-btn${formStockImageUrl ? ' stock-picker-chosen' : ''}`}
+                  style={{ flex: 1, minWidth: 160 }}
+                >
+                  <i className="fas fa-images" />
+                  <span>{formStockLabel}</span>
+                  <i className="fas fa-chevron-down" style={{ transform: stockPickerOpen ? 'rotate(180deg)' : '' }} />
+                </button>
+
+                <label className="btn-upload-inline" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <i className="fa-solid fa-upload" /> {formImageFile ? formImageFile.name : 'Upload File'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setFormImageFile(f);
+                      if (f) {
+                        setFormStockImageUrl('');
+                        setFormStockLabel('Choose a Stock Image');
+                        setFormImageUrl('');
+                      }
                     }}
-                    style={{
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                      padding: 6,
-                      borderRadius: 8,
-                      border: formStockImageUrl === item.url ? '2px solid #3b82f6' : '1px solid transparent',
-                      background: formStockImageUrl === item.url ? 'rgba(59,130,246,0.2)' : 'transparent',
-                    }}
-                  >
-                    <img src={item.url} alt={item.label} style={{ width: 34, height: 34, margin: '0 auto 4px' }} />
-                    <span style={{ fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>{item.label}</span>
-                  </div>
-                ))}
+                  />
+                </label>
               </div>
-            )}
-          </div>
-        </form>
+
+              {stockPickerOpen && (
+                <div
+                  className="stock-image-picker"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
+                    gap: 8,
+                    padding: 10,
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0,0,0,0.25)',
+                    border: '1px solid var(--color-border-subtle)',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {STOCK_REWARD_IMAGES.map((item) => (
+                    <div
+                      key={item.url}
+                      className={`stock-image-tile${formStockImageUrl === item.url ? ' selected' : ''}`}
+                      onClick={() => {
+                        setFormStockImageUrl(item.url);
+                        setFormStockLabel(`✓ ${item.label}`);
+                        setFormImageUrl('');
+                        setFormImageFile(null);
+                        setStockPickerOpen(false);
+                      }}
+                      style={{
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        padding: 6,
+                        borderRadius: 8,
+                        border: formStockImageUrl === item.url ? '2px solid #3b82f6' : '1px solid transparent',
+                        background: formStockImageUrl === item.url ? 'rgba(59,130,246,0.2)' : 'transparent',
+                      }}
+                    >
+                      <img src={item.url} alt={item.label} style={{ width: 34, height: 34, margin: '0 auto 4px' }} />
+                      <span style={{ fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </FormField>
+        </FormGrid>
       </Modal>
 
       {/* Quick Redeem Picker Modal (for "Everyone" rewards when All Family filter is active) */}
@@ -1062,8 +1045,12 @@ export const RewardsSection: React.FC = () => {
   );
 };
 
-export const RedeemedRewardsSection: React.FC = () => {
-  const { data, refresh, showToast, confirm } = useApp();
+export interface RedeemedRewardsSectionProps {
+  isStandalonePage?: boolean;
+}
+
+export const RedeemedRewardsSection: React.FC<RedeemedRewardsSectionProps> = ({ isStandalonePage = false }) => {
+  const { data, refresh, showToast, confirm, isParent } = useApp();
   const [collapsed, setCollapsed] = useState(true);
 
   if (!data) return null;
@@ -1090,26 +1077,13 @@ export const RedeemedRewardsSection: React.FC = () => {
   };
 
   return (
-    <section className="completed-rewards" id="redeemed-section">
-      <h2
-        className="section-title"
-        style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}
-      >
-        <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />
-        <span>Redeemed Rewards</span>
-        <span
-          style={{
-            fontSize: '0.8rem',
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: 'rgba(167,139,250,0.2)',
-            color: '#c084fc',
-            fontWeight: 700,
-          }}
-        >
-          {redeemedRewards.length}
-        </span>
-      </h2>
+    <PageContainer
+      title="Redeemed Rewards"
+      icon="fas fa-medal"
+      iconClass="section-icon-rewards"
+      badge={redeemedRewards.length}
+      boxed={!isStandalonePage}
+    >
 
       {redeemedRewards.length === 0 && (
         <p style={{ textAlign: 'center', color: 'var(--cr-text-secondary)', fontStyle: 'italic', marginTop: 14 }}>
@@ -1121,92 +1095,228 @@ export const RedeemedRewardsSection: React.FC = () => {
         {redeemedRewards.map((reward) => {
           const person = family.find((p) => p.name === reward.assigned_to);
           const reqPts = Number(reward.points_required || 0);
+          const isEveryone = !reward.assigned_to || reward.assigned_to.toLowerCase() === 'everyone';
           return (
             <div
               key={reward.id}
               className="reward-card-modern"
-              style={{ opacity: 0.75 }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                borderRadius: 'var(--card-radius, 16px)',
+                background: 'rgba(30, 41, 59, 0.7)',
+                border: '1.5px solid rgba(34, 197, 94, 0.35)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                position: 'relative',
+              }}
             >
-              <div className="reward-card-header">
-                <div className="reward-card-title-group">
-                  {reward.image_url ? (
-                    <img
-                      src={resolveAssetUrl(reward.image_url)}
-                      alt={reward.title}
-                      className="reward-card-thumb"
-                    />
-                  ) : (
-                    <div className="reward-card-icon-box">
-                      <i className={`fas ${getRewardIconClass(reward.title)}`} />
-                    </div>
-                  )}
-                  <h3 className="reward-card-title" title={reward.title}>
-                    {reward.title}
-                  </h3>
-                </div>
-
-                <span className={`reward-points-pill${isCash ? ' cash' : ''}`}>
-                  {isCash ? (
-                    <>
-                      <i className="fas fa-money-bill-wave" />
-                      <span>${reqPts.toFixed(2)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-award" />
-                      <span>{reqPts} pts</span>
-                    </>
-                  )}
-                </span>
-              </div>
-
-              <div className="reward-card-meta">
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {/* Hero Image / Banner (Exact Match to Available Rewards) */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '16/9',
+                  maxHeight: 150,
+                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {reward.image_url ? (
                   <img
-                    src={resolveAvatarUrl(person?.avatar)}
-                    alt={reward.assigned_to}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
-                    }}
+                    src={resolveAssetUrl(reward.image_url)}
+                    alt={reward.title}
                     style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
+                      width: '100%',
+                      height: '100%',
                       objectFit: 'cover',
-                      border: '1px solid rgba(255,255,255,0.2)',
+                      opacity: 0.85,
+                      filter: 'grayscale(20%)',
                     }}
                   />
-                  <span style={{ fontWeight: 600, color: 'var(--cr-text-primary)', fontSize: '0.82rem' }}>
-                    {reward.assigned_to || 'Everyone'}
-                  </span>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      opacity: 0.65,
+                    }}
+                  >
+                    <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '2.5rem', color: '#86efac' }} />
+                  </div>
+                )}
+
+                {/* Hero Overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.3) 50%, transparent 100%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+
+                {/* Floating Top-Right "✓ Redeemed" Badge */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    background: 'rgba(22, 163, 74, 0.92)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1.5px solid #86efac',
+                    color: '#ffffff',
+                    padding: '4px 10px',
+                    borderRadius: 10,
+                    fontWeight: 900,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                  }}
+                  title="Reward has been redeemed"
+                >
+                  <i className="fas fa-check-circle" />
+                  <span>Redeemed</span>
                 </div>
 
-                <span style={{ color: '#22c55e', fontSize: '0.8rem', fontWeight: 700 }}>
-                  <i className="fas fa-check-circle" /> Redeemed
-                </span>
+                {/* Floating Top-Left Assignee Badge */}
+                <div style={{ position: 'absolute', top: 10, left: 10 }}>
+                  {isEveryone ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '3px 8px',
+                        borderRadius: 8,
+                        background: 'rgba(168, 85, 247, 0.85)',
+                        backdropFilter: 'blur(6px)',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        fontSize: '0.74rem',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      🌟 Everyone
+                    </span>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(6px)',
+                        padding: '3px 8px',
+                        borderRadius: 999,
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      <img
+                        src={resolveAvatarUrl(person?.avatar)}
+                        alt={reward.assigned_to}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                        }}
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.78rem' }}>
+                        {reward.assigned_to}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="reward-card-actions-row">
-                <span style={{ color: 'var(--cr-text-secondary)', fontSize: '0.78rem' }}>
-                  {reward.date_completed
-                    ? `On ${new Date(reward.date_completed).toLocaleDateString()}`
-                    : 'Completed'}
-                </span>
+              {/* Card Body (Matching Available Rewards) */}
+              <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: '1.05rem',
+                        fontWeight: 800,
+                        color: '#f8fafc',
+                        lineHeight: 1.3,
+                      }}
+                      title={reward.title}
+                    >
+                      {reward.title}
+                    </h3>
 
-                <button
-                  type="button"
-                  className="reward-icon-btn delete"
-                  onClick={() => handleDeleteReward(reward)}
-                  title="Delete from history"
-                  aria-label="Delete reward"
-                >
-                  <i className="fas fa-trash-alt" />
-                </button>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: '#4ade80',
+                        background: 'rgba(34, 197, 94, 0.15)',
+                        border: '1px solid rgba(34, 197, 94, 0.3)',
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {isCash ? `$${reqPts.toFixed(2)}` : `⭐ ${reqPts} pts`}
+                    </span>
+                  </div>
+
+                  {reward.description && (
+                    <p
+                      style={{
+                        margin: '4px 0 8px',
+                        fontSize: '0.82rem',
+                        color: 'rgba(255,255,255,0.65)',
+                        lineHeight: 1.4,
+                      }}
+                      title={reward.description}
+                    >
+                      {reward.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions row: Date on left + Delete icon on right */}
+                <div className="reward-card-actions-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: 'var(--cr-text-secondary)', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fas fa-calendar-check" style={{ color: '#4ade80' }} />
+                    {reward.date_completed
+                      ? `Redeemed ${new Date(reward.date_completed).toLocaleDateString()}`
+                      : 'Completed'}
+                  </span>
+
+                  {isParent && (
+                    <button
+                      type="button"
+                      className="reward-icon-btn delete"
+                      onClick={() => handleDeleteReward(reward)}
+                      title="Delete from history"
+                      aria-label="Delete reward"
+                      style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
+                    >
+                      <i className="fas fa-trash-alt" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
-    </section>
+    </PageContainer>
   );
 };

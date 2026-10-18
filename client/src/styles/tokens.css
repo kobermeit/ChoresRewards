@@ -96,6 +96,24 @@
   --transition-fast: 0.12s ease;
   --transition-normal: 0.2s ease;
   --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ------------------------------------------------------------------------
+     4. SPACING & LAYOUT SCALE
+     ------------------------------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Container & Gutters */
+  --container-max-width: 1400px;
+  --gutter-mobile: 16px;
+  --gutter-desktop: 24px;
 }
 
 /* ==========================================================================
@@ -318,9 +336,112 @@
   border: 1px solid var(--color-border-subtle);
 }
 
-/* Modals & Dialogs (Controlled by --modal-radius) */
+/* ==========================================================================
+   Modals & Dialogs (Unified Primitive System controlled by tokens)
+   ========================================================================== */
+.cr-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(0, 0, 0, 0.76) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  animation: crModalFadeIn 0.2s ease-out;
+}
+
+@keyframes crModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .cr-modal-dialog {
-  border-radius: var(--modal-radius) !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: 580px;
+  max-height: calc(100vh - 48px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--color-bg-surface, #1e293b) !important;
+  border: 1px solid var(--color-border-medium, rgba(255, 255, 255, 0.18)) !important;
+  border-radius: var(--modal-radius, 24px) !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85) !important;
+  color: var(--color-text-primary, #f8fafc) !important;
+  overflow: hidden !important;
+  animation: crModalZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes crModalZoomIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.cr-modal-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 18px 24px !important;
+  border-bottom: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.1)) !important;
+}
+
+.cr-modal-header h3 {
+  margin: 0 !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: var(--color-text-primary, #f8fafc) !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.cr-modal-close {
+  background: none !important;
+  border: none !important;
+  color: var(--color-text-secondary, #94a3b8) !important;
+  font-size: 1.25rem !important;
+  cursor: pointer !important;
+  padding: 6px 10px !important;
+  border-radius: var(--radius-sm, 8px) !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+
+.cr-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--color-text-primary, #f8fafc) !important;
+}
+
+.cr-modal-body {
+  padding: 20px 24px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  flex: 1 1 auto !important;
+}
+
+.cr-modal-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+  padding: 16px 24px !important;
+  border-top: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.1)) !important;
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure sticky header never overlaps section headers when scrolling or navigating */
+#dashboard-section,
+#chores-section,
+#rewards-section,
+#redeemed-section,
+#meal-planner-section,
+#shopping-list-section,
+#meal-library-section,
+#notes-kanban-section,
+#organise-section,
+.dashboard-section {
+  scroll-margin-top: 90px !important;
 }
 
 /* Global Token Overrides for Existing Classes */
@@ -341,4 +462,202 @@ button.btn-cancel {
 .modern-select {
   border-radius: var(--input-radius) !important;
 }
+
+/* ==========================================================================
+   SideNav Navigation & Tooltip Design System
+   ========================================================================== */
+.side-nav-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  border-radius: var(--btn-radius, 12px) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--color-text-secondary, #94a3b8) !important;
+  cursor: pointer !important;
+  font-size: 1.15rem !important;
+  transition: all 0.18s ease !important;
+  position: relative !important;
+}
+
+.side-nav-btn:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--color-border-subtle, rgba(255, 255, 255, 0.14)) !important;
+  transform: translateX(2px) !important;
+}
+
+.side-nav-btn.side-nav-active,
+.side-nav-btn.active {
+  color: #ffffff !important;
+  background: var(--color-primary, #0284c7) !important;
+  border-color: var(--color-primary-border, #38bdf8) !important;
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.5) !important;
+}
+
+/* Tooltip on hover */
+.side-nav-btn[title]::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--color-bg-surface, #1e293b);
+  border: 1px solid var(--color-border-medium, rgba(255, 255, 255, 0.2));
+  color: var(--color-text-primary, #ffffff);
+  padding: 5px 10px;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--shadow-md);
+  z-index: 10001;
+}
+
+.side-nav-btn[title]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(2px);
+}
+
+/* ==========================================================================
+   5. RESPONSIVE LAYOUT PRIMITIVES (Strict Breakpoint Standard)
+   ========================================================================== */
+
+/* Page & Section Container Shell */
+.cr-container {
+  width: 100%;
+  max-width: var(--container-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--gutter-mobile);
+  padding-right: var(--gutter-mobile);
+}
+
+@media (min-width: 640px) {
+  .cr-container {
+    padding-left: var(--gutter-desktop);
+    padding-right: var(--gutter-desktop);
+  }
+}
+
+/* Fluid Auto-Grid (Guarantees zero horizontal overflow on any mobile screen) */
+.cr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min-col, 260px)), 1fr));
+  gap: var(--grid-gap, var(--space-4));
+  width: 100%;
+}
+
+/* 12-Column Responsive Form Grid */
+.cr-form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-4);
+  width: 100%;
+}
+
+/* Mobile-first: every column defaults to full-width (12 cols) */
+.cr-form-grid > * {
+  grid-column: span 12 / span 12;
+}
+
+/* Tablet & Desktop Breakpoints: explicit column spans */
+@media (min-width: 640px) {
+  .cr-col-12 { grid-column: span 12 / span 12 !important; }
+  .cr-col-10 { grid-column: span 10 / span 10 !important; }
+  .cr-col-9  { grid-column: span 9 / span 9 !important; }
+  .cr-col-8  { grid-column: span 8 / span 8 !important; }
+  .cr-col-7  { grid-column: span 7 / span 7 !important; }
+  .cr-col-6  { grid-column: span 6 / span 6 !important; }
+  .cr-col-5  { grid-column: span 5 / span 5 !important; }
+  .cr-col-4  { grid-column: span 4 / span 4 !important; }
+  .cr-col-3  { grid-column: span 3 / span 3 !important; }
+  .cr-col-2  { grid-column: span 2 / span 2 !important; }
+}
+
+/* Form Actions Row (Buttons right-aligned, stacked on narrow screens) */
+.cr-form-actions {
+  grid-column: span 12 / span 12;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .cr-form-actions {
+    flex-direction: column-reverse;
+  }
+  .cr-form-actions > * {
+    width: 100%;
+  }
+}
+
+/* Flex Stack (Vertical alignment with tokenized gap) */
+.cr-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+/* Flex Cluster (Horizontal alignment with wrap and tokenized gap) */
+.cr-cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ==========================================================================
+   Universal Dashboard Section Containers & Header Icons
+   ========================================================================== */
+.page-container-section {
+  margin: 1rem !important;
+  padding: 1.5rem !important;
+  background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%) !important;
+  border: 1px solid var(--cr-surface-border) !important;
+  border-radius: var(--card-radius, 16px) !important;
+  box-shadow: 0 4px 20px var(--cr-shadow) !important;
+  box-sizing: border-box !important;
+}
+
+/* Reusable ItemCard Hover Effects */
+.cr-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+.cr-item-card.cr-item-card-completed {
+  opacity: 0.55;
+  filter: grayscale(0.15);
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+.cr-item-card.cr-item-card-completed:hover {
+  opacity: 0.85;
+  filter: none;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+}
+
+/* Semantic Section Header Icons */
+.section-icon-dashboard { color: #38bdf8 !important; }
+.section-icon-chores    { color: #38bdf8 !important; }
+.section-icon-rewards   { color: #a78bfa !important; }
+.section-icon-meals     { color: #fb923c !important; }
+.section-icon-shopping  { color: #34d399 !important; }
+.section-icon-library   { color: #818cf8 !important; }
+.section-icon-notes     { color: #fbbf24 !important; }
+.section-icon-organise  { color: #38bdf8 !important; }
+
 

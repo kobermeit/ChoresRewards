@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { apiPost } from '../api';
 
 export const SideNav: React.FC = () => {
-  const { isParent, isChild, setProfileSwitcherOpen, activeView, setActiveView, scrollToSection } =
-    useApp();
+  const { isParent, isChild, activeView, setActiveView } = useApp();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sideNavCollapsed') === 'true';
   });
@@ -21,48 +19,6 @@ export const SideNav: React.FC = () => {
     });
   };
 
-  const [activeSection, setActiveSection] = useState<string>('dashboard-section');
-
-  useEffect(() => {
-    if (activeView !== 'dashboard') return;
-
-    const sections = [
-      'dashboard-section',
-      'chores-section',
-      'rewards-section',
-      'redeemed-section',
-      'meal-planner-section',
-      'shopping-list-section',
-      'meal-library-section',
-      'notes-kanban-section',
-      'organise-section',
-    ];
-
-    const handleScroll = () => {
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      if (scrollY < 80) {
-        setActiveSection('dashboard-section');
-        return;
-      }
-
-      let current = 'dashboard-section';
-      for (const id of sections) {
-        const el = document.getElementById(id);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top <= 220) {
-            current = id;
-          }
-        }
-      }
-      setActiveSection(current);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [activeView]);
-
   return (
     <>
       <button
@@ -78,12 +34,9 @@ export const SideNav: React.FC = () => {
       <nav id="side-nav" className={collapsed ? 'side-nav-collapsed' : ''} aria-label="Section navigation">
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'dashboard-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'dashboard' ? 'side-nav-active' : ''}`}
           title="Dashboard"
-          onClick={() => {
-            setActiveSection('dashboard-section');
-            scrollToSection('dashboard-section');
-          }}
+          onClick={() => setActiveView('dashboard')}
         >
           <i className="fas fa-gauge-high" />
         </button>
@@ -92,86 +45,57 @@ export const SideNav: React.FC = () => {
 
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'chores-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'chores' ? 'side-nav-active' : ''}`}
           title="Family Members Chores"
-          onClick={() => {
-            setActiveSection('chores-section');
-            scrollToSection('chores-section');
-          }}
+          onClick={() => setActiveView('chores')}
         >
           <i className="fas fa-house" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'rewards-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'rewards' ? 'side-nav-active' : ''}`}
           title="Available Rewards"
-          onClick={() => {
-            setActiveSection('rewards-section');
-            scrollToSection('rewards-section');
-          }}
+          onClick={() => setActiveView('rewards')}
         >
           <i className="fas fa-trophy" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'redeemed-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'redeemed' ? 'side-nav-active' : ''}`}
           title="Redeemed Rewards"
-          onClick={() => {
-            setActiveSection('redeemed-section');
-            scrollToSection('redeemed-section');
-          }}
+          onClick={() => setActiveView('redeemed')}
         >
           <i className="fas fa-medal" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'meal-planner-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'meals' ? 'side-nav-active' : ''}`}
           title="Weekly Meal Plan"
-          onClick={() => {
-            setActiveSection('meal-planner-section');
-            scrollToSection('meal-planner-section');
-          }}
+          onClick={() => setActiveView('meals')}
         >
           <i className="fas fa-utensils" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'shopping-list-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'shopping' ? 'side-nav-active' : ''}`}
           title="Shopping List"
-          onClick={() => {
-            setActiveSection('shopping-list-section');
-            scrollToSection('shopping-list-section');
-          }}
+          onClick={() => setActiveView('shopping')}
         >
           <i className="fas fa-cart-shopping" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'meal-library-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'library' ? 'side-nav-active' : ''}`}
           title="Meal Library"
-          onClick={() => {
-            setActiveSection('meal-library-section');
-            scrollToSection('meal-library-section');
-          }}
+          onClick={() => setActiveView('library')}
         >
           <i className="fas fa-book-open" />
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'calendar' ? 'side-nav-active' : ''}`}
-          title="Family Calendar"
-          onClick={() => setActiveView('calendar')}
-        >
-          <i className="fas fa-calendar-alt" />
-        </button>
-        <button
-          type="button"
-          className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'notes-kanban-section' ? 'side-nav-active' : ''}`}
+          className={`side-nav-btn ${activeView === 'notes' ? 'side-nav-active' : ''}`}
           title="Notes & Text Pads"
-          onClick={() => {
-            setActiveSection('notes-kanban-section');
-            scrollToSection('notes-kanban-section');
-          }}
+          onClick={() => setActiveView('notes')}
         >
           <i className="fas fa-sticky-note" />
         </button>
@@ -179,12 +103,9 @@ export const SideNav: React.FC = () => {
         {!isChild && (
           <button
             type="button"
-            className={`side-nav-btn ${activeView === 'dashboard' && activeSection === 'organise-section' ? 'side-nav-active' : ''}`}
+            className={`side-nav-btn ${activeView === 'organise' ? 'side-nav-active' : ''}`}
             title="Organise & Bills"
-            onClick={() => {
-              setActiveSection('organise-section');
-              scrollToSection('organise-section');
-            }}
+            onClick={() => setActiveView('organise')}
           >
             <i className="fas fa-folder-open" />
           </button>
@@ -192,6 +113,14 @@ export const SideNav: React.FC = () => {
 
         <div className="side-nav-divider" />
 
+        <button
+          type="button"
+          className={`side-nav-btn side-nav-link ${activeView === 'calendar' ? 'side-nav-active' : ''}`}
+          title="Family Calendar"
+          onClick={() => setActiveView('calendar')}
+        >
+          <i className="fas fa-calendar-alt" />
+        </button>
         <button
           type="button"
           className={`side-nav-btn side-nav-link ${activeView === 'activity_log' ? 'side-nav-active' : ''}`}

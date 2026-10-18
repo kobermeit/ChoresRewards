@@ -34,6 +34,8 @@ export const Header: React.FC = () => {
     setActiveView,
     scrollToSection,
     showToast,
+    setScreensaverOpen,
+    setVisualTimerOpen,
   } = useApp();
 
   const [clockTime, setClockTime] = useState('--:--');
@@ -179,16 +181,20 @@ export const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, [data?.chores, adultMode]);
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuWrapRef = useRef<HTMLDivElement | null>(null);
+
   const handleLockClick = async () => {
     if (adultMode) {
       await apiPost('adult_logout');
       setAdultMode(false);
       showToast('Switched to Child Mode 🔒', { type: 'info' });
     } else {
-      openAdultPinModal();
+      openAdultPinModal(() => {
+        showToast('Parent Mode Unlocked 🛡️', { type: 'success' });
+      });
     }
   };
-
 
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
   const notifWrapRef = useRef<HTMLDivElement | null>(null);
@@ -213,16 +219,35 @@ export const Header: React.FC = () => {
     };
   }, [notifOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuWrapRef.current && !menuWrapRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
   return (
     <header className="dashboard-header-sticky">
       <div
         className="header-content"
         style={{
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.4rem 0.8rem',
+          gap: '0.5rem 1rem',
           background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
           padding: '0.4rem 1.1rem',
           borderRadius: '14px 14px 0 0',
@@ -230,8 +255,10 @@ export const Header: React.FC = () => {
           transition: 'padding 0.2s ease',
         }}
       >
+        {/* Left Zone: Mascot & Title */}
         <div
-          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flexShrink: 0 }}
+          className="header-zone-left"
+          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flex: '1 1 0', minWidth: 'max-content' }}
           onClick={() => setActiveView('dashboard')}
         >
           <img
@@ -277,120 +304,131 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Clock Widget */}
-        <div
-          id="clock-widget"
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: 8,
-            color: 'var(--cr-text-primary)',
-            flexShrink: 0,
-            lineHeight: 1.05,
-            padding: '0 4px',
-          }}
-        >
-          <div
-            id="clock-time"
-            style={{
-              fontSize: headerMinimized ? '1.35em' : '1.75em',
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-              letterSpacing: '0.01em',
-            }}
-          >
-            {clockTime}
-          </div>
-          {!headerMinimized && (
-            <div
-              id="clock-date"
-              style={{ fontSize: '0.9em', opacity: 0.75, whiteSpace: 'nowrap', fontWeight: 600 }}
-            >
-              {clockDate}
-            </div>
-          )}
-        </div>
-
-        {/* Weather Widget */}
+        {/* Center Zone: Clock & Weather Widgets */}
         {!headerMinimized && (
           <div
-            id="weather-widget"
+            className="header-zone-center"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              color: 'var(--cr-text-primary)',
-              flexShrink: 0,
-              padding: '0 4px',
+              justifyContent: 'center',
+              gap: '1.25rem',
+              flex: '2 1 auto',
             }}
           >
-            <i
-              id="weather-icon"
-              className={`fas ${weatherCurrent.icon}`}
-              style={{ fontSize: '1.85em', color: weatherCurrent.color, flexShrink: 0 }}
-            />
-            <div style={{ lineHeight: 1.15 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span id="weather-temp" style={{ fontSize: '1.45em', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                  {weatherCurrent.temp}°
-                </span>
-                <span
-                  id="weather-hilo"
-                  style={{ fontSize: '0.82em', opacity: 0.8, fontWeight: 600, whiteSpace: 'nowrap' }}
-                >
-                  {weatherCurrent.hilo}
-                </span>
-              </div>
-              <div
-                id="weather-desc"
-                style={{ fontSize: '0.8em', opacity: 0.8, whiteSpace: 'nowrap', fontWeight: 600 }}
-              >
-                {weatherCurrent.desc}
-              </div>
-            </div>
-            <button
-              type="button"
-              id="weather-expand-btn"
-              onClick={() => setWeatherExpanded((prev) => !prev)}
-              title="Show 7-day forecast"
-              aria-expanded={weatherExpanded}
+            {/* Clock Widget */}
+            <div
+              id="clock-widget"
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--cr-text-secondary)',
-                cursor: 'pointer',
-                fontSize: '0.85em',
-                padding: '2px 4px',
-                margin: 0,
-                lineHeight: 1,
-                opacity: 0.7,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 8,
+                color: 'var(--cr-text-primary)',
+                flexShrink: 0,
+                lineHeight: 1.05,
+                padding: '0 4px',
+              }}
+            >
+              <div
+                id="clock-time"
+                style={{
+                  fontSize: headerMinimized ? '1.35em' : '1.75em',
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                {clockTime}
+              </div>
+              {!headerMinimized && (
+                <div
+                  id="clock-date"
+                  style={{ fontSize: '0.9em', opacity: 0.75, whiteSpace: 'nowrap', fontWeight: 600 }}
+                >
+                  {clockDate}
+                </div>
+              )}
+            </div>
+
+            {/* Weather Widget */}
+            <div
+              id="weather-widget"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: 'var(--cr-text-primary)',
+                flexShrink: 0,
+                padding: '0 4px',
               }}
             >
               <i
-                className="fas fa-chevron-down"
-                id="weather-expand-icon"
-                style={{
-                  transition: 'transform 0.25s',
-                  transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
+                id="weather-icon"
+                className={`fas ${weatherCurrent.icon}`}
+                style={{ fontSize: '1.85em', color: weatherCurrent.color, flexShrink: 0 }}
               />
-            </button>
+              <div style={{ lineHeight: 1.15 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span id="weather-temp" style={{ fontSize: '1.45em', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                    {weatherCurrent.temp}°
+                  </span>
+                  <span
+                    id="weather-hilo"
+                    style={{ fontSize: '0.82em', opacity: 0.8, fontWeight: 600, whiteSpace: 'nowrap' }}
+                  >
+                    {weatherCurrent.hilo}
+                  </span>
+                </div>
+                <div
+                  id="weather-desc"
+                  style={{ fontSize: '0.8em', opacity: 0.8, whiteSpace: 'nowrap', fontWeight: 600 }}
+                >
+                  {weatherCurrent.desc}
+                </div>
+              </div>
+              <button
+                type="button"
+                id="weather-expand-btn"
+                onClick={() => setWeatherExpanded((prev) => !prev)}
+                title="Show 7-day forecast"
+                aria-expanded={weatherExpanded}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--cr-text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.85em',
+                  padding: '2px 4px',
+                  margin: 0,
+                  lineHeight: 1,
+                  opacity: 0.7,
+                }}
+              >
+                <i
+                  className="fas fa-chevron-down"
+                  id="weather-expand-icon"
+                  style={{
+                    transition: 'transform 0.25s',
+                    transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}
+                />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Header Actions: Notification Bell + Adult Lock */}
+        {/* Right Zone: Actions (Inline > 1400px, Burger Menu <= 1400px) */}
         {!headerMinimized && (
           <nav
-            className="header-nav-actions"
+            className="header-nav-actions header-zone-right"
             style={{
-              width: 'auto',
-              marginLeft: 'auto',
-              paddingTop: 0,
-              borderTop: 'none',
+              flex: '1 1 0',
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              justifyContent: 'flex-end',
+              gap: 8,
               flexWrap: 'nowrap',
+              minWidth: 'max-content',
             }}
           >
             {/* Refresh Button */}
@@ -399,27 +437,14 @@ export const Header: React.FC = () => {
               id="header-refresh-btn"
               onClick={() => window.location.reload()}
               title="Full page refresh"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '20px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid var(--cr-surface-border)',
-                color: 'var(--cr-text-primary)',
-                cursor: 'pointer',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                transition: 'all 0.15s ease',
-              }}
+              className="header-action-btn header-action-inline-collapse"
             >
               <i className="fas fa-arrows-rotate" />
-              <span>Refresh</span>
+              <span className="header-btn-text-collapse">Refresh</span>
             </button>
 
             {/* Notification Bell */}
-            <div className="header-notif-wrap" id="header-notif-wrap" ref={notifWrapRef}>
+            <div className="header-notif-wrap header-action-inline-collapse" id="header-notif-wrap" ref={notifWrapRef}>
               <button
                 type="button"
                 className="header-notif-btn"
@@ -501,6 +526,7 @@ export const Header: React.FC = () => {
             <button
               id="user-profile-btn"
               type="button"
+              className="header-action-inline-collapse"
               onClick={() => setProfileSwitcherOpen(true)}
               style={{
                 display: 'flex',
@@ -590,6 +616,142 @@ export const Header: React.FC = () => {
 
               <i className="fas fa-chevron-down" style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '2px' }} />
             </button>
+
+            {/* Quick Actions Burger Menu */}
+            <div className="header-menu-btn-wrap" style={{ position: 'relative' }} ref={menuWrapRef}>
+              <button
+                type="button"
+                id="header-menu-btn"
+                className={`header-menu-btn ${menuOpen ? 'is-open' : ''}`}
+                onClick={() => setMenuOpen((p) => !p)}
+                title="Quick Menu & Actions"
+                aria-label="Quick Menu"
+                aria-haspopup="true"
+                aria-expanded={menuOpen}
+              >
+                <i className="fas fa-bars" />
+              </button>
+
+              {menuOpen && (
+                <div className="header-menu-panel" id="header-menu-panel">
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setProfileSwitcherOpen(true);
+                    }}
+                  >
+                    <i className="fas fa-users header-menu-item-icon" />
+                    <span>Switch Profile ({activeUser?.name || 'Family'})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setNotifOpen(true);
+                    }}
+                  >
+                    <i className="fas fa-bell header-menu-item-icon" />
+                    <span>Notifications {visibleAlerts.length > 0 ? `(${visibleAlerts.length})` : ''}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.location.reload();
+                    }}
+                  >
+                    <i className="fas fa-arrows-rotate header-menu-item-icon" />
+                    <span>Refresh App</span>
+                  </button>
+
+                  <div className="header-menu-divider" />
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      toggleTheme();
+                    }}
+                  >
+                    <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} header-menu-item-icon`} />
+                    <span>Theme: {theme === 'dark' ? 'Light Mode ☀️' : 'Dark Mode 🌙'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      toggleMute();
+                    }}
+                  >
+                    <i className={`fas ${muted ? 'fa-volume-high' : 'fa-volume-xmark'} header-menu-item-icon`} />
+                    <span>Sound: {muted ? 'Unmute Audio 🔊' : 'Mute Audio 🔇'}</span>
+                  </button>
+
+                  <div className="header-menu-divider" />
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setVisualTimerOpen(true);
+                    }}
+                  >
+                    <i className="fas fa-stopwatch header-menu-item-icon" />
+                    <span>Visual Timer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setScreensaverOpen(true);
+                    }}
+                  >
+                    <i className="fas fa-tv header-menu-item-icon" />
+                    <span>Screensaver</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setActiveView('activity_log');
+                    }}
+                  >
+                    <i className="fas fa-list-check header-menu-item-icon" />
+                    <span>Activity Log</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="header-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (adultMode) {
+                        setActiveView('settings');
+                      } else {
+                        openAdultPinModal(() => setActiveView('settings'));
+                      }
+                    }}
+                  >
+                    <i className="fas fa-gear header-menu-item-icon" />
+                    <span>Settings & Config</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
         )}
 

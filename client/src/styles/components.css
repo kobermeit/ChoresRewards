@@ -1,0 +1,4802 @@
+/* =============================================
+   IMPROVEMENT STYLES: greeting, progress, balance, all-done, tap targets
+   ============================================= */
+
+/* Morning greeting — single bar above the kanban columns */
+
+/* Prominent balance display */
+
+.points-display .chore-points-badge {
+    font-size: 2em;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #1e1e1e;
+    border: 2px solid #000;
+    border-radius: 12px;
+    padding: 6px 16px;
+    color: #f1f5f9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
+.points-display .chore-points-badge i {
+    font-size: 1em;
+}
+
+/* Progress bar */
+.chore-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 8px;
+}
+
+.chore-progress-bar-container {
+    flex: 1;
+    height: 10px;
+    background: rgba(0,0,0,0.20);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.15);
+}
+
+.chore-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.chore-progress-label {
+    font-size: 0.78em;
+    font-weight: 700;
+    color: #f1f5f9;
+    background: #1e1e1e;
+    white-space: nowrap;
+    min-width: 50px;
+    text-align: center;
+    border-radius: 999px;
+    padding: 2px 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+/* All-Done banner */
+.all-done-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px 24px;
+    margin: 8px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border: 2px solid #34d399;
+    box-shadow: 0 4px 16px rgba(52, 211, 153, 0.25);
+    animation: allDonePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.all-done-emoji {
+    font-size: 3.5em;
+    line-height: 1;
+    animation: allDoneBounce 0.8s ease 3 alternate;
+}
+
+.no-chores-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px 24px;
+    margin: 8px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    border: 2px solid #38bdf8;
+    box-shadow: 0 4px 16px rgba(56, 189, 248, 0.22);
+    animation: allDonePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.no-chores-emoji {
+    font-size: 3.5em;
+    line-height: 1;
+    animation: noChoresBob 2.5s ease-in-out 3 alternate;
+}
+
+.no-chores-text {
+    font-size: 2em;
+    font-weight: 900;
+    color: #fff;
+    background: #0369a1;
+    margin-top: 10px;
+    letter-spacing: 1px;
+    border-radius: 10px;
+    padding: 4px 18px;
+}
+
+.no-chores-subtext {
+    font-size: 1em;
+    font-weight: 700;
+    color: #fff;
+    background: #0284c7;
+    margin-top: 6px;
+    border-radius: 999px;
+    padding: 3px 14px;
+}
+
+.all-done-text {
+    font-size: 2em;
+    font-weight: 900;
+    color: #fff;
+    background: #1e1e1e;
+    margin-top: 10px;
+    letter-spacing: 1px;
+    border-radius: 10px;
+    padding: 4px 18px;
+}
+
+.all-done-subtext {
+    font-size: 1em;
+    font-weight: 700;
+    color: #fff;
+    background: #1e1e1e;
+    margin-top: 6px;
+    border-radius: 999px;
+    padding: 3px 14px;
+}
+
+
+
+/* Edit name pencil icon — same shape as the file-upload button */
+.edit-name-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 5px !important;
+    padding: 5px !important;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2) !important;
+    font-size: 16px !important;
+    color: var(--pencil-icon-color) !important;
+    transition: opacity 0.3s, transform 0.3s;
+    vertical-align: middle;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .edit-name-icon {
+    background-color: var(--icon-bg-dark) !important;
+}
+
+.edit-name-icon:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+/* Kanban colour-picker label — same shape as the file-upload button */
+
+/* =============================================
+   STREAK & BADGES
+   ============================================= */
+/* Tappable avatar hint */
+.avatar-tappable {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.avatar-tappable:hover {
+    transform: scale(1.07);
+    box-shadow: 0 0 0 3px #fbbf24, 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* =============================================
+   PROFILE PAGE
+   ============================================= */
+
+.profile-hero {
+    border: 2px solid #444;
+    border-radius: 20px;
+    padding: 28px 20px 20px;
+    text-align: center;
+    margin-bottom: 28px;
+    background: rgba(255,255,255,0.04);
+}
+.profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #fbbf24;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.profile-name {
+    font-size: 2em;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 16px;
+}
+.profile-stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.profile-stat {
+    background: rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 18px;
+    min-width: 80px;
+    text-align: center;
+}
+.profile-stat-value {
+    font-size: 1.35em;
+    font-weight: 800;
+    color: #fbbf24;
+}
+.profile-stat-label {
+    font-size: 0.72em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+.profile-best-streak {
+    font-size: 0.85em;
+    color: #94a3b8;
+    margin-top: 6px;
+}
+
+.profile-section-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #94a3b8;
+    margin: 0 0 14px;
+}
+.profile-badge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+}
+.profile-badge-emoji {
+    font-size: 2.8em;
+    margin-bottom: 6px;
+    line-height: 1;
+}
+.profile-badge-name {
+    font-size: 0.9em;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+}
+.profile-badge-desc {
+    font-size: 0.75em;
+    color: #94a3b8;
+    line-height: 1.35;
+}
+[data-theme="light"] .profile-hero { background: rgba(15,23,42,0.03); border-color: rgba(15,23,42,0.15); }
+[data-theme="light"] .profile-name { color: var(--text-color); }
+[data-theme="light"] .profile-stat { background: rgba(15,23,42,0.05); }
+[data-theme="light"] .profile-stat-label,
+[data-theme="light"] .profile-best-streak,
+[data-theme="light"] .profile-section-title,
+[data-theme="light"] .profile-badge-desc { color: #64748b; }
+[data-theme="light"] .profile-badge-name { color: var(--text-color); }
+.badge-locked-label {
+    margin-top: 6px;
+    font-size: 0.7em;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Badge earned popup */
+
+/* =============================================
+   COLLAPSIBLE SECTIONS
+   ============================================= */
+.collapsible-section > .section-toggle {
+    cursor: pointer;
+    user-select: none;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.collapsible-section > .section-toggle:hover {
+    opacity: 0.85;
+}
+
+.section-chevron {
+    font-size: 0.75em;
+    display: inline-block;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.collapsible-section.collapsed > .section-toggle .section-chevron {
+    transform: rotate(-90deg);
+}
+
+.collapsible-section.collapsed > *:not(.section-toggle) {
+    display: none !important;
+}
+
+/* Kiosk Performance: Skip layout/paint of offscreen section contents until in view */
+.meal-planner-section,
+.organise-section,
+.notes-kanban-section,
+.shopping-list-section,
+.completed-rewards {
+    content-visibility: visible;
+    contain-intrinsic-size: auto 400px;
+}
+
+/* Custom radio button for setup wizard bonus points */
+/* Notification bubble for due date clock icon on chores */
+/* Amber highlight for chores with a due date */
+.chore.has-due-date {
+    background: rgba(74, 0, 0, 0.674);
+    border: 2px solid rgb(7, 5, 0);
+    box-shadow: 0 2px 12px rgba(225, 176, 41, 0.10);
+}
+/* Responsive styles for tablet and desktop modes */
+@media (max-width: 1024px) and (min-width: 600px) {
+    /* Tablet mode */
+}
+
+@media (min-width: 1025px) {
+    /* Desktop mode */
+}
+/* Sleek reward badge for points (matches action icon style) */
+.chore-points-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #23272f;
+    border-radius: 999px;
+    padding: 6px 14px 6px 10px;
+    font-weight: 700;
+    font-size: 0.9em;
+    color: #fbbf24;
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.08);
+    margin-left: 8px;
+    margin-right: 0;
+    border: 2px solid #fbbf24;
+    min-width: 40px;
+    min-height: 32px;
+    gap: 4px;
+    flex-shrink: 1; /* Allow shrinking when space is limited */
+    white-space: nowrap; /* Keep text on one line */
+    overflow: hidden; /* Hide any overflow text */
+    text-overflow: ellipsis; /* Show ellipsis for overflow text */
+}
+.chore-points-badge i {
+    font-size: 1.1em;
+    color: #fbbf24;
+    margin-right: 4px;
+}
+.chore-points-value {
+    color: #fff;
+    font-size: 1.1em;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+/* Responsive adjustments for chore points badge */
+@media (max-width: 768px) {
+    .chore-points-badge {
+        font-size: 0.8em;
+        padding: 4px 8px 4px 6px;
+        min-width: 32px;
+        min-height: 26px;
+        margin-left: 4px;
+    }
+    .chore-points-badge i {
+        font-size: 0.9em;
+    }
+    .chore-points-value {
+        font-size: 0.9em;
+    }
+    
+    .chore {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+    
+    .chore > div:first-child {
+        gap: 4px;
+    }
+}
+/* Import Inter font from Google Fonts (moved to top of index.css) */
+
+/* Enhanced Rewards Section Styles */
+.rewards-section {
+    padding: 1.5rem;
+    margin: 1rem;
+    background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 20px var(--cr-shadow);
+}
+
+.section-title {
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--cr-text-secondary);
+}
+
+.empty-state p {
+    font-size: 1.2em;
+    margin: 0.5rem 0;
+}
+
+.empty-state .subtitle {
+    font-size: 1em;
+    opacity: 0.7;
+}
+
+/* Modern Form Styles */
+
+/* Legacy form-grid kept for other uses */
+
+/* --- Reward create form layout --- */
+
+.btn-upload-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.1);
+    color: var(--text-color);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    font-size: 0.9em;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.btn-upload-inline:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+/* ── Dashboard header (index page): frozen at top while scrolling ── */
+.dashboard-header-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 500;
+    background: var(--cr-header-bg-1);
+}
+
+/* Manual minimize toggle — mobile only (see media query below) */
+
+/* ── Compact header on mobile phones — the header uses large inline
+   font-sizes/paddings tuned for the kiosk tablet display, so !important
+   is needed here to win over those inline styles on small screens. ── */
+@media (max-width: 600px) {
+    .dashboard-header-sticky .header-content {
+        padding: 0.5rem 0.75rem !important;
+        row-gap: 0.35rem !important;
+    }
+    .dashboard-header-sticky .header-content > div:first-child img {
+        height: 38px !important;
+        width: 38px !important;
+        margin-right: 8px !important;
+    }
+    .dashboard-header-sticky .header-content > div:first-child h2 {
+        font-size: 1rem !important;
+    }
+    #clock-widget { padding: 0 4px !important; }
+    #clock-widget #clock-time { font-size: 1.5em !important; }
+    #clock-widget #clock-date { font-size: 0.75em !important; }
+    #weather-widget { padding: 0 4px !important; }
+    #weather-widget #weather-icon { font-size: 1.7em !important; }
+    #weather-widget #weather-temp { font-size: 1.35em !important; }
+    #weather-widget #weather-hilo,
+    #weather-widget #weather-desc { font-size: 0.72em !important; }
+    .header-nav-actions a {
+        font-size: 0.78em !important;
+        padding: 5px 10px !important;
+    }
+
+    /* Minimized state: collapse down to just the title bar + toggle */
+    .dashboard-header-sticky.header-minimized #clock-widget,
+    .dashboard-header-sticky.header-minimized #weather-widget,
+    .dashboard-header-sticky.header-minimized .mute-toggle,
+    .dashboard-header-sticky.header-minimized #weather-forecast-panel {
+        display: none !important;
+    }
+    .dashboard-header-sticky.header-minimized .header-content {
+        padding: 0.3rem 0.75rem !important;
+    }
+    .dashboard-header-sticky.header-minimized .header-content > div:first-child img {
+        height: 26px !important;
+        width: 26px !important;
+        margin-right: 6px !important;
+    }
+    .dashboard-header-sticky.header-minimized .header-content > div:first-child h2 {
+        font-size: 0.85rem !important;
+    }
+}
+
+#weather-expand-btn:hover {
+    background: var(--cr-header-control-bg-hover) !important;
+}
+
+/* Activity Log / Settings / Admin lock, grouped inside the frozen header bar */
+.header-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.header-nav-actions a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cr-text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 20px;
+    background: var(--cr-header-control-bg);
+    border: 1.5px solid var(--cr-header-control-border);
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+.header-nav-actions a:hover {
+    background: rgba(76,175,80,0.22);
+    color: var(--cr-text-primary);
+}
+
+/* ── Shared page nav bar (index, settings, activity_log) ── */
+
+.modern-input, .modern-select {
+    padding: 0.65rem 0.95rem;
+    border: 1px solid var(--cr-subtle-panel-border, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.45);
+    color: var(--text-color);
+    font-size: 0.95em;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.modern-input:focus, .modern-select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.18);
+}
+
+.btn-primary {
+    background: var(--button-background);
+    color: white;
+    padding: 0.85rem 2rem;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1.05em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.btn-suggestion-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--cr-subtle-panel);
+    color: var(--text-color);
+    border: 1px solid var(--cr-subtle-panel-border);
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+.btn-suggestion-add:hover { background: var(--cr-subtle-panel-border); }
+
+.suggestion-controls .modern-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 0.6rem 0.9rem;
+}
+
+
+:root {
+    --background-color: #0f172a;
+    --text-color: #f1f5f9;
+    --header-background: #111827;
+    --header-text: #f1f5f9;
+    --section-background: #1e293b;
+    --button-background: #6366f1;
+    --button-hover: #4f46e5;
+    --button-danger: #ef4444;
+    --button-danger-hover: #b91c1c;
+    --button-success: #10b981;
+    --button-success-hover: #059669;
+    --border-radius: 14px;
+    --box-shadow: 0 4px 24px rgba(30, 41, 59, 0.12);
+    --spacing-unit: 14px;
+    --pencil-icon-color: #6366f1;
+    --rewards-icon-color: #10b981;
+    --font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+    /* ── Dashboard theme tokens (index.html) — dark values (default) ── */
+    --cr-page-bg-1: #0f172a;
+    --cr-page-bg-2: #1e293b;
+    --cr-surface-1: #1a2436;
+    --cr-surface-2: #1e2d42;
+    --cr-surface-border: rgba(255,255,255,0.08);
+    --cr-text-primary: #f1f5f9;
+    --cr-text-secondary: rgba(255,255,255,0.72);
+    --cr-shadow: rgba(0,0,0,0.25);
+    --cr-subtle-panel: rgba(255,255,255,0.08);
+    --cr-subtle-panel-border: rgba(255,255,255,0.07);
+    --cr-header-bg-1: #141f33;
+    --cr-header-bg-2: #1a2840;
+    --cr-modal-overlay: rgba(0,0,0,0.6);
+    --cr-modal-surface: #1e293b;
+
+    /* PIN / login overlay */
+    --cr-auth-bg: linear-gradient(160deg, #0c1424 0%, #0f1c38 60%, #111b30 100%);
+    --cr-auth-card-bg: linear-gradient(145deg, #162035 0%, #1c2d4a 100%);
+    --cr-auth-card-border: rgba(255, 255, 255, 0.1);
+    --cr-auth-card-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    --cr-auth-text: #ffffff;
+    --cr-auth-muted: rgba(255, 255, 255, 0.4);
+    --cr-auth-chip-bg: rgba(255, 255, 255, 0.06);
+    --cr-auth-chip-border: rgba(255, 255, 255, 0.1);
+    --cr-auth-chip-hover-bg: rgba(255, 255, 255, 0.12);
+    --cr-auth-chip-hover-border: rgba(255, 255, 255, 0.28);
+    --cr-auth-input-bg: rgba(99, 102, 241, 0.1);
+    --cr-auth-input-focus-bg: rgba(99, 102, 241, 0.18);
+}
+
+/* Dark Mode Overrides using CSS variables — kept identical to :root so the
+   default `data-theme="dark"` attribute causes zero visual change. */
+
+/* Light Mode — new palette used only on pages that opt in via the theme toggle */
+
+/* ════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — Create Reward / Add Chore form, Weekly Meal
+   Planner, Shopping List, Meal Library, Text Pads.
+   These widgets were originally built with hardcoded dark-only colors
+   (white text/tints meant for a dark card). The rules below re-point
+   them at light-appropriate equivalents whenever [data-theme="light"]
+   is active, without touching the dark theme (default) rules above.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Create Reward + Add Chore shared form card */
+[data-theme="light"] .btn-upload-inline {
+    background: rgba(15,23,42,0.06);
+    border-color: rgba(15,23,42,0.14);
+}
+[data-theme="light"] .btn-upload-inline:hover {
+    background: rgba(15,23,42,0.12);
+}
+[data-theme="light"] .chore {
+    background: #0d0d0d;
+    color: #1e293b;
+}
+[data-theme="light"] .chore-title {
+    color: #fff;
+}
+[data-theme="light"] .chore-suggestion-chip {
+    border-color: rgba(15,23,42,0.14);
+    background: rgba(15,23,42,0.05);
+}
+[data-theme="light"] .chore-field-label {
+    color: rgba(15,23,42,0.7);
+}
+[data-theme="light"] .chore-days-hint {
+    color: rgba(15,23,42,0.48);
+}
+[data-theme="light"] .chore-toggle-track {
+    background: rgba(15,23,42,0.12);
+    border-color: rgba(15,23,42,0.18);
+}
+[data-theme="light"] .chore-day-pill span {
+    background: rgba(15,23,42,0.04);
+    border-color: rgba(15,23,42,0.14);
+    color: var(--text-color);
+}
+[data-theme="light"] .chore-emoji-preview-btn {
+    background: rgba(15,23,42,0.05);
+    border-color: rgba(15,23,42,0.14);
+    color: var(--text-color);
+}
+[data-theme="light"] .chore-assign-pill.selected {
+    background: #4CAF50;
+    border-color: #2e7d32;
+    color: #fff;
+}
+[data-theme="light"] .pill-avatar {
+    background: #4CAF50;
+    color: #fff;
+}
+
+/* Weekly Meal Planner */
+[data-theme="light"] .meal-planner-section {
+    background: linear-gradient(135deg, #ffffff 0%, #f4f7fc 100%);
+    border-color: rgba(15,23,42,0.08);
+    box-shadow: 0 6px 24px rgba(15,23,42,0.12);
+}
+[data-theme="light"] .meal-planner-title,
+[data-theme="light"] .meal-day-header strong,
+[data-theme="light"] .meal-week-nav-label {
+    color: var(--text-color);
+}
+[data-theme="light"] .meal-day-header {
+    border-bottom-color: rgba(15,23,42,0.12);
+}
+[data-theme="light"] .meal-day-header span {
+    color: rgba(15,23,42,0.6);
+}
+[data-theme="light"] .meal-day-empty {
+    color: rgba(15,23,42,0.52);
+}
+[data-theme="light"] .meal-quick-add {
+    border-color: rgba(15,23,42,0.15);
+    background-color: rgba(15,23,42,0.04);
+    color: var(--text-color);
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+[data-theme="light"] .meal-quick-add:focus {
+    background-color: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .meal-quick-add:hover {
+    border-color: rgba(15,23,42,0.25);
+    background-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .meal-quick-add option {
+    background: #ffffff;
+    color: var(--text-color);
+}
+
+/* Shopping List */
+[data-theme="light"] .shopping-store-col {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.12);
+}
+[data-theme="light"] .shopping-store-header {
+    background: rgba(15,23,42,0.05);
+    border-bottom-color: rgba(15,23,42,0.08);
+    color: #000;
+}
+[data-theme="light"] .shopping-store-icon-btn:hover {
+    background: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .shopping-store-delete-btn {
+    color: rgba(15,23,42,0.38);
+}
+[data-theme="light"] .shopping-meal-group-header {
+    background: rgba(15,23,42,0.05);
+    border-bottom-color: rgba(15,23,42,0.08);
+    color: #000;
+}
+[data-theme="light"] .shopping-item-name {
+    color: #000;
+}
+[data-theme="light"] .shopping-item-qty {
+    color: rgba(15,23,42,0.5);
+}
+[data-theme="light"] .shopping-remove-btn,
+[data-theme="light"] .shopping-archive-btn {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .shopping-archived-toggle,
+[data-theme="light"] .text-pads-section-toggle {
+    color: rgba(15,23,42,0.68);
+}
+[data-theme="light"] .shopping-archived-toggle:hover,
+[data-theme="light"] .text-pads-section-toggle:hover {
+    color: var(--text-color);
+}
+[data-theme="light"] .shopping-archived-row {
+    border-bottom-color: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .shopping-archived-row:hover {
+    background: rgba(15,23,42,0.05);
+}
+[data-theme="light"] .shopping-archived-name {
+    color: rgba(15,23,42,0.65);
+}
+[data-theme="light"] .shopping-archived-store {
+    color: rgba(15,23,42,0.4);
+    background: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .shopping-manage-block {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .shopping-manage-label {
+    color: rgba(15,23,42,0.6);
+}
+[data-theme="light"] .shopping-field-label {
+    color: rgba(15,23,42,0.55);
+}
+[data-theme="light"] .text-pads-empty {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .text-pad-card {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .text-pad-meta,
+[data-theme="light"] .text-pad-char-count {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .text-pad-textarea {
+    background: rgba(15,23,42,0.04);
+    color: var(--text-color);
+    border-color: rgba(15,23,42,0.12);
+}
+[data-theme="light"] .text-pad-textarea:focus {
+    background: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .text-pad-composer {
+    border-top-color: rgba(15,23,42,0.1);
+}
+
+/* Meal Library */
+[data-theme="light"] .meal-card {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .meal-card-header {
+    background: rgba(15,23,42,0.05);
+    border-bottom-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .meal-card-title,
+[data-theme="light"] .meal-card-ing-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .meal-card-ing-row {
+    border-bottom-color: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .meal-card-ing-row:hover {
+    background: rgba(15,23,42,0.05);
+}
+[data-theme="light"] .meal-card-ing-qty {
+    color: rgba(15,23,42,0.45);
+}
+
+/* Upcoming Family Events (Google Calendar) widget */
+[data-theme="light"] .gcal-view-switch {
+    background: rgba(15,23,42,0.06);
+    border-color: rgba(15,23,42,0.14);
+}
+[data-theme="light"] .gcal-day-column .gcal-day-header {
+    background: rgba(15,23,42,0.04);
+    border-bottom-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .gcal-day-header {
+    border-left-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .gcal-day-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .gcal-day-date {
+    color: rgba(15,23,42,0.55);
+}
+[data-theme="light"] .gcal-day-column {
+    background: #ffffff;
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .gcal-no-events {
+    color: rgba(15,23,42,0.4);
+    border-color: rgba(15,23,42,0.14);
+}
+[data-theme="light"] .gcal-event-time,
+[data-theme="light"] .gcal-event-title {
+    color: var(--text-color);
+}
+
+/* Settings pages (settings.html, settings_audio/notification/quiz.html) —
+   shared page-local classes defined in each template's own \3c style> block. */
+[data-theme="light"] .settings-nav a.active {
+    background: rgba(76,175,80,0.15);
+    color: #1b5e20;
+}
+[data-theme="light"] .section-title {
+    color: var(--text-color);
+}
+
+/* Base Styles */
+html, body {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard-card, .section-toggle {
+    touch-action: manipulation;
+}
+
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, var(--cr-page-bg-1) 0%, var(--cr-page-bg-2) 100%);
+    color: var(--cr-text-primary);
+    line-height: 1.7;
+    min-height: 100vh;
+}
+
+/* Ensure all headings and text use Lato */
+
+/* Header Styles */
+
+/* Navigation Styles — base (overridden by .activity-page-nav) */
+
+/* Section Styles */
+
+/* Typography */
+/* Kanban name pill overrides the global h3 color — do not touch this */
+
+/* Points Display — see prominent override at top of file */
+
+/* Avatar Styles */
+
+.avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
+    border: 3px solid rgba(255,255,255,0.55);
+    box-shadow: 0 3px 14px rgba(0,0,0,0.22);
+    transition: transform 0.25s ease, box-shadow 0.2s;
+    background: #d1d5db;
+    display: block;
+}
+
+.avatar:hover {
+    transform: scale(1.07);
+    box-shadow: 0 5px 22px rgba(0,0,0,0.30);
+}
+
+/* Action Icons */
+
+/* Style for icons with shadow */
+
+/* File Upload Styles */
+
+.edit-name-icon {
+    font-size: 16px;
+    padding: 5px;
+    border-radius: 5px;
+    color: var(--pencil-icon-color);
+}
+
+/* Tooltip styles */
+
+/* Chore Styles */
+.chore {
+    background-color: var(--background-color);
+    padding: 14px 16px;
+    margin-bottom: var(--spacing-unit);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
+    transition: box-shadow 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.chore:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* Chore card header: icon + title + delete */
+.chore-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+
+.chore-icon {
+    font-size: 1.35em;
+    flex-shrink: 0;
+    width: 22px;
+    text-align: center;
+    line-height: 1;
+}
+
+.chore-title {
+    flex: 1;
+    font-size: 1.05em;
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: break-word;
+    color: var(--text-color);
+}
+
+/* Incomplete chore tiles: big centred emoji */
+.incomplete-chores-list .chore-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.incomplete-chores-list .chore-icon {
+    font-size: 2.7em;
+    width: auto;
+}
+
+.incomplete-chores-list .chore-title {
+    text-align: center;
+}
+
+/* Small unobtrusive delete button — absolutely pinned to top-right of card */
+.btn-delete-chore-sm {
+    position: absolute !important;
+    top: 6px !important;
+    right: 6px !important;
+    background: transparent !important;
+    color: rgba(239, 68, 68, 0.45) !important;
+    border: none !important;
+    border-radius: 5px !important;
+    padding: 4px 7px !important;
+    font-size: 0.75em !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    transition: color 0.15s, background 0.15s !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.btn-delete-chore-sm:hover {
+    background: rgba(239, 68, 68, 0.14) !important;
+    color: #f87171 !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Chore metadata row: tags + points badge */
+/* Undo on completed chore cards — the toast's Undo only lasts 5 seconds */
+.btn-undo-chore {
+    background: transparent;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    color: inherit;
+    border-radius: 999px;
+    padding: 4px 12px;
+    min-height: 30px;
+    font-size: 0.8em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.btn-undo-chore:hover {
+    background: rgba(148, 163, 184, 0.18);
+}
+
+.chore-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 999px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+.earn-more-prompt {
+    margin: 10px 8px 8px;
+    padding: 14px 12px;
+    border-radius: 14px;
+    text-align: center;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px dashed rgba(251, 191, 36, 0.45);
+}
+
+.earn-more-prompt[hidden] {
+    display: none !important;
+}
+
+.earn-more-prompt-kicker {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #b45309;
+}
+
+.earn-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: #f59e0b;
+    color: #1c1917;
+}
+
+.earn-more-btn:hover {
+    background: #d97706;
+}
+
+[data-theme="light"] .earn-more-prompt {
+    background: rgba(251, 191, 36, 0.16);
+    border-color: rgba(180, 83, 9, 0.25);
+}
+
+
+
+/* Updated style for points circle to look like iPhone notification badge with purple color */
+
+/* Button Styles */
+
+/* Theme Toggle Styles */
+
+/* Chore Section Styles */
+/* Add Chores admin section — same card surface as other dashboard sections */
+
+.chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+/* Incomplete Chores Styles */
+.incomplete-chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+    list-style: none;
+    padding: 0;
+}
+
+/* Completed Chores Styles */
+.completed-chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Style for icons with shadow */
+
+.chore i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.chore {
+    background: var(--cr-surface-1);
+    padding: 18px 20px;
+    margin-bottom: var(--spacing-unit);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px var(--cr-shadow);
+    color: var(--cr-text-primary);
+    transition: box-shadow 0.18s, transform 0.18s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+.chore:hover {
+    box-shadow: 0 6px 24px rgba(99, 102, 241, 0.13);
+    transform: translateY(-2px) scale(1.01);
+}
+
+
+
+/* Color picker styling */
+
+/* Completed rewards styles */
+.completed-rewards {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    margin: 1rem;
+    background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 20px var(--cr-shadow);
+}
+
+/* Complete button styling */
+
+/* Style for icons with shadow */
+/* #pin-overlay — layout handled by .auth-overlay class */
+/* Activity Log Specific Styles */
+
+/* Activity Log Container */
+
+/* Activity Log Header */
+
+/* Filter Controls */
+
+/* Activity Log List */
+
+/* Activity Log Item */
+
+/* Activity Icon */
+:root {
+    --icon-color: #000000;
+}
+
+/* Activity Type Colors */
+
+/* Activity Content */
+
+/* Empty State */
+
+/* Error State */
+
+/* Stats Summary */
+
+/* Responsive Design */
+
+/* Dark Mode Overrides */
+
+/* Animation for new items */
+
+/* Loading State */
+/* === Tablet-friendly Form Controls for Chores & Rewards === */
+
+/* General form controls: larger padding, font, and height */
+
+/* Make buttons larger and more touch-friendly */
+
+/* Chore/reward suggestion buttons */
+
+/* Checkbox label spacing */
+
+/* Responsive: Even bigger on tablets */
+
+/* Ensure select dropdown arrows are visible and large enough */
+
+/* Make sure forms are not too wide on tablets */
+
+/* Optional: Increase label size for better readability */
+
+/* Ensure reset and palette icons are visible in dark mode, even on white backgrounds */
+
+/* Stock image picker for reward creation */
+.stock-image-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+.stock-image-tile.selected {
+    border-color: #7c3aed;
+    background: rgba(124,58,237,0.18);
+    box-shadow: 0 0 0 2px #7c3aed44;
+}
+/* ===================================================
+   Add Chore Form — Professional Revamp
+   =================================================== */
+
+/* Suggestions bar */
+
+/* Suggestion chips (normal mode) */
+.chore-suggestion-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-color);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin: 2px 2px;
+}
+
+.chore-suggestion-chip:hover {
+    background: rgba(76,175,80,0.18);
+    border-color: rgba(76,175,80,0.55);
+}
+
+/* Edit mode items */
+
+/* Form card */
+
+/* Field group (label + control) */
+.chore-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.chore-field-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Larger title input */
+
+/* Person pill buttons */
+.chore-assign-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chore-assign-pill.selected {
+    background: rgba(76,175,80,0.25);
+    border-color: #4CAF50;
+    color: #fff;
+}
+
+.pill-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(76,175,80,0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.chore-assign-pill.selected .pill-avatar {
+    background: #4CAF50;
+}
+
+/* Points + Repeating two-column row */
+
+/* Points stepper — modern pill design */
+
+/* Label above quick chips */
+
+/* Toggle switch */
+.chore-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.chore-toggle-input {
+    display: none;
+}
+
+.chore-toggle-track {
+    width: 48px;
+    height: 26px;
+    border-radius: 13px;
+    background: rgba(255,255,255,0.12);
+    border: 2px solid rgba(255,255,255,0.15);
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.chore-toggle-input:checked + .chore-toggle-track {
+    background: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.chore-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s cubic-bezier(.34,1.4,.64,1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.chore-toggle-input:checked + .chore-toggle-track .chore-toggle-thumb {
+    transform: translateX(22px);
+}
+
+.chore-toggle-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 24px;
+}
+
+/* Days of week row */
+.chore-days-row {
+    background: rgba(76,175,80,0.05);
+    border: 1px solid rgba(76,175,80,0.2);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    animation: choreSlideDown 0.18s ease;
+}
+
+.chore-day-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chore-day-pill {
+    cursor: pointer;
+    line-height: 1;
+}
+
+.chore-day-pill input[type="checkbox"] {
+    display: none;
+}
+
+.chore-day-pill span {
+    display: flex;
+    align-items: center;
+    padding: 6px 13px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    color: var(--text-color);
+    font-size: 0.84rem;
+    font-weight: 600;
+    transition: background 0.14s, border-color 0.14s;
+    min-height: 34px;
+    min-width: 40px;
+    justify-content: center;
+}
+
+.chore-day-pill input:checked + span {
+    background: rgba(76,175,80,0.25);
+    border-color: #4CAF50;
+    color: #fff;
+}
+
+.chore-days-hint {
+    font-size: 0.76rem;
+    color: rgba(255,255,255,0.32);
+    font-style: italic;
+    margin-left: 4px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* Due date row */
+.chore-due-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.chore-due-toggle-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Submit button */
+
+/* Chore emoji picker */
+.chore-emoji-picker-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chore-emoji-preview-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1.15rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.18s, border-color 0.18s;
+}
+.chore-emoji-preview-btn:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(96,165,250,0.5);
+}
+
+.chore-emoji-grid {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 500;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: #1e2132;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 10px;
+    width: 280px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+
+.chore-emoji-opt {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.25rem;
+    padding: 5px 7px;
+    line-height: 1;
+    transition: background 0.15s, border-color 0.15s;
+    color: inherit;
+}
+.chore-emoji-opt:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.2);
+}
+.chore-emoji-opt[data-emoji=""] {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.6);
+    padding: 6px 8px;
+}
+
+/* Tablet overrides for the new chore form */
+@media (min-width: 600px) and (max-width: 1024px) {
+    .chore-day-pill span { min-height: 38px; font-size: 0.95rem; padding: 7px 15px; }
+}
+
+/* Weekly meal planner */
+.meal-planner-section {
+    background: linear-gradient(135deg, #141f33 0%, #1a2840 100%);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 16px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.24);
+    padding: 14px 14px 16px;
+    margin: 0 0 16px;
+}
+
+.meal-planner-title {
+    margin-bottom: 8px;
+    color: #f8fafc;
+}
+
+.meal-week-display {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(140px, 1fr));
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.meal-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 6px;
+}
+
+.meal-day-header strong {
+    color: #f8fafc;
+    font-size: 0.9rem;
+}
+
+.meal-day-header span {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.78rem;
+}
+
+.meal-day-empty {
+    color: rgba(255,255,255,0.52);
+    font-size: 0.83rem;
+    font-style: italic;
+    padding: 8px 4px;
+}
+
+/* ── Meal planner slot rows ───────────────────────────────────────────────── */
+
+/* Drag-over highlight */
+
+/* ── Inline picker ───────────────────────────────────────────────────────── */
+
+/* Search results, in place of the old flat <select>. This list is laid out in
+   flow rather than absolutely positioned on purpose: .meal-week-display sets
+   overflow-x:auto, which makes it a scroll container that clips on BOTH axes,
+   so a popover anchored to the picker gets cut off. */
+
+/* Nav save button */
+
+.meal-recurring-track .chore-toggle-thumb {
+    width: 16px;
+    height: 16px;
+}
+
+.meal-recurring-input:checked + .meal-recurring-track .chore-toggle-thumb {
+    transform: translateX(18px);
+}
+
+.meal-quick-add {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    min-height: 36px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 36px;
+}
+
+.meal-quick-add:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
+    background-color: rgba(0,0,0,0.25);
+}
+
+.meal-quick-add:hover {
+    border-color: rgba(255,255,255,0.25);
+    background-color: rgba(0,0,0,0.3);
+}
+
+.meal-quick-add option {
+    background: #1a1f2e;
+    color: #fff;
+    padding: 8px;
+}
+
+@media (max-width: 900px) {
+    .meal-week-display {
+        grid-template-columns: repeat(4, minmax(140px, 1fr));
+    }
+}
+@media (max-width: 600px) {
+    .meal-week-display {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.meal-week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 10px;
+}
+
+.meal-week-nav-label {
+    color: #f8fafc;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
+}
+
+.meal-this-week-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: rgba(99,102,241,0.22);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.35);
+    border-radius: 20px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+}
+
+.meal-nav-spinner {
+    color: rgba(255,255,255,0.5);
+    font-size: 1rem;
+}
+
+.meal-nav-btn {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.07);
+    color: #f8fafc;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.meal-nav-btn:hover {
+    background: rgba(96,165,250,0.15);
+    border-color: rgba(96,165,250,0.45);
+}
+
+.meal-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Shopping List ─────────────────────────────────────────────── */
+.shopping-list-section {
+    margin-top: 10px;
+}
+
+.shopping-stores-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.shopping-store-col {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.shopping-store-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 13px;
+    background: rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #f8fafc;
+}
+
+.shopping-store-icon { font-size: 1.15rem; }
+.shopping-store-icon-img {
+    width: 1.5em;
+    height: 1.5em;
+    object-fit: contain;
+    border-radius: 4px;
+    vertical-align: middle;
+    display: inline-block;
+}
+.shopping-icon-picker-opt .shopping-store-icon-img {
+    width: 2em;
+    height: 2em;
+    border-radius: 5px;
+}
+.shopping-store-icon-btn {
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 1px 2px;
+    transition: background 0.15s;
+    user-select: none;
+}
+.shopping-store-icon-btn:hover { background: rgba(255,255,255,0.12); }
+.shopping-store-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.shopping-store-delete-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.28);
+    cursor: pointer;
+    font-size: 0.68rem;
+    padding: 3px 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+}
+.shopping-store-delete-btn:hover {
+    color: #f87171;
+    background: rgba(248,113,113,0.12);
+}
+
+.shopping-store-items {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 60px;
+}
+
+.shopping-meal-groups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    align-items: start;
+}
+
+.shopping-meal-group-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 7px 10px;
+    background: rgba(255,255,255,0.06);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.shopping-meal-group-planned .shopping-meal-group-header {
+    background: rgba(96,165,250,0.10);
+    border-bottom-color: rgba(96,165,250,0.18);
+}
+
+.shopping-meal-group-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shopping-planned-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: rgba(96,165,250,0.18);
+    border: 1px solid rgba(96,165,250,0.35);
+    color: #93c5fd;
+    border-radius: 999px;
+    padding: 1px 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.shopping-item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+}
+
+.shopping-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4ade80;
+    flex-shrink: 0;
+}
+
+.shopping-item-name {
+    font-size: 0.85rem;
+    color: #f8fafc;
+    transition: opacity 0.2s, text-decoration 0.2s;
+}
+
+.shopping-item-qty {
+    color: rgba(255,255,255,0.42);
+    font-size: 0.75rem;
+    margin-left: 5px;
+}
+
+.shopping-item-checked .shopping-item-name {
+    text-decoration: line-through;
+    opacity: 0.38;
+}
+
+.shopping-remove-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+}
+
+.shopping-remove-btn:hover {
+    color: #f87171;
+    background: rgba(248,113,113,0.1);
+}
+
+.shopping-archive-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+}
+.shopping-archive-btn:hover {
+    color: #fbbf24;
+    background: rgba(251,191,36,0.1);
+}
+
+/* ── Archived Shopping Section ─────────────────────────────────────────── */
+.shopping-archived-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 6px 4px;
+    user-select: none;
+}
+.shopping-archived-toggle:hover { color: rgba(255,255,255,0.8); }
+.shopping-archived-count {
+    background: rgba(251,191,36,0.2);
+    color: #fbbf24;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.shopping-archived-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+}
+.shopping-archived-row:hover { background: rgba(255,255,255,0.04); }
+.shopping-archived-name {
+    flex: 1;
+    font-size: 0.84rem;
+    color: rgba(255,255,255,0.65);
+}
+.shopping-archived-store {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 1px 7px;
+    flex-shrink: 0;
+}
+.shopping-restore-btn {
+    border: 1px solid rgba(96,165,250,0.25);
+    background: rgba(96,165,250,0.1);
+    color: #93c5fd;
+    cursor: pointer;
+    font-size: 0.74rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    transition: background 0.18s, color 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.shopping-restore-btn:hover {
+    background: rgba(96,165,250,0.22);
+    color: #bfdbfe;
+}
+
+.shopping-action-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+/* ── Text Pads ───────────────────────────────────────────────────────────── */
+
+.text-pads-section-toggle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.68);
+    padding: 8px 2px;
+    margin: 0 0 6px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: color 0.2s;
+}
+.text-pads-section-toggle:hover { color: #f8fafc; }
+
+.text-pads-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.text-pads-empty {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.82rem;
+    text-align: center;
+    padding: 6px 0;
+    margin: 0;
+}
+
+.text-pad-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.text-pad-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.text-pad-title-input {
+    flex: 1;
+    min-width: 120px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.text-pad-meta {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.35);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.text-pad-actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.text-pad-textarea {
+    width: 100%;
+    min-height: 120px;
+    background: rgba(0,0,0,0.28);
+    color: #f1f5f9;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    line-height: 1.55;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.18s, background 0.18s;
+}
+.text-pad-textarea:focus {
+    outline: none;
+    border-color: rgba(99,102,241,0.5);
+    background: rgba(0,0,0,0.38);
+}
+
+.text-pad-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    margin-top: 4px;
+}
+
+.text-pad-composer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.text-pad-char-count {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.35);
+}
+
+.shopping-manage-block {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+
+.shopping-manage-label {
+    display: block;
+    color: rgba(255,255,255,0.55);
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.shopping-field-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.shopping-add-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.shopping-store-select {
+    max-width: 140px;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    min-height: 36px !important;
+}
+
+.shopping-qty-input { max-width: 130px; }
+
+.shopping-ingredients-library { margin-top: 6px; }
+
+/* ── Meal Cards ──────────────────────────────────────────────────── */
+.meal-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+    align-items: start;
+    margin-top: 4px;
+}
+
+.meal-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.meal-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.meal-card-img-area {
+    position: relative;
+    height: 100px;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(96,165,250,0.12) 0%, rgba(167,139,250,0.12) 100%);
+}
+
+.meal-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.meal-card-img-area:hover .meal-card-img-overlay { opacity: 1; }
+
+.meal-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.07);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.meal-card-title {
+    flex: 1;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.meal-card-ing-list {
+    padding: 4px 0;
+}
+
+.meal-card-ing-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+}
+.meal-card-ing-row:hover { background: rgba(255,255,255,0.04); }
+.meal-card-ing-row:last-child { border-bottom: none; }
+
+.meal-card-ing-name {
+    flex: 1;
+    font-size: 0.82rem;
+    color: #f1f5f9;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.meal-card-ing-qty {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.38);
+    flex-shrink: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.meal-card-ing-store {
+    font-size: 0.82rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+/* Keep old shopping-lib-* styles for the edit inputs reused inside meal cards */
+
+.shopping-lib-store-icon-badge {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    line-height: 1;
+    cursor: default;
+}
+
+@media (max-width: 680px) {
+    .shopping-stores-row { grid-template-columns: 1fr; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   KANBAN OVERRIDES — MUST STAY AT END OF FILE
+   These rules win by cascade order. Do NOT duplicate #kanban or
+   .column-header blocks elsewhere in this stylesheet.
+   ════════════════════════════════════════════════════════════════ */
+/* Force horizontal layout — overrides any media query that stacks columns */
+#kanban {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch;
+    gap: 12px;
+    overflow-x: auto;
+}
+.column {
+    flex: 0 0 clamp(260px, 30vw, 360px) !important;
+    min-width: 260px !important;
+    max-width: 360px;
+    width: auto !important;
+    margin: 0 !important;
+}
+.column:hover {
+    box-shadow: 0 6px 24px rgba(0,0,0,0.22);
+    transform: translateY(-2px);
+}
+.column-header .name .edit-name-icon {
+    font-size: 0.55em;
+    color: #aaaaaa;
+    cursor: pointer;
+}
+.points-display .chore-points-badge {
+    max-width: 100%;
+    font-size: clamp(1.25rem, 2.2vw, 2rem);
+    padding: 6px 12px;
+}
+
+.chore-points-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.chores-to-do-header {
+    text-align: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(0,0,0,0.38);
+    margin: 10px 0 4px;
+}
+
+/* Drag handle pill */
+.column-footer {
+    margin-top: auto;
+    padding: 10px 8px 6px;
+    text-align: center;
+    border-top: 1px solid rgba(0,0,0,0.10);
+}
+.drag-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: grab;
+    background: rgba(0,0,0,0.12);
+    border: 1.5px dashed rgba(0,0,0,0.25);
+    border-radius: 999px;
+    padding: 6px 14px;
+    color: rgba(0,0,0,0.45);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    user-select: none;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.drag-handle:hover,
+.drag-handle:active {
+    background: rgba(0,0,0,0.22);
+    color: rgba(0,0,0,0.75);
+    border-color: rgba(0,0,0,0.45);
+    cursor: grabbing;
+}
+.drag-handle .drag-handle-label {
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+@media (min-width: 600px) and (max-width: 1024px) {
+    #kanban {
+        gap: 10px;
+    }
+
+    .column {
+        flex-basis: 300px !important;
+        min-width: 300px !important;
+        max-width: 340px;
+    }
+}
+
+/* View switch toggle button (grid vs list) next to the section title */
+.gcal-view-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    padding: 3px;
+}
+
+.gcal-view-switch-btn.active {
+    background: #60a5fa;
+    color: #0f172a;
+}
+
+/* Google Calendar weekly view — time-axis grid (like Google Calendar week view) */
+.google-week-calendar {
+    width: 100%;
+}
+
+.gcal-day-header {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 6px 6px;
+    text-align: center;
+    border-left: 1px solid rgba(255,255,255,0.07);
+}
+
+.gcal-day-header.gcal-day-today {
+    background: rgba(96, 165, 250, 0.12);
+}
+
+.gcal-day-name {
+    font-size: 0.85em;
+    font-weight: 700;
+    color: #bfdbfe;
+}
+
+.gcal-day-date {
+    font-size: 0.72em;
+    color: rgba(255,255,255,0.55);
+}
+
+@media (max-width: 1100px) {
+
+    .gcal-day-header {
+        min-width: 90px;
+    }
+}
+
+/* Legacy sequential-block list view (toggle alternative to the time grid) */
+.gcal-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(130px, 1fr));
+    gap: 10px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.gcal-day-column {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.gcal-day-column .gcal-day-header {
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(15, 23, 42, 0.35);
+    border-left: none;
+    text-align: left;
+}
+
+.gcal-day-events {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gcal-no-events {
+    font-size: 0.82em;
+    color: rgba(255,255,255,0.35);
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+}
+
+.gcal-event-card {
+    border-left: 5px solid var(--gcal-event-color, #4285f4);
+    background: var(--gcal-event-color-tint, rgba(66,133,244,0.20));
+    border-radius: 9px;
+    padding: 8px 8px 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gcal-event-time {
+    font-size: 0.76em;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: 0.02em;
+}
+
+.gcal-event-title {
+    font-size: 0.87em;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+    .gcal-week-grid {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scroll-snap-type: x proximity;
+    }
+
+    .gcal-day-column {
+        min-width: 180px;
+        flex: 0 0 180px;
+        scroll-snap-align: start;
+    }
+}
+
+/* ── Person picker login overlay ────────────────────────────────────────────── */
+/* ── Auth overlay (person-picker login) ─────────────────────────────────────*/
+
+/* Person picker */
+
+/* Person card */
+
+/* PIN entry screen */
+
+/* Hide admin-only elements by default (child mode) */
+.admin-only {
+    display: none !important;
+}
+
+/* Show admin-only elements when adult mode is active */
+html.adult-mode .admin-only {
+    display: revert !important;
+}
+
+/* Preserve flex/inline-flex display on elements that need it */
+html.adult-mode .admin-only[data-display="flex"],
+html.adult-mode .flex-admin-only {
+    display: flex !important;
+}
+html.adult-mode .admin-only[data-display="inline-flex"] {
+    display: inline-flex !important;
+}
+
+/* ── Padlock button ───────────────────────────────────────────────────────────*/
+
+/* ── PIN overlay ─────────────────────────────────────────────────────────────*/
+
+/* PIN shake animation */
+
+
+/* -- Notes Kanban ------------------------------------------------ */
+.notes-kanban-section {
+    margin-top: 10px;
+    padding: 1.5rem;
+    margin: 1rem;
+    background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 20px var(--cr-shadow);
+}
+
+.notes-kanban-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 12px;
+    align-items: start;
+}
+
+.notes-action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+/* Column */
+.notes-kanban-col {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s;
+    min-height: 120px;
+}
+
+.notes-kanban-col.notes-col-dragging {
+    opacity: 0.55;
+    transform: scale(1.01);
+}
+
+.notes-kanban-col.notes-col-drag-over {
+    box-shadow: 0 0 0 2px rgba(251,191,36,0.6);
+}
+
+.notes-col-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: rgba(255,255,255,0.06);
+    border-bottom: 1px solid var(--col-color, #fef08a);
+    font-weight: 600;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(248,250,252,0.75);
+    user-select: none;
+}
+
+.notes-col-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.notes-col-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: rgba(255,255,255,0.35);
+    border-radius: 4px;
+    cursor: grab;
+    flex-shrink: 0;
+}
+
+.notes-col-drag-handle:hover {
+    background: rgba(255,255,255,0.09);
+    color: rgba(255,255,255,0.7);
+}
+
+.notes-col-drag-handle:active {
+    cursor: grabbing;
+}
+
+.notes-col-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.notes-col-delete-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.68rem;
+    padding: 3px 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+}
+.notes-col-delete-btn { color: rgba(255,255,255,0.28); }
+.notes-col-delete-btn:hover { color: #f87171; background: rgba(248,113,113,0.12); }
+
+.notes-kanban-col.notes-col-collapsed .notes-list,
+.notes-kanban-col.notes-col-collapsed .notes-add-row {
+    display: none;
+}
+.notes-kanban-col.notes-col-collapsed .notes-col-collapse-btn i {
+    transform: rotate(180deg);
+}
+
+/* Note list */
+.notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 10px 6px;
+    min-height: 40px;
+}
+
+/* Post-it note */
+
+.notes-sticky.notes-sticky-checked .notes-sticky-text {
+    text-decoration: line-through;
+    color: rgba(26,26,26,0.6);
+}
+
+.notes-sticky-check {
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: rgba(0,0,0,0.5);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.notes-sticky-text {
+    flex: 1;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    cursor: text;
+}
+
+.notes-sticky-del {
+    border: none;
+    background: transparent;
+    color: rgba(0,0,0,0.30);
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+    margin-top: 1px;
+}
+.notes-sticky-del:hover { color: #dc2626; background: rgba(220,38,38,0.12); }
+
+/* Add note row */
+.notes-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+}
+
+.notes-add-input {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 8px;
+    color: #f1f5f9;
+    font-size: 0.82rem;
+    padding: 7px 10px;
+    resize: none;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+.notes-add-input:focus { border-color: rgba(251,191,36,0.55); }
+.notes-add-input::placeholder { color: rgba(255,255,255,0.35); }
+
+.notes-add-btn {
+    align-self: flex-end;
+    font-size: 0.7rem;
+    padding: 3px 9px;
+}
+
+.notes-deleted-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: rgba(248,250,252,0.8);
+    margin: 0;
+}
+
+.notes-deleted-count {
+    margin-left: auto;
+    background: rgba(248,113,113,0.2);
+    border: 1px solid rgba(248,113,113,0.3);
+    color: #fecaca;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.notes-deleted-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.notes-deleted-empty {
+    color: rgba(148,163,184,0.9);
+    font-size: 0.82rem;
+    margin: 2px 0 4px;
+}
+
+.notes-deleted-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15,23,42,0.55);
+    border: 1px solid rgba(148,163,184,0.25);
+    border-radius: 8px;
+    padding: 7px 9px;
+}
+
+.notes-deleted-text {
+    flex: 1;
+    color: rgba(226,232,240,0.9);
+    font-size: 0.82rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.notes-deleted-item-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.notes-deleted-permanent {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.76rem;
+    padding: 4px 6px;
+    border-radius: 5px;
+    line-height: 1;
+}
+
+.notes-deleted-permanent {
+    color: #fca5a5;
+}
+
+.notes-deleted-permanent:hover {
+    background: rgba(248,113,113,0.12);
+}
+
+.notes-deleted-actions {
+    margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+    .notes-kanban-board {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* -- Organise Section ---------------------------------------------------- */
+.organise-section {
+    background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px var(--cr-shadow);
+    padding: 14px 14px 16px;
+    margin: 0 0 16px;
+}
+
+.organise-body {
+    padding: 0 0.25rem 0.25rem;
+}
+
+.organise-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.org-toolbar-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.org-add-btn,
+.org-quick-btn,
+.org-quick-item {
+    margin: 0;
+    box-shadow: none;
+    letter-spacing: normal;
+    min-height: 0;
+}
+
+.org-add-btn {
+    background: #0ea5e9;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9em;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.org-add-btn:hover { background: #0284c7; }
+
+.org-empty {
+    color: var(--cr-text-secondary);
+    text-align: center;
+    padding: 2rem;
+    font-style: italic;
+}
+
+/* Category groups */
+
+/* ── Car cards ─────────────────────────────────────────────────────────── */
+
+/* Cards */
+
+/* -- Organise Modal ------------------------------------------------------- */
+
+@media (max-width: 600px) {
+    .organise-toolbar { flex-direction: column; align-items: stretch; }
+    .org-toolbar-actions { width: 100%; }
+    .org-add-btn, .org-quick-btn { flex: 1; justify-content: center; }
+}
+
+/* ── Emoji Picker ─────────────────────────────────────────────────────────── */
+
+/* ── Vehicle info on card ──────────────────────────────────────────────────── */
+
+/* ── Car photo on card ─────────────────────────────────────────────────────── */
+
+/* ── Photo upload in modal ─────────────────────────────────────────────────── */
+
+/* ── Quick-add template dropdown ───────────────────────────────────────────── */
+.org-quick-wrap { position: relative; }
+.org-quick-btn {
+    background: rgba(56,189,248,0.12);
+    color: #38bdf8;
+    border: 1.5px solid rgba(56,189,248,0.25);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.88em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+.org-quick-btn:hover { background: rgba(56,189,248,0.22); }
+.org-quick-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 500;
+    background: var(--cr-modal-surface);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px var(--cr-shadow);
+    min-width: 220px;
+    overflow: hidden;
+}
+.org-quick-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--cr-text-primary);
+    padding: 10px 16px;
+    font-size: 0.92em;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.org-quick-item:hover { background: rgba(56,189,248,0.12); }
+.org-quick-heading {
+    padding: 8px 16px 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cr-text-secondary);
+}
+
+/* ── Side navigation ─────────────────────────────────────────────────────── */
+
+/* Toggle button — always visible, centered on the sidebar's right edge */
+#side-nav-toggle {
+    position: fixed;
+    left: 64px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 9002;
+    width: 18px;
+    height: 56px;
+    border: 1px solid rgba(148,163,184,0.12);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    background: rgba(17,24,39,0.97);
+    color: rgba(148,163,184,0.5);
+    font-size: 0.6rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-sizing: border-box;
+    transition: left 0.22s cubic-bezier(.4,0,.2,1), color 0.15s, background 0.15s;
+}
+#side-nav-toggle:hover {
+    background: rgba(96,165,250,0.15);
+    color: #93c5fd;
+}
+body.side-nav-body-collapsed #side-nav-toggle {
+    left: 0;
+}
+
+#side-nav {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 64px;
+    background: var(--cr-header-bg-1, #0f172a);
+    border-right: 1px solid rgba(148,163,184,0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0 20px;
+    gap: 8px;
+    z-index: 9000;
+    overflow: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+    transform: translateX(0);
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+}
+#side-nav::-webkit-scrollbar { display: none; }
+
+#side-nav.side-nav-collapsed {
+    transform: translateX(-64px);
+}
+
+/* All nav buttons and link-buttons */
+
+/* Tooltip */
+
+.side-nav-divider {
+    width: 32px;
+    height: 1px;
+    background: rgba(148,163,184,0.12);
+    margin: 6px 0;
+    flex-shrink: 0;
+}
+
+/* On pages without a header padlock, the sidebar's #adult-lock-btn IS the
+   real lock control — make it match the compact 48x48 icon buttons instead
+   of the pill-shaped header version. */
+#side-nav#adult-lock-btn,
+#side-nav #adult-lock-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.38);
+    font-size: 1.3rem;
+    gap: 0;
+}
+#side-nav #adult-lock-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: #e2e8f0;
+}
+#side-nav #adult-lock-btn.unlocked,
+#side-nav #adult-lock-btn.unlocked:hover {
+    background: rgba(96,165,250,0.18);
+    border-color: transparent;
+    color: #60a5fa;
+}
+#side-nav #adult-lock-btn .lock-label {
+    display: none;
+}
+
+/* Body offset */
+body { padding-left: 70px; }
+body.side-nav-body-collapsed { padding-left: 8px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — Left side navigation + Organise section.
+   Both were built with hardcoded dark-only colors (no --cr-* vars),
+   so they stayed dark regardless of the theme toggle. These rules
+   re-point them at light-appropriate equivalents in light mode only.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Side navigation */
+[data-theme="light"] #side-nav-toggle {
+    border-color: rgba(15,23,42,0.14);
+    background: rgba(255,255,255,0.97);
+    color: rgba(15,23,42,0.5);
+}
+[data-theme="light"] #side-nav-toggle:hover {
+    background: rgba(96,165,250,0.18);
+    color: #1d4ed8;
+}
+[data-theme="light"] #side-nav {
+    background: rgba(255,255,255,0.97);
+    border-right-color: rgba(15,23,42,0.1);
+}
+[data-theme="light"] .side-nav-divider {
+    background: rgba(15,23,42,0.14);
+}
+[data-theme="light"] #side-nav #adult-lock-btn {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] #side-nav #adult-lock-btn:hover {
+    background: rgba(15,23,42,0.08);
+    color: var(--text-color);
+}
+[data-theme="light"] #side-nav #adult-lock-btn.unlocked,
+[data-theme="light"] #side-nav #adult-lock-btn.unlocked:hover {
+    background: rgba(37,99,235,0.15);
+    color: #1d4ed8;
+}
+
+/* Organise section — light-mode contrast for accent buttons */
+[data-theme="light"] .org-quick-btn {
+    color: #0369a1;
+}
+[data-theme="light"] .org-quick-btn:hover {
+    color: #0284c7;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — Notes (Kanban) section.
+   Built with hardcoded white/light-grey tints meant for a dark card,
+   so labels, drag handles, add-note inputs, and the deleted-notes
+   panel become very low-contrast in light mode. Re-point them here.
+   ══════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .notes-kanban-col {
+    background: rgba(15,23,42,0.04);
+    border-color: rgba(15,23,42,0.09);
+}
+[data-theme="light"] .notes-col-header {
+    background: rgba(15,23,42,0.035);
+    color: #475569;
+}
+[data-theme="light"] .notes-col-drag-handle {
+    color: rgba(15,23,42,0.35);
+}
+[data-theme="light"] .notes-col-drag-handle:hover {
+    background: rgba(15,23,42,0.08);
+    color: rgba(15,23,42,0.7);
+}
+[data-theme="light"] .notes-col-delete-btn {
+    color: #94a3b8;
+}
+[data-theme="light"] .notes-add-row {
+    border-top-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .notes-add-input {
+    background: rgba(15,23,42,0.04);
+    border-color: rgba(15,23,42,0.14);
+    color: var(--text-color);
+}
+[data-theme="light"] .notes-add-input::placeholder {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .notes-deleted-toggle {
+    color: #475569;
+}
+[data-theme="light"] .notes-deleted-empty {
+    color: #64748b;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   HIGH PERFORMANCE SURFACE DEPTH & CARDS
+   ══════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] .dashboard-card {
+    background: rgba(30, 41, 59, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="dark"] .dashboard-card:hover {
+    background: #1e293b !important;
+    border-color: rgba(255, 255, 255, 0.16) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
+}
+
+[data-theme="light"] .dashboard-card {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .dashboard-card:hover {
+    background: #ffffff !important;
+    border-color: rgba(15, 23, 42, 0.16) !important;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SKELETON LOADING (COMPOSITOR-FRIENDLY OPACITY PULSE)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════
+   HEADER QUICK ADD DROPDOWN
+   ══════════════════════════════════════════════════════════════════ */
+
+.header-notif-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.header-notif-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--cr-header-control-bg);
+    border: 1.5px solid var(--cr-header-control-border);
+    color: var(--cr-text-secondary);
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.header-notif-btn:hover,
+.header-notif-wrap.is-open .header-notif-btn {
+    background: rgba(251,191,36,0.18);
+    color: var(--cr-text-primary);
+    border-color: rgba(251,191,36,0.4);
+}
+.header-notif-btn.has-overdue {
+    color: #fca5a5;
+    border-color: rgba(239,68,68,0.45);
+}
+.header-notif-btn.has-overdue:hover,
+.header-notif-wrap.is-open .header-notif-btn.has-overdue {
+    background: rgba(239,68,68,0.16);
+    color: #fecaca;
+}
+.header-notif-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #111827;
+    font-size: 0.65rem;
+    font-weight: 800;
+    line-height: 16px;
+    text-align: center;
+}
+.header-notif-badge.is-overdue { background: #ef4444; color: #fff; }
+.header-notif-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(380px, calc(100vw - 24px));
+    max-height: min(70vh, 520px);
+    display: none;
+    flex-direction: column;
+    background: var(--cr-modal-surface);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+    z-index: 10010;
+    overflow: hidden;
+}
+.header-notif-wrap.is-open .header-notif-panel { display: flex; }
+.header-notif-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px 8px;
+    font-weight: 700;
+    color: var(--cr-text-primary);
+}
+.header-notif-head-meta {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fbbf24;
+}
+.header-notif-body {
+    overflow-y: auto;
+    padding: 0 8px 8px;
+}
+.header-notif-empty {
+    margin: 10px 8px;
+    color: var(--cr-text-secondary);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+.header-notif-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-top: 1px solid var(--cr-surface-border);
+    color: var(--cr-text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.header-notif-footer:hover { color: var(--cr-text-primary); background: rgba(148,163,184,0.08); }
+
+[data-theme="light"] .header-notif-btn.has-overdue { color: #b91c1c; }
+
+/* ══════════════════════════════════════════════════════════════════
+   URGENT RENEWAL BANNER & DASHBOARD TICKER
+   ══════════════════════════════════════════════════════════════════ */
+
+.urgent-renewal-banner.is-overdue:hover {
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
+.urgent-renewal-banner.is-overdue .urgent-renewal-icon-box {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+.urgent-renewal-banner.is-overdue .urgent-renewal-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.urgent-renewal-banner.is-overdue:hover .urgent-renewal-action {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--cr-text-primary);
+}
+
+[data-theme="light"] .urgent-renewal-banner.is-overdue .urgent-renewal-badge {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.25);
+}
+
+[data-theme="light"] .urgent-renewal-banner.is-overdue .urgent-renewal-icon-box {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: rgba(220, 38, 38, 0.25);
+    color: #dc2626;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   VEHICLE SERVICE INTERVAL PROGRESS BARS
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════
+   DASHBOARD LAYOUT — rearrange, resize, reshape tiles
+   ══════════════════════════════════════════════════════════════════ */
+.dashboard-section-title {
+    position: relative;
+    flex-wrap: wrap;
+}
+
+.dash-layout-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.dash-arrange-btn,
+.dash-layout-reset-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--cr-subtle-panel-border);
+    background: var(--cr-subtle-panel);
+    color: var(--cr-text-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.dash-arrange-btn.is-active {
+    background: #0ea5e9;
+    border-color: #38bdf8;
+    color: #fff;
+}
+
+.dashboard-grid .dash-tile {
+    grid-column: span var(--dash-cols, 4);
+    grid-row: span var(--dash-rows, 8);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    cursor: default;
+    will-change: auto;
+}
+
+.dashboard-grid .dash-tile[data-dash-nav] {
+    cursor: pointer;
+}
+
+.dashboard-section.is-arranging .dash-tile,
+.dashboard-section.is-arranging .dash-tile[data-dash-nav] {
+    cursor: default;
+}
+
+.dashboard-grid .dash-tile .dashboard-card-title {
+    flex-shrink: 0;
+}
+
+.dash-tile-handle {
+    display: none;
+}
+
+.dashboard-section.is-arranging .dash-tile-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 0;
+    padding: 0;
+    margin: 0 2px 0 0;
+    border: none;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.18);
+    color: var(--cr-text-secondary);
+    cursor: grab;
+    touch-action: none;
+    flex-shrink: 0;
+}
+
+.dashboard-section.is-arranging .dash-tile-handle:active {
+    cursor: grabbing;
+}
+
+.dashboard-section.is-arranging .dash-tile-resize {
+    display: block;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 22px;
+    height: 22px;
+    cursor: nwse-resize;
+    touch-action: none;
+    z-index: 3;
+}
+
+.dashboard-section.is-arranging .dash-tile-resize::before,
+.dashboard-section.is-arranging .dash-tile-resize::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    border-right: 2px solid var(--cr-text-secondary);
+    border-bottom: 2px solid var(--cr-text-secondary);
+    opacity: 0.7;
+}
+
+.dashboard-section.is-arranging .dash-tile-resize::before {
+    width: 10px;
+    height: 10px;
+}
+
+.dashboard-section.is-arranging .dash-tile-resize::after {
+    width: 5px;
+    height: 5px;
+}
+
+.dashboard-section.is-arranging .dash-tile {
+    outline: 2px dashed rgba(56, 189, 248, 0.45);
+    outline-offset: -2px;
+}
+
+.dash-tile.is-dragging {
+    position: fixed;
+    z-index: 9000;
+    pointer-events: none;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    opacity: 0.95;
+}
+
+.dash-tile.is-resizing {
+    outline-color: #38bdf8;
+}
+
+body.dash-layout-dragging {
+    user-select: none;
+    cursor: grabbing;
+}
+
+.dashboard-grid .dashboard-card-notes {
+    margin-top: 0;
+    height: auto;
+    max-height: none;
+    resize: none;
+}
+
+.dashboard-grid #dash-photos-card {
+    cursor: pointer;
+}
+
+@media (max-width: 700px) {
+    .dashboard-grid .dash-tile {
+        grid-column: 1 / -1 !important;
+    }
+    .dashboard-grid .dash-tile[data-dash-id="timer"] {
+        grid-column: span 6 !important;
+    }
+    .dashboard-grid .dash-tile.is-minimised {
+        grid-column: span 6 !important;
+    }
+}
+
+.dashboard-grid .dash-tile.is-minimised {
+    overflow: hidden;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    cursor: pointer;
+}
+
+.dashboard-grid .dash-tile.is-minimised > :not(.dashboard-card-title) {
+    display: none !important;
+}
+
+.dashboard-grid .dash-tile.is-minimised .dashboard-card-title {
+    margin-bottom: 0;
+}
+
+.dashboard-grid .dash-tile.is-minimised .dash-note-add-btn {
+    display: none;
+}
+
+.dashboard-section.is-arranging .dash-tile.is-minimised .dash-tile-resize {
+    display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DASHBOARD VISUAL TIMER (Time Timer-style pie countdown)
+   ══════════════════════════════════════════════════════════════════ */
+.dashboard-card-timer {
+    cursor: default;
+    padding: 10px 12px;
+}
+
+.dashboard-card-timer:hover {
+    transform: none;
+}
+
+.visual-timer-disc {
+    fill: #fff7ed;
+    stroke: #1e293b;
+    stroke-width: 6;
+}
+
+.visual-timer-pie {
+    transition: fill 0.25s ease;
+}
+
+.visual-timer-hub {
+    fill: #1e293b;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.visual-timer-face-wrap.is-finished .visual-timer-disc {
+    fill: #ecfdf5;
+    stroke: #10b981;
+}
+
+[data-theme="light"] .visual-timer-disc {
+    fill: #fffdf8;
+}
+
+[data-theme="dark"] .dashboard-card-timer:hover,
+[data-theme="light"] .dashboard-card-timer:hover,
+[data-theme="dark"] .dash-tile:hover,
+[data-theme="light"] .dash-tile:hover {
+    transform: none;
+}
+
+.visual-timer-launcher {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    touch-action: manipulation;
+}
+
+.visual-timer-mini-svg {
+    width: min(86px, 70%);
+    height: auto;
+    aspect-ratio: 1;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.28));
+}
+
+.visual-timer-mini-digits {
+    font-size: clamp(0.95rem, 2.4vw, 1.2rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--cr-text-primary);
+    letter-spacing: 0.04em;
+}
+
+.visual-timer-mini-hint {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cr-text-secondary);
+}
+
+.dashboard-card-timer.is-running .visual-timer-mini-svg {
+    filter: drop-shadow(0 6px 14px var(--vt-glow, rgba(239, 68, 68, 0.45)));
+}
+
+.dashboard-card-timer.is-ending .visual-timer-mini-svg {
+    animation: visual-timer-pulse 0.8s ease-in-out infinite;
+}
+
+.dashboard-card-timer.is-finished .visual-timer-mini-digits,
+.dashboard-card-timer.is-finished .visual-timer-mini-hint {
+    color: #34d399;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-card-timer.is-ending .visual-timer-mini-svg {
+        animation: none;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DASHBOARD PLAY WIDGET (maths + colours)
+   ══════════════════════════════════════════════════════════════════ */
+.dashboard-card-play {
+    cursor: default;
+    padding: 10px 12px;
+}
+
+.dashboard-card-play:hover {
+    transform: none;
+}
+
+.play-launch-row {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.play-launch {
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    white-space: normal;
+    box-shadow: none;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.play-launch-maths {
+    background: linear-gradient(160deg, #6366f1, #7c3aed);
+}
+
+.play-launch-maths:hover,
+.play-launch-maths:focus {
+    background: linear-gradient(160deg, #4f46e5, #6d28d9);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+}
+
+.play-launch-colours {
+    background: linear-gradient(160deg, #f97316, #ec4899 55%, #3b82f6);
+}
+
+.play-launch-colours:hover,
+.play-launch-colours:focus {
+    background: linear-gradient(160deg, #ea580c, #db2777 55%, #2563eb);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+}
+
+.play-launch-mark {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    line-height: 1;
+    font-weight: 800;
+}
+
+.play-launch-label {
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.play-launch-swatches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.play-launch-swatches i {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: block;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.play-launch-mark-sm {
+    font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+    letter-spacing: 0.06em;
+}
+
+.play-launch-patterns {
+    background: linear-gradient(160deg, #0d9488, #0284c7);
+}
+
+.play-launch-patterns:hover,
+.play-launch-patterns:focus {
+    background: linear-gradient(160deg, #0f766e, #0369a1);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+}
+
+.play-launch-memory {
+    background: linear-gradient(160deg, #f59e0b, #e11d48);
+}
+
+.play-launch-memory:hover,
+.play-launch-memory:focus {
+    background: linear-gradient(160deg, #d97706, #be123c);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+}
+
+.play-launch-cards {
+    display: flex;
+    gap: 4px;
+}
+
+.play-launch-cards i {
+    width: 16px;
+    height: 22px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.92);
+    display: block;
+}
+
+.dashboard-section.is-arranging .play-launch {
+    pointer-events: none;
+}
+
+/* === Inline styles from templates/index.html === */
+
+        /* Celebration Animation Styles */
+        /* Confetti Animation */
+        /* Sparkles */
+/* Slot Machine Styles */
+
+/* ── Bonus Choice Screen ── */
+
+/* ── Body Challenge Screen ── */        
+    
+
+    .optional-label {
+        font-size: 0.85em;
+        color: #aaa;
+        font-weight: 400;
+        margin-left: 2px;
+    }
+    
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            grid-auto-rows: 18px;
+            grid-auto-flow: dense;
+            gap: 16px;
+            margin-top: 4px;
+        }
+        .dashboard-card {
+            background: var(--cr-subtle-panel);
+            border: 1px solid var(--cr-subtle-panel-border);
+            border-radius: 14px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: transform 0.15s;
+            will-change: transform;
+        }
+        .dashboard-card:hover { transform: translateY(-2px); }
+        .dashboard-card-photos,
+        .dashboard-card-timer,
+        .dash-tile { cursor: default; }
+        .dashboard-card-photos:hover,
+        .dashboard-card-timer:hover,
+        .dash-tile:hover { transform: none; }
+        .dashboard-card-photos:not(.dashboard-card-notes) { cursor: pointer; }
+        .dashboard-card-photos:not(.dashboard-card-notes):hover { transform: none; }
+        .dashboard-card-title {
+            margin: 0 0 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--cr-text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dash-person-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--cr-subtle-panel-border);
+        }
+        .dash-person-row:last-child { border-bottom: none; }
+        .dash-person-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .dash-person-info { flex: 1; min-width: 0; }
+        .dash-person-name { font-weight: 700; color: var(--cr-text-primary); font-size: 0.9em; }
+        .dash-person-chores { font-size: 0.78em; color: var(--cr-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dash-meal-row, .dash-reward-row {
+            display: flex; align-items: center; gap: 10px; padding: 6px 0;
+            border-bottom: 1px solid var(--cr-subtle-panel-border);
+            font-size: 0.85em; color: var(--cr-text-primary);
+        }
+        .dash-meal-row:last-child, .dash-reward-row:last-child { border-bottom: none; }
+        .dash-meal-label { flex-shrink: 0; font-weight: 700; color: var(--cr-text-secondary); font-size: 0.85em; }
+        .dash-meal-label { min-width: 5.8em; }
+        .dash-meal-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dash-empty-hint { color: var(--cr-text-secondary); font-size: 0.85em; font-style: italic; }
+        .dash-reward-thumb { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--cr-subtle-panel-border); }
+        .dash-reward-points { margin-left: auto; font-weight: 700; color: #fbbf24; font-size: 0.85em; white-space: nowrap; }
+        .dash-photo-slideshow {
+            position: relative;
+            width: 100%;
+            min-height: 0;
+            flex: 1;
+            aspect-ratio: auto;
+            border-radius: 10px;
+            overflow: hidden;
+            background: var(--cr-subtle-panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            text-align: center;
+        }
+        .dash-photo-slideshow img,
+        .dash-photo-slideshow video {
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+            opacity: 0; transition: opacity 1s ease;
+            will-change: opacity;
+            background: #000;
+            z-index: 0;
+        }
+        .dash-photo-slideshow img.dash-photo-active,
+        .dash-photo-slideshow video.dash-photo-active { opacity: 1; }
+        .dash-photo-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 3;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            min-height: 36px;
+            padding: 0;
+            margin: 0;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            gap: 0;
+            opacity: 0.92;
+        }
+        .dash-photo-nav:hover,
+        .dash-photo-nav:focus {
+            background: rgba(0, 0, 0, 0.72);
+            color: #fff;
+            transform: translateY(-50%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+            opacity: 1;
+        }
+        .dash-photo-nav[hidden] { display: none; }
+        .dash-photo-nav-prev { left: 8px; }
+        .dash-photo-nav-next { right: 8px; }
+
+        .dash-note-add-btn {
+            margin-left: auto;
+            background: var(--cr-subtle-panel-border);
+            border: none;
+            color: var(--cr-text-primary);
+            width: 24px;
+            height: 24px;
+            min-height: 0;
+            padding: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.7em;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dash-note-add-btn:hover { opacity: 0.85; }
+        .dash-notes-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        /* Sticky Notes panel — fills its dashboard tile */
+        .dashboard-card-notes {
+            position: relative;
+            margin-top: 0;
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            min-height: 0;
+            max-height: none;
+            resize: none;
+            overflow: hidden;
+        }
+        .dashboard-card-notes .dash-notes-grid {
+            flex: 1;
+            align-content: flex-start;
+            overflow-y: auto;
+        }
+        @media (min-width: 600px) and (max-width: 1024px) {
+            .dashboard-card-notes { height: auto; min-height: 0; }
+        }
+    
+
+/* Reward Progress Bar Styles - Modern Clean Design */
+
+/* Add subtle animation for completed rewards */
+
+/* Progress bar with segments for better visual feedback */
+
+/* Dark theme styles */
+
+/* Alternative: Striped progress bar (uncomment to use)
+.reward-progress-bar-fill {
+    background: #6366f1;
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 4px,
+        rgba(255,255,255,0.1) 4px,
+        rgba(255,255,255,0.1) 8px
+    );
+    background-size: 12px 12px;
+    animation: progressMove 1s linear infinite;
+}
+
+@keyframes progressMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 12px 0; }
+}
+*/
+
+/* Alternative: Stepped progress bar (uncomment to use)
+.reward-progress-bar-fill {
+    background: #6366f1;
+    border-radius: 4px;
+    position: relative;
+}
+
+.reward-progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -4px;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #6366f1;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 0 8px rgba(99, 102, 241, 0.4);
+}
+*/
+
+
+/* Star sparkle animation for chore completion */
+.chore {
+    font-size: 1.15em;
+    line-height: 1.5;
+}
+.chore .chore-title {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+/* Reward Celebration Animations */
+
+/* === v1.1.0 Compact SideNav & Tablet Kanban Overrides === */
+#side-nav-toggle { left: 48px; height: 50px; }
+body.side-nav-body-collapsed #side-nav-toggle { left: 0; }
+#side-nav { width: 48px; padding: 8px 0 14px; gap: 5px; }
+#side-nav.side-nav-collapsed { transform: translateX(-48px); }
+#side-nav #adult-lock-btn { width: 38px; height: 38px; min-width: 38px; min-height: 38px; font-size: 1.05rem; line-height: 38px; border-radius: 9px; }
+.side-nav-divider { width: 26px; margin: 4px 0; }
+body { padding-left: 54px; }
+body.side-nav-body-collapsed { padding-left: 8px; }
+#kanban .column { flex: 1 1 210px !important; min-width: 205px !important; max-width: 380px; }
+@media (min-width: 600px) and (max-width: 1024px) {
+  #kanban .column { flex: 1 1 195px !important; min-width: 190px !important; max-width: 340px; }
+}
+
+/* === Header Compact Tablet & Expand Override === */
+.dashboard-header-sticky .header-content {
+  padding: 0.4rem 1rem !important;
+  gap: 0.5rem 0.8rem !important;
+  max-height: none;
+}
+@media (max-width: 1400px) {
+  .dashboard-header-sticky {
+    max-height: 100px;
+  }
+  .dashboard-header-sticky.header-expanded {
+    max-height: none;
+  }
+}
+
+/* === Milestone 4 & 5 Styles: Smart Shopping List, Recipe Modal & Kanban Meals === */
+.shopping-stores-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; width: 100%; box-sizing: border-box; }
+.shopping-store-col { background: var(--cr-subtle-panel); border: 1px solid var(--cr-subtle-panel-border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; min-width: 0; box-sizing: border-box; }
+.shopping-item-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+.shopping-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92rem; }
+.meal-week-display { display: grid; grid-template-columns: repeat(7, minmax(130px, 1fr)); gap: 10px; overflow-x: auto; width: 100%; padding-bottom: 8px; }
+@media (max-width: 900px) { .meal-week-display { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+
+/* Kanban Meal Planner Tiles */
+.meal-kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
+  margin-bottom: 8px;
+}
+.meal-kanban-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  position: relative;
+}
+.meal-kanban-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(96, 165, 250, 0.5);
+  transform: translateY(-2px);
+}
+.meal-kanban-card-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-word;
+}
+.meal-kanban-card-del {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.meal-kanban-card-del:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+.meal-kanban-add-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  margin-top: auto;
+}
+.meal-kanban-add-btn:hover {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+}
+
+/* Shopping Controls & Smart Combobox */
+.shopping-smart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.shopping-combobox-wrap {
+  position: relative;
+  flex: 1 1 240px;
+}
+.shopping-combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+.shopping-combobox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #f1f5f9;
+  font-size: 0.88rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.shopping-combobox-item:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+.shopping-combobox-item-custom {
+  color: #60a5fa;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.08);
+}
+.shopping-combobox-item-custom:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+.shopping-combobox-times {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Modals Overlay & Content */
+
+/* Recipe instructions viewer */
+.recipe-modal-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.recipe-meta-row {
+  display: flex;
+  gap: 14px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.recipe-instructions-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.recipe-ing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.88rem;
+}
+
+/* Fix shopping meal group width */
+.shopping-meal-groups-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+/* Text Pad Formatted Rendered View */
+.text-pad-rendered-view {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px 20px;
+  color: #e2e8f0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-height: 550px;
+  overflow-y: auto;
+  user-select: text;
+}
+.text-pad-rendered-view h2 {
+  font-size: 1.35rem;
+  color: #f8fafc;
+  margin: 16px 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+}
+.text-pad-rendered-view h3 {
+  font-size: 1.15rem;
+  color: #60a5fa;
+  margin: 14px 0 6px;
+}
+.text-pad-rendered-view h4 {
+  font-size: 0.98rem;
+  color: #93c5fd;
+  margin: 10px 0 4px;
+}
+.text-pad-rendered-view p {
+  margin: 6px 0;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+.text-pad-rendered-view ul {
+  margin: 6px 0 12px 22px;
+  padding: 0;
+}
+.text-pad-rendered-view li {
+  margin: 4px 0;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+.text-pad-rendered-view strong {
+  color: #f8fafc;
+  font-weight: 700;
+}
+.text-pad-rendered-view hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 16px 0;
+}
+.text-pad-mode-btn.active {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+/* ==========================================================================
+   v1.1.1 UI Polish: Consistency, Compact Heights, Modals, Badges & Alignment
+   ========================================================================== */
+
+/* Universal Flat / Grey Cancel Buttons */
+.btn-cancel {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #cbd5e1 !important;
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+  padding: 7px 15px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Primary Action Buttons */
+.btn-primary {
+  background: #2563eb !important;
+  border: 1px solid #1d4ed8 !important;
+  color: #ffffff !important;
+  font-size: 0.86rem !important;
+  font-weight: 700 !important;
+  padding: 7px 16px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3) !important;
+  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.btn-primary:hover {
+  background: #1d4ed8 !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.45) !important;
+}
+
+/* Shopping List Toolbar Buttons & Consistent Heights */
+.shopping-toolbar-btn {
+  height: 36px !important;
+  font-size: 0.82rem !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #e2e8f0 !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+}
+.shopping-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+.shopping-toolbar-btn.shopping-archive-btn {
+  background: rgba(34, 197, 94, 0.18) !important;
+  border-color: rgba(34, 197, 94, 0.45) !important;
+  color: #86efac !important;
+  font-weight: 700 !important;
+}
+.shopping-toolbar-btn.shopping-archive-btn:hover {
+  background: rgba(34, 197, 94, 0.3) !important;
+  color: #ffffff !important;
+}
+.shopping-toolbar-btn.shopping-icon-btn {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+}
+.shopping-toolbar-btn.shopping-icon-btn.active {
+  background: rgba(59, 130, 246, 0.22) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  color: #93c5fd !important;
+}
+
+/* Shopping Add Row Controls (Uniform 38px height) */
+.shopping-add-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+.shopping-combobox-wrap {
+  flex: 1 1 auto !important;
+  position: relative !important;
+  min-width: 180px !important;
+}
+.shopping-combobox-wrap .modern-input {
+  height: 38px !important;
+  padding: 0 12px !important;
+  font-size: 0.88rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.shopping-store-select.shopping-dynamic-store-select {
+  height: 38px !important;
+  padding: 0 10px !important;
+  font-size: 0.85rem !important;
+  border-radius: 8px !important;
+  max-width: 160px !important;
+  flex: 0 0 160px !important;
+  box-sizing: border-box !important;
+}
+.shopping-add-btn {
+  height: 38px !important;
+  padding: 0 16px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  background: #2563eb !important;
+  border: 1px solid #1d4ed8 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: none !important;
+  flex-shrink: 0 !important;
+}
+.shopping-add-btn:hover {
+  background: #1d4ed8 !important;
+}
+.shopping-combobox-dropdown {
+  position: absolute !important;
+  top: calc(100% + 4px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+  background: #182234 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  z-index: 100 !important;
+}
+
+/* Shopping Item Row Height (Halved to ~36px) */
+.shopping-item-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  cursor: pointer !important;
+}
+.shopping-item-name {
+  font-size: 0.88rem !important;
+  line-height: 1.25 !important;
+}
+
+/* Store Badge Colors: Blue default, Green done (NEVER red!) */
+
+/* Meal Planner Kanban Card Height (Halved to ~44px) */
+.meal-kanban-cards {
+  gap: 6px !important;
+  min-height: 38px !important;
+  margin-bottom: 6px !important;
+}
+.meal-kanban-card {
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  padding: 4px 8px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+.meal-kanban-card-title {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.meal-kanban-add-btn {
+  padding: 6px 10px !important;
+  font-size: 0.78rem !important;
+  border-radius: 8px !important;
+}
+
+/* Compact Person Header & Sleek Chore Cards in Columns */
+.chore-column-header-compact {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 8px 10px !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  border-radius: 12px !important;
+  margin-bottom: 8px !important;
+  gap: 8px !important;
+}
+.chore-kanban-add-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1.5px dashed rgba(255, 255, 255, 0.18) !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-top: 6px !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+}
+.chore-kanban-add-btn:hover {
+  background: rgba(96, 165, 250, 0.12) !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  color: #93c5fd !important;
+}
+
+/* Left-align section headings & filters */
+.section-title {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+.chore-user-filter-bar {
+  justify-content: flex-start !important;
+  padding-left: 0 !important;
+}
+
+/* Modern Rewards Section & Cards */
+.rewards-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rewards-grid-modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.reward-card-modern {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.reward-card-modern:hover {
+  transform: translateY(-2px);
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .reward-card-modern {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.reward-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reward-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reward-card-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.reward-card-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.reward-card-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--cr-text-primary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reward-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.reward-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+[data-theme="light"] .reward-progress-track {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.reward-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #10b981);
+  transition: width 0.3s ease;
+}
+
+.reward-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: var(--cr-text-secondary);
+  margin-top: 4px;
+}
+
+.reward-card-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .reward-card-actions-row {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ==========================================================================
+   Unified Action Buttons: Complete Chore & Redeem Reward
+   ========================================================================== */
+.btn-complete-chore,
+.btn-redeem-modern {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--btn-radius, 10px);
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: var(--color-success, #10b981);
+  color: #ffffff;
+  border: 1px solid var(--color-success-border, #34d399);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.btn-complete-chore {
+  width: 100%;
+}
+
+.btn-complete-chore:hover:not(:disabled),
+.btn-complete-chore:focus,
+.btn-redeem-modern:hover:not(:disabled) {
+  background: var(--color-success-hover, #059669);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.btn-complete-chore:active,
+.btn-redeem-modern:active {
+  transform: translateY(0);
+}
+
+.btn-redeem-modern:disabled {
+  background: rgba(148, 163, 184, 0.15);
+  color: rgba(148, 163, 184, 0.45);
+  border-color: rgba(148, 163, 184, 0.2);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.reward-icon-btn {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  border-radius: var(--btn-radius, 10px);
+  border: 1px solid var(--color-border-medium, rgba(148, 163, 184, 0.25));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cr-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.reward-icon-btn:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--cr-text-primary);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.reward-icon-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+
+
+
+
+
+/* Modal Body Scroll Lock */
+body.cr-modal-open {
+  overflow: hidden !important;
+}

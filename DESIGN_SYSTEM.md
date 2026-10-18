@@ -106,3 +106,50 @@ import { Button, Input, Select, Card, Badge } from './ui';
    - Modals should never declare custom container wrappers with ad-hoc `borderRadius: '24px'`. They must use `var(--modal-radius)`.
 4. **Preserve Legacy Token Compatibility**:
    - Legacy CSS classes like `.btn-primary`, `.btn-secondary`, `.btn-cancel`, and `.modern-input` are mapped to design tokens in `tokens.css` so that legacy templates or unrefactored utility views remain visually harmonious.
+
+---
+
+## 4. Responsive Layout & Form Standards
+
+To prevent visual clutter, ragged form inputs, and horizontal overflow on mobile devices and tablets, the following responsive layout system is strictly enforced:
+
+### Breakpoint Tokens
+- **Mobile** (`< 640px`): Single-column feeds, full-width form inputs, stacked action bars.
+- **Tablet / Kiosk** (`640px - 1024px`): 2-to-3 column grids, compact horizontal headers, touch targets >= 44px.
+- **Desktop** (`> 1024px`): Full multi-column grids, sidebar navigation, maximum content container width (1400px).
+
+### Layout Primitives (`client/src/components/ui/Layout.tsx`)
+```tsx
+import { Container, ResponsiveGrid, FormGrid, FormField, Stack, Cluster } from './ui';
+```
+
+1. **`<Container maxWidth={1200}>`**:
+   - Always wrap feature views and standalone settings pages in `<Container>`.
+   - Automatically applies `--gutter-mobile` (16px) on phones and `--gutter-desktop` (24px) on tablet/desktop.
+
+2. **`<ResponsiveGrid minColWidth="260px" gap="var(--space-4)">`**:
+   - Replaces custom CSS grid templates like `repeat(auto-fill, minmax(260px, 1fr))`.
+   - Enforces `repeat(auto-fill, minmax(min(100%, 260px), 1fr))` ensuring cards gracefully shrink to 100% width on narrow mobile screens without ever clipping or triggering horizontal scrollbars.
+
+3. **`<FormGrid>` & `<FormField colSpan={...}>`**:
+   - **Forbid Fixed Pixel Input Widths**: Never write `style={{ width: 140 }}` or `style={{ width: 180 }}` inside flex rows.
+   - Use the 12-column `<FormGrid>`:
+     ```tsx
+     <FormGrid onSubmit={handleSubmit}>
+       <FormField colSpan={12}>
+         <Input label="Title" value={title} onChange={...} />
+       </FormField>
+       <FormField colSpan={6}>
+         <Input label="Points" type="number" value={points} onChange={...} />
+       </FormField>
+       <FormField colSpan={6}>
+         <Select label="Assign To" value={assignee} onChange={...}>...</Select>
+       </FormField>
+     </FormGrid>
+     ```
+   - On screens `< 640px`, all `<FormField>` columns automatically expand to 12 cols (full width) to prevent cramped inputs. On screens `>= 640px`, they snap to their declared `colSpan`.
+
+4. **`<Stack>` & `<Cluster>`**:
+   - Use `<Stack gap="var(--space-4)">` for clean vertical layouts without arbitrary bottom margins.
+   - Use `<Cluster gap="var(--space-3)" justify="space-between">` for wrapping horizontal toolbars, filter pill groups, and card action footers.
+

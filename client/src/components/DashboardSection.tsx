@@ -93,7 +93,7 @@ export const DashboardSection: React.FC = () => {
   return (
     <section className="rewards-section dashboard-section" id="dashboard-section">
       <h2 className="section-title dashboard-section-title">
-        <i className="fas fa-gauge-high" style={{ color: '#38bdf8' }} /> <span>Today at a Glance</span>
+        <i className="fas fa-gauge-high section-icon-dashboard" /> <span>Today at a Glance</span>
         <SectionHelpTip
           title="Today at a Glance"
           tips={[
@@ -144,7 +144,7 @@ export const DashboardSection: React.FC = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedChorePersonId(person.id);
-                  scrollToSection('chores-section-root');
+                  setActiveView('chores');
                 }}
               >
                 <img
