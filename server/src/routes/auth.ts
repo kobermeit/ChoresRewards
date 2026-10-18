@@ -78,6 +78,15 @@ export function requireAdult(req: Request, res: Response, next: NextFunction): v
     next();
     return;
   }
+  if (req.session?.person_id) {
+    const person = db.prepare('SELECT role, is_admin, name FROM person WHERE id = ?').get(req.session.person_id) as any;
+    if (person && (person.role === 'parent' || person.is_admin === 1)) {
+      req.session.adult_mode = true;
+      req.session.adult_name = person.name;
+      next();
+      return;
+    }
+  }
   res.status(403).json({ success: false, error: 'Adult authorisation required' });
 }
 
@@ -91,11 +100,27 @@ authRouter.get('/api/check_auth', (req: Request, res: Response) => {
 
 authRouter.get('/api/auth_status', (req: Request, res: Response) => {
   const masterPin = AppSetting.get('master_pin');
+  if (req.session?.person_id && !req.session?.adult_mode) {
+    const person = db.prepare('SELECT role, is_admin, name FROM person WHERE id = ?').get(req.session.person_id) as any;
+    if (person && (person.role === 'parent' || person.is_admin === 1)) {
+      req.session.adult_mode = true;
+      req.session.adult_name = person.name;
+    }
+  }
   res.json({
     authenticated: !masterPin ? true : Boolean(req.session?.authenticated),
     adult_mode: Boolean(req.session?.adult_mode),
     adult_name: req.session?.adult_name || null,
     person_name: req.session?.person_name || null,
+    person_id: req.session?.person_id || null,
+  });
+});
+
+authRouter.get('/api/keep_alive', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    authenticated: Boolean(req.session?.authenticated),
+    adult_mode: Boolean(req.session?.adult_mode),
     person_id: req.session?.person_id || null,
   });
 });

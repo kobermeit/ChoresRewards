@@ -68,6 +68,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         due_datetime: c.due_datetime || null,
         deleted: Boolean(c.deleted),
         icon: c.icon || null,
+        image_url: c.image_url || null,
         is_extra: Boolean(c.is_extra),
         extra_id: c.extra_id || null,
         is_overdue: overdue,
@@ -332,13 +333,13 @@ function handleSetupPost(req: Request, res: Response) {
     }
 
     const errors: string[] = [];
-    if (peopleInput.length === 0) {
-      errors.push('Add at least one family member.');
-    }
-
     // Support both initial setup and re-running Setup Wizard from Settings (updating existing people)
     const existingPeople = db.prepare('SELECT * FROM person').all() as Array<any>;
     const existingHasAdminWithPin = existingPeople.some((ep) => Boolean(ep.is_admin && ep.pin));
+
+    if (existingPeople.length === 0 && peopleInput.length === 0) {
+      errors.push('Add at least one family member.');
+    }
 
     let hasValidAdmin = existingHasAdminWithPin;
     for (const p of peopleInput) {
@@ -350,7 +351,7 @@ function handleSetupPost(req: Request, res: Response) {
         }
       }
     }
-    if (errors.length === 0 && !hasValidAdmin) {
+    if (errors.length === 0 && !hasValidAdmin && existingPeople.length === 0) {
       errors.push('At least one adult account with a 4-digit PIN is required.');
     }
 
@@ -431,9 +432,12 @@ function handleSetupPost(req: Request, res: Response) {
       req.session.adult_name = peopleInput.find((p) => p.is_admin)?.name || 'Admin';
     }
 
+    const memberSummary = peopleInput.length > 0
+      ? `Configured family members: ${peopleInput.map((p) => p.name).join(', ')}.`
+      : 'Household settings updated.';
     logActivity(
       'setup_completed',
-      `Setup wizard completed. Added family members: ${peopleInput.map((p) => p.name).join(', ')}. Reward system: ${rewardSystem}.`,
+      `Setup wizard completed. ${memberSummary} Reward system: ${rewardSystem}.`,
       'System'
     );
 

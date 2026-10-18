@@ -304,11 +304,11 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       boxed={!isStandalonePage}
       actions={
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button variant="secondary" size="sm" onClick={handleClearChecked} title="Clear checked notes">
-            <i className="fas fa-broom" /> Clear Checked
+          <Button variant="secondary" size="sm" icon="fas fa-broom" onClick={handleClearChecked} title="Clear checked notes">
+            Clear Checked
           </Button>
-          <Button variant="primary" size="sm" onClick={handleAddColumnPrompt} title="Add new sticky list">
-            <i className="fas fa-plus" /> Add List
+          <Button variant="primary" size="sm" icon="fas fa-plus" onClick={handleAddColumnPrompt} title="Add new sticky list">
+            Add List
           </Button>
         </div>
       }

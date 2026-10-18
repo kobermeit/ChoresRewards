@@ -191,18 +191,12 @@ function handleGetSettings(_req: Request, res: Response) {
     weather: {
       location_name: AppSetting.get('weather_location_name', '') || '',
     },
-    gotify: {
-      enabled: Boolean(AppSetting.get('gotify_url', '')),
-      url: AppSetting.get('gotify_url', '') || '',
-      token: AppSetting.get('gotify_token', '') || '',
+    discord: {
+      enabled: Boolean(AppSetting.get('discord_webhook_url', '')),
+      webhook_url: AppSetting.get('discord_webhook_url', '') || '',
+      notify_chores: (AppSetting.get('discord_notify_chores', 'true') || 'true').toLowerCase() === 'true',
+      notify_rewards: (AppSetting.get('discord_notify_rewards', 'true') || 'true').toLowerCase() === 'true',
     },
-    gotify_url: AppSetting.get('gotify_url', '') || '',
-    gotify_token: AppSetting.get('gotify_token', '') || '',
-    gotify_notify_people: (AppSetting.get('gotify_notify_people', '') || '').split(',').filter(Boolean),
-    gotify_notify_chores_completed: AppSetting.get('gotify_notify_chores_completed', 'false') === 'true',
-    gotify_notify_due_chores_expired: AppSetting.get('gotify_notify_due_chores_expired', 'false') === 'true',
-    gotify_notify_rewards_added: AppSetting.get('gotify_notify_rewards_added', 'false') === 'true',
-    gotify_notify_rewards_redeemed: AppSetting.get('gotify_notify_rewards_redeemed', 'false') === 'true',
     google_calendar_feature_enabled: isGoogleCalendarFeatureEnabled(),
     google_calendar_enabled: (AppSetting.get('google_calendar_enabled', 'false') || 'false').toLowerCase() === 'true',
     gcal_ical_url: AppSetting.get('gcal_ical_url', '') || AppSetting.get('google_calendar_ical_url', '') || '',
@@ -440,6 +434,41 @@ settingsRouter.post('/api/save_calendar_settings', requireAdult, async (req: Req
   });
 });
 
+settingsRouter.post('/api/save_discord_settings', requireAdult, (req: Request, res: Response) => {
+  const data = req.body || {};
+  if (data.webhook_url !== undefined || data.discord_webhook_url !== undefined) {
+    AppSetting.set('discord_webhook_url', String(data.webhook_url ?? data.discord_webhook_url).trim());
+  }
+  const boolFlag = (v: any) => v === true || v === 'true' || v === 'on' || v === '1';
+  if (data.notify_chores !== undefined || data.discord_notify_chores !== undefined) {
+    AppSetting.set('discord_notify_chores', boolFlag(data.notify_chores ?? data.discord_notify_chores) ? 'true' : 'false');
+  }
+  if (data.notify_rewards !== undefined || data.discord_notify_rewards !== undefined) {
+    AppSetting.set('discord_notify_rewards', boolFlag(data.notify_rewards ?? data.discord_notify_rewards) ? 'true' : 'false');
+  }
+  logActivity('settings_updated', 'Discord webhook configuration updated');
+  res.json({ success: true });
+});
+
+settingsRouter.post('/api/test_discord', requireAdult, async (req: Request, res: Response) => {
+  const webhookUrl = String(req.body?.webhook_url || req.body?.discord_webhook_url || AppSetting.get('discord_webhook_url', '') || '').trim();
+  if (webhookUrl) {
+    AppSetting.set('discord_webhook_url', webhookUrl);
+  }
+
+  const ok = await sendGotifyNotification(
+    'Discord Notification Test',
+    '✅ Connection test successful! Your Chores & Rewards app is connected to Discord.',
+    5
+  );
+
+  res.json({
+    success: ok,
+    message: ok ? 'Test message sent to Discord!' : 'Failed to send test message. Check your Webhook URL.',
+  });
+});
+
+
 settingsRouter.post('/api/sync_calendar', async (_req: Request, res: Response) => {
   invalidateGcalCache();
   const fresh = await getGoogleCalendarData(true);
@@ -455,58 +484,36 @@ settingsRouter.post('/api/sync_calendar', async (_req: Request, res: Response) =
 
 settingsRouter.post('/settings/notification', formParser.none(), requireAdult, (req: Request, res: Response) => {
   const data = req.body || {};
-  if (data.gotify_url !== undefined) AppSetting.set('gotify_url', String(data.gotify_url).trim());
-  if (data.gotify_token !== undefined) AppSetting.set('gotify_token', String(data.gotify_token).trim());
-
-  let peopleList: string[] = [];
-  if (Array.isArray(data.gotify_notify_people)) {
-    peopleList = data.gotify_notify_people.map(String);
-  } else if (typeof data.gotify_notify_people === 'string' && data.gotify_notify_people.trim()) {
-    peopleList = data.gotify_notify_people.split(',').map((s: string) => s.trim());
+  if (data.discord_webhook_url !== undefined) {
+    AppSetting.set('discord_webhook_url', String(data.discord_webhook_url).trim());
   }
-  AppSetting.set('gotify_notify_people', peopleList.join(','));
-
   const boolFlag = (v: any) => v === true || v === 'true' || v === 'on' || v === '1';
-  AppSetting.set(
-    'gotify_notify_chores_completed',
-    boolFlag(data.gotify_notify_chores_completed ?? data.notify_chore_complete) ? 'true' : 'false'
-  );
-  AppSetting.set(
-    'gotify_notify_rewards_added',
-    boolFlag(data.gotify_notify_rewards_added) ? 'true' : 'false'
-  );
-  AppSetting.set(
-    'gotify_notify_rewards_redeemed',
-    boolFlag(data.gotify_notify_rewards_redeemed ?? data.notify_reward_redeemed) ? 'true' : 'false'
-  );
-  AppSetting.set(
-    'gotify_notify_due_chores_expired',
-    boolFlag(data.gotify_notify_due_chores_expired) ? 'true' : 'false'
-  );
+  if (data.discord_notify_chores !== undefined) {
+    AppSetting.set('discord_notify_chores', boolFlag(data.discord_notify_chores) ? 'true' : 'false');
+  }
+  if (data.discord_notify_rewards !== undefined) {
+    AppSetting.set('discord_notify_rewards', boolFlag(data.discord_notify_rewards) ? 'true' : 'false');
+  }
 
-  logActivity('settings_updated', 'Gotify notification settings updated');
+  logActivity('settings_updated', 'Discord notification settings updated');
   res.json({ success: true });
 });
 
-settingsRouter.all('/settings/gotify/test', async (req: Request, res: Response) => {
-  const gotifyUrl = String(req.body?.gotify_url || AppSetting.get('gotify_url', '') || '').trim();
-  const gotifyToken = String(req.body?.gotify_token || AppSetting.get('gotify_token', '') || '').trim();
-  if (gotifyUrl) AppSetting.set('gotify_url', gotifyUrl);
-  if (gotifyToken) AppSetting.set('gotify_token', gotifyToken);
+settingsRouter.all('/settings/discord/test', async (req: Request, res: Response) => {
+  const webhookUrl = String(req.body?.discord_webhook_url || req.body?.webhook_url || AppSetting.get('discord_webhook_url', '') || '').trim();
+  if (webhookUrl) {
+    AppSetting.set('discord_webhook_url', webhookUrl);
+  }
 
   const ok = await sendGotifyNotification(
-    'Chores App Test',
-    'This is a test notification from your Chores & Rewards app.',
+    'Discord Notification Test',
+    '✅ Connection test successful! Your Chores & Rewards app is connected to Discord.',
     5
   );
-  if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
-    if (ok) res.status(200).send('Test notification sent!');
-    else res.status(400).send('Failed to send test notification. Check URL and Token.');
-    return;
-  }
+
   res.json({
     success: ok,
-    message: ok ? 'Test notification sent!' : 'Failed to send test notification.',
+    message: ok ? 'Test message sent to Discord!' : 'Failed to send test message. Check your Webhook URL.',
   });
 });
 

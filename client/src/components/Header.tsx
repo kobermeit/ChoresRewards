@@ -36,6 +36,8 @@ export const Header: React.FC = () => {
     showToast,
     setScreensaverOpen,
     setVisualTimerOpen,
+    timerRunning,
+    timerRemainingSeconds,
   } = useApp();
 
   const [clockTime, setClockTime] = useState('--:--');
@@ -414,6 +416,37 @@ export const Header: React.FC = () => {
                 />
               </button>
             </div>
+
+            {/* Active Visual Timer Pill */}
+            {timerRunning && (
+              <button
+                type="button"
+                onClick={() => setVisualTimerOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 14px',
+                  borderRadius: 999,
+                  background: 'rgba(249, 115, 22, 0.16)',
+                  border: '1.5px solid #f97316',
+                  color: '#fb923c',
+                  fontWeight: 800,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 14px rgba(249, 115, 22, 0.35)',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Visual Timer running — click to open full controls"
+              >
+                <i className="fas fa-hourglass-half" style={{ color: '#f97316' }} />
+                <span>
+                  {String(Math.floor(timerRemainingSeconds / 60)).padStart(2, '0')}:
+                  {String(timerRemainingSeconds % 60).padStart(2, '0')}
+                </span>
+              </button>
+            )}
           </div>
         )}
 

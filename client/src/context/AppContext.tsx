@@ -72,6 +72,16 @@ interface AppContextValue {
   playWidgetInitialGame: 'maths' | 'colours' | 'patterns' | 'memory';
   openPlayGame: (game: 'maths' | 'colours' | 'patterns' | 'memory') => void;
   formatRewardValue: (val: number) => string;
+  timerTotalSeconds: number;
+  timerRemainingSeconds: number;
+  timerRunning: boolean;
+  startTimer: () => void;
+  pauseTimer: () => void;
+  resetTimer: () => void;
+  setTimerPreset: (minutes: number) => void;
+  editingChoreModalItem: Chore | null | undefined;
+  openEditChoreModal: (chore?: Chore | null) => void;
+  closeEditChoreModal: () => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -201,6 +211,42 @@ export const AppProvider: React.FC<{
   const [playWidgetInitialGame, setPlayWidgetInitialGame] = useState<'maths' | 'colours' | 'patterns' | 'memory'>('maths');
   const soundsListRef = useRef<string[]>([]);
 
+  // Global Visual Timer State (running persistently across views & modals)
+  const [timerTotalSeconds, setTimerTotalSeconds] = useState(300);
+  const [timerRemainingSeconds, setTimerRemainingSeconds] = useState(300);
+  const [timerRunning, setTimerRunning] = useState(false);
+
+  // Global Add/Edit Chore Modal State
+  const [editingChoreModalItem, setEditingChoreModalItem] = useState<Chore | null | undefined>(undefined);
+
+  const openEditChoreModal = useCallback((chore?: Chore | null) => {
+    setEditingChoreModalItem(chore === undefined ? null : chore);
+  }, []);
+
+  const closeEditChoreModal = useCallback(() => {
+    setEditingChoreModalItem(undefined);
+  }, []);
+
+  const startTimer = useCallback(() => {
+    setTimerRunning(true);
+  }, []);
+
+  const pauseTimer = useCallback(() => {
+    setTimerRunning(false);
+  }, []);
+
+  const resetTimer = useCallback(() => {
+    setTimerRunning(false);
+    setTimerRemainingSeconds(timerTotalSeconds);
+  }, [timerTotalSeconds]);
+
+  const setTimerPreset = useCallback((minutes: number) => {
+    const s = Math.max(10, minutes * 60);
+    setTimerRunning(false);
+    setTimerTotalSeconds(s);
+    setTimerRemainingSeconds(s);
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const res = await apiGet<BootstrapData>('bootstrap');
@@ -221,6 +267,14 @@ export const AppProvider: React.FC<{
       setLoading(false);
     }
   }, [setAdultMode]);
+
+  // Session keepalive heartbeat every 4 minutes for kiosk/tablet persistence
+  useEffect(() => {
+    const heartbeat = setInterval(() => {
+      apiGet('keep_alive').catch(() => {});
+    }, 4 * 60 * 1000);
+    return () => clearInterval(heartbeat);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -287,6 +341,7 @@ export const AppProvider: React.FC<{
           pin,
         });
         if (res && res.success && res.active_user) {
+          localStorage.setItem('cr_active_person_id', String(res.active_user.id));
           setActiveUser(res.active_user);
           if (res.active_user.role === 'parent') {
             setAdultMode(true);
@@ -359,6 +414,23 @@ export const AppProvider: React.FC<{
     },
     []
   );
+
+  // Persistent Timer Countdown Interval
+  useEffect(() => {
+    if (!timerRunning) return;
+    const timerInterval = setInterval(() => {
+      setTimerRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          setTimerRunning(false);
+          playSound();
+          showToast('⏰ Visual Timer Finished!', { type: 'success' });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerInterval);
+  }, [timerRunning, playSound, showToast]);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const slug = SECTION_TO_SLUG[sectionId] || sectionId;
@@ -481,6 +553,16 @@ export const AppProvider: React.FC<{
         playWidgetInitialGame,
         openPlayGame,
         formatRewardValue,
+        timerTotalSeconds,
+        timerRemainingSeconds,
+        timerRunning,
+        startTimer,
+        pauseTimer,
+        resetTimer,
+        setTimerPreset,
+        editingChoreModalItem,
+        openEditChoreModal,
+        closeEditChoreModal,
       }}
     >
       {children}

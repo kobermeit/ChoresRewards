@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { db, AppSetting, logActivity, roundPoints } from '../db';
+import { UPLOADS_DIR } from '../config';
 import { requireAuth, requireAdult } from './auth';
 import { getAppTimezone, getFamilyToday, getLocalNowNaive, addDays, isChoreOverdue } from '../utils/time';
 import {
@@ -13,6 +17,27 @@ import {
 } from '../services/chores';
 import { sendGotifyNotification, shouldNotifyPerson } from '../services/gotify';
 
+const CHORES_UPLOAD_DIR = path.join(UPLOADS_DIR, 'chores');
+if (!fs.existsSync(CHORES_UPLOAD_DIR)) {
+  fs.mkdirSync(CHORES_UPLOAD_DIR, { recursive: true });
+}
+
+const choreUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, CHORES_UPLOAD_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.png';
+      const safeBase = path
+        .basename(file.originalname, path.extname(file.originalname))
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 40);
+      cb(null, `${crypto.randomUUID().slice(0, 8)}_${safeBase}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 const formParser = multer();
 
 function formFlagIsTrue(val: unknown): boolean {
@@ -51,149 +76,202 @@ choresRouter.get('/get_chores', (_req: Request, res: Response) => {
     due_datetime: c.due_datetime || null,
     date_completed: c.date_completed || null,
     icon: c.icon || null,
+    image_url: c.image_url || null,
     is_extra: Boolean(c.is_extra),
     extra_id: c.extra_id || null,
   }));
   res.json({ success: true, chores });
 });
 
-choresRouter.post('/add_chore', formParser.none(), requireAdult, (req: Request, res: Response) => {
-  try {
-    const data = req.body || {};
-    const title = String(data.title || '').trim();
-    const assignedTo = String(data.assigned_to || '').trim();
-    const points = Math.max(0, roundPoints(data.points ?? 1));
-    let isDaily = formFlagIsTrue(data.is_daily);
-    const dueDatetimeRaw = String(data.due_datetime || '').trim();
-    const icon = data.icon ? String(data.icon).trim().slice(0, 20) : null;
+choresRouter.post(
+  '/add_chore',
+  choreUpload.fields([
+    { name: 'chore_image_file', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+  ]),
+  requireAdult,
+  (req: Request, res: Response) => {
+    try {
+      const data = req.body || {};
+      const title = String(data.title || '').trim();
+      const assignedTo = String(data.assigned_to || '').trim();
+      const points = Math.max(0, roundPoints(data.points ?? 1));
+      let isDaily = formFlagIsTrue(data.is_daily);
+      const dueDatetimeRaw = String(data.due_datetime || '').trim();
+      const icon = data.icon ? String(data.icon).trim().slice(0, 20) : null;
 
-    let daysOfWeekRaw = data.days_of_week ?? data['days_of_week[]'] ?? [];
-    if (typeof daysOfWeekRaw === 'string') {
-      daysOfWeekRaw = daysOfWeekRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const uploadedFile = files?.chore_image_file?.[0] || files?.image?.[0];
+      let imageUrl: string | null = null;
+      if (uploadedFile) {
+        imageUrl = `/static/uploads/chores/${uploadedFile.filename}`;
+      } else if (data.image_url) {
+        imageUrl = String(data.image_url).trim();
+      }
+
+      let daysOfWeekRaw = data.days_of_week ?? data['days_of_week[]'] ?? [];
+      if (typeof daysOfWeekRaw === 'string') {
+        daysOfWeekRaw = daysOfWeekRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      const cleanedDays: string[] = Array.isArray(daysOfWeekRaw)
+        ? daysOfWeekRaw.map((d: any) => String(d).trim().toLowerCase()).filter(Boolean)
+        : [];
+
+      if (!title || !assignedTo) {
+        res.json({ success: false, error: 'Title and Assigned To are required fields.' });
+        return;
+      }
+
+      const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+      if (!person) {
+        res.json({ success: false, error: 'Assigned person not found.' });
+        return;
+      }
+
+      let daysOfWeekStr: string | null = null;
+      if (cleanedDays.length > 0) {
+        daysOfWeekStr = cleanedDays.join(',');
+        isDaily = true;
+      }
+
+      let dueDatetime: string | null = null;
+      let dueDate: string | null = null;
+      if (dueDatetimeRaw) {
+        dueDatetime = dueDatetimeRaw.replace('T', ' ').slice(0, 19);
+        dueDate = dueDatetime.slice(0, 10);
+      } else if (isDaily) {
+        dueDate = getFamilyToday();
+      }
+
+      const info = db
+        .prepare(
+          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
+        )
+        .run(
+          title,
+          person.id,
+          person.name,
+          points,
+          isDaily ? 1 : 0,
+          daysOfWeekStr,
+          dueDate,
+          dueDatetime,
+          icon,
+          imageUrl,
+          formFlagIsTrue(data.is_extra) ? 1 : 0,
+          data.extra_id ? String(data.extra_id).slice(0, 32) : null
+        );
+
+      logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
+
+      const notifyNew = AppSetting.get('gotify_notify_new_chore', 'true') === 'true';
+      if (notifyNew && (shouldNotifyPerson(person.name) || shouldNotifyPerson(person.id))) {
+        sendGotifyNotification('New Chore Added', `Chore '${title}' was assigned to ${person.name} (${points} points).`).catch(() => {});
+      }
+
+      res.json({
+        success: true,
+        chore_id: Number(info.lastInsertRowid),
+        is_daily: isDaily,
+        image_url: imageUrl,
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err?.message || 'Error adding chore' });
     }
-    const cleanedDays: string[] = Array.isArray(daysOfWeekRaw)
-      ? daysOfWeekRaw.map((d: any) => String(d).trim().toLowerCase()).filter(Boolean)
-      : [];
-
-    if (!title || !assignedTo) {
-      res.json({ success: false, error: 'Title and Assigned To are required fields.' });
-      return;
-    }
-
-    const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
-    if (!person) {
-      res.json({ success: false, error: 'Assigned person not found.' });
-      return;
-    }
-
-    let daysOfWeekStr: string | null = null;
-    if (cleanedDays.length > 0) {
-      daysOfWeekStr = cleanedDays.join(',');
-      isDaily = true;
-    }
-
-    let dueDatetime: string | null = null;
-    let dueDate: string | null = null;
-    if (dueDatetimeRaw) {
-      dueDatetime = dueDatetimeRaw.replace('T', ' ').slice(0, 19);
-      dueDate = dueDatetime.slice(0, 10);
-    } else if (isDaily) {
-      dueDate = getFamilyToday();
-    }
-
-    const info = db
-      .prepare(
-        `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, is_extra, extra_id)
-         VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?)`
-      )
-      .run(
-        title,
-        person.id,
-        person.name,
-        points,
-        isDaily ? 1 : 0,
-        daysOfWeekStr,
-        dueDate,
-        dueDatetime,
-        icon,
-        formFlagIsTrue(data.is_extra) ? 1 : 0,
-        data.extra_id ? String(data.extra_id).slice(0, 32) : null
-      );
-
-    logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
-
-    const notifyNew = AppSetting.get('gotify_notify_new_chore', 'true') === 'true';
-    if (notifyNew && (shouldNotifyPerson(person.name) || shouldNotifyPerson(person.id))) {
-      sendGotifyNotification('New Chore Added', `Chore '${title}' was assigned to ${person.name} (${points} points).`).catch(() => {});
-    }
-
-    res.json({
-      success: true,
-      chore_id: Number(info.lastInsertRowid),
-      is_daily: isDaily,
-    });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message || 'Error adding chore' });
   }
-});
+);
 
-choresRouter.post('/edit_chore', requireAdult, (req: Request, res: Response) => {
-  try {
-    const data = req.body || {};
-    const choreId = Number(data.chore_id ?? data.id);
-    const title = String(data.title || '').trim();
-    const assignedTo = String(data.assigned_to || '').trim();
-    const points = Math.max(0, roundPoints(data.points ?? 1));
+choresRouter.post(
+  '/edit_chore',
+  choreUpload.fields([
+    { name: 'chore_image_file', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+  ]),
+  requireAdult,
+  (req: Request, res: Response) => {
+    try {
+      const data = req.body || {};
+      const choreId = Number(data.chore_id ?? data.id);
+      const title = String(data.title || '').trim();
+      const assignedTo = String(data.assigned_to || '').trim();
+      const points = Math.max(0, roundPoints(data.points ?? 1));
 
-    if (!choreId || !title || !assignedTo) {
-      res.status(400).json({ success: false, error: 'Missing required fields' });
-      return;
+      if (!choreId || !title || !assignedTo) {
+        res.status(400).json({ success: false, error: 'Missing required fields' });
+        return;
+      }
+
+      const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+      if (!chore) {
+        res.status(404).json({ success: false, error: 'Chore not found' });
+        return;
+      }
+
+      const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+      const assignedToId = person ? person.id : null;
+
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const uploadedFile = files?.chore_image_file?.[0] || files?.image?.[0];
+      let imageUrl = chore.image_url;
+      if (uploadedFile) {
+        imageUrl = `/static/uploads/chores/${uploadedFile.filename}`;
+      } else if (formFlagIsTrue(data.remove_image)) {
+        imageUrl = null;
+      } else if ('image_url' in data) {
+        imageUrl = data.image_url ? String(data.image_url).trim() : null;
+      }
+
+      let daysRaw = data.days_of_week ?? data['days_of_week[]'] ?? [];
+      if (typeof daysRaw === 'string') {
+        daysRaw = daysRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      const cleanedDays: string[] = Array.isArray(daysRaw)
+        ? daysRaw.map((d: any) => String(d).trim().toLowerCase()).filter(Boolean)
+        : [];
+
+      let isDaily = Boolean(chore.is_daily);
+      let daysOfWeek: string | null = null;
+      if (cleanedDays.length > 0) {
+        daysOfWeek = cleanedDays.join(',');
+        isDaily = true;
+      } else if ('is_daily' in data) {
+        isDaily = formFlagIsTrue(data.is_daily);
+      } else {
+        isDaily = false;
+      }
+
+      const dueDatetimeRaw = 'due_datetime' in data ? String(data.due_datetime || '').trim() : null;
+      let dueDatetime = chore.due_datetime;
+      let dueDate = chore.due_date;
+      if (dueDatetimeRaw !== null) {
+        if (dueDatetimeRaw) {
+          dueDatetime = dueDatetimeRaw.replace('T', ' ').slice(0, 19);
+          dueDate = dueDatetime.slice(0, 10);
+        } else {
+          dueDatetime = null;
+          dueDate = isDaily ? getFamilyToday() : null;
+        }
+      }
+
+      const icon = 'icon' in data ? (data.icon ? String(data.icon).trim().slice(0, 20) : null) : chore.icon;
+
+      db.prepare(
+        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ? WHERE id = ?`
+      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, choreId);
+
+      logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
+      res.json({
+        success: true,
+        is_daily: isDaily,
+        days_of_week: daysOfWeek || '',
+        image_url: imageUrl,
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err?.message || 'Error editing chore' });
     }
-
-    const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
-    if (!chore) {
-      res.status(404).json({ success: false, error: 'Chore not found' });
-      return;
-    }
-
-    const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
-    const assignedToId = person ? person.id : null;
-
-    let daysRaw = data.days_of_week ?? [];
-    if (typeof daysRaw === 'string') {
-      daysRaw = daysRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
-    }
-    const cleanedDays: string[] = Array.isArray(daysRaw)
-      ? daysRaw.map((d: any) => String(d).trim().toLowerCase()).filter(Boolean)
-      : [];
-
-    let isDaily = Boolean(chore.is_daily);
-    let daysOfWeek: string | null = null;
-    if (cleanedDays.length > 0) {
-      daysOfWeek = cleanedDays.join(',');
-      isDaily = true;
-    } else if ('is_daily' in data) {
-      isDaily = formFlagIsTrue(data.is_daily);
-    } else {
-      isDaily = false;
-    }
-
-    const icon = 'icon' in data ? (data.icon ? String(data.icon).trim().slice(0, 20) : null) : chore.icon;
-
-    db.prepare(
-      `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ? WHERE id = ?`
-    ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, choreId);
-
-    logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
-    res.json({
-      success: true,
-      is_daily: isDaily,
-      days_of_week: daysOfWeek || '',
-    });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message || 'Error editing chore' });
   }
-});
+);
 
 choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) => {
   try {

@@ -6,7 +6,7 @@ import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
-import { PageContainer, Button, Badge } from './ui';
+import { PageContainer, Button, Badge, Input, FormField } from './ui';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -201,9 +201,12 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
   // Suggested meals input
   const [newSuggestionText, setNewSuggestionText] = useState('');
 
-  // Shopping quick-add state
+  // Shopping quick-add & store modal state
   const [quickItemName, setQuickItemName] = useState('');
   const [quickItemStore, setQuickItemStore] = useState('');
+  const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
+  const [newStoreName, setNewStoreName] = useState('');
+  const [newStoreIcon, setNewStoreIcon] = useState('🛒');
 
   // Meal Library add ingredient state
   const [selectedMealKey, setSelectedMealKey] = useState('');
@@ -394,8 +397,9 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
     }
   };
 
-  const handleAddStorePrompt = async () => {
-    const name = window.prompt('Enter store name:')?.trim();
+  const handleCreateNewStore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newStoreName.trim();
     if (!name) return;
     const id =
       name
@@ -404,9 +408,26 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         .replace(/^-+|-+$/g, '') +
       '-' +
       Math.floor(Math.random() * 9000 + 1000);
-    const nextStores = [...stores, { id, name, icon: '🛒' }];
+    const nextStores = [...stores, { id, name, icon: newStoreIcon || '🛒' }];
     await apiPost('save_shopping_stores', { stores: nextStores });
+    setShoppingStore(id);
+    setNewStoreName('');
+    setNewStoreIcon('🛒');
+    setNewStoreModalOpen(false);
+    showToast(`Added store "${name}"`, { type: 'success' });
     await refresh();
+  };
+
+  const handleUpdateQuantity = async (key: string, qtyVal: string) => {
+    try {
+      await apiPost('update_shopping_item', {
+        key,
+        qty: qtyVal,
+      });
+      await refresh();
+    } catch {
+      // ignore
+    }
   };
 
   const handleDeleteStore = async (store: ShoppingStore) => {
@@ -419,11 +440,6 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
     if (!ok) return;
     const nextStores = stores.filter((s) => s.id !== store.id);
     await apiPost('save_shopping_stores', { stores: nextStores });
-    await refresh();
-  };
-
-  const handleClearCheckedShopping = async () => {
-    await apiPost('clear_shopping_checked', {});
     await refresh();
   };
 
@@ -900,17 +916,18 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
             <Button
               variant="secondary"
               size="sm"
+              icon="fas fa-box-archive"
               onClick={handleArchiveChecked}
               title="Archive checked items as purchased and save to history"
             >
-              <i className="fas fa-box-archive" /> Archive Checked
+              Archive Checked
             </Button>
           }
           toolbar={
             <div className="shopping-smart-toolbar" style={{ margin: 0 }}>
               <button
                 type="button"
-                className="shopping-toolbar-btn"
+                className="shopping-toolbar-btn shopping-toolbar-btn-frequent"
                 onClick={() => setFrequentlyModalOpen(true)}
                 title="Add frequently purchased staples"
               >
@@ -918,7 +935,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
               </button>
               <button
                 type="button"
-                className="shopping-toolbar-btn"
+                className="shopping-toolbar-btn shopping-toolbar-btn-suggested"
                 onClick={() => setSuggestedModalOpen(true)}
                 title="Items predicted to restock based on purchase frequency"
               >
@@ -926,7 +943,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
               </button>
               <button
                 type="button"
-                className="shopping-toolbar-btn"
+                className="shopping-toolbar-btn shopping-toolbar-btn-history"
                 onClick={() => setRecentlyPurchasedOpen(true)}
                 title="View purchased history"
               >
@@ -1007,13 +1024,20 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
             <select
               className="meal-quick-add shopping-store-select shopping-dynamic-store-select"
               value={shoppingStore || stores[0]?.id || ''}
-              onChange={(e) => setShoppingStore(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === '__add_new_store__') {
+                  setNewStoreModalOpen(true);
+                } else {
+                  setShoppingStore(e.target.value);
+                }
+              }}
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
+              <option value="__add_new_store__">+ Add store…</option>
             </select>
             <button
               type="button"
@@ -1136,6 +1160,9 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                             {visibleIngs.map((ing: MealIngredient) => {
                               const itemKey = `meal::${mealKey}::${ing.name.toLowerCase()}`;
                               const checked = Boolean(shop?.checked?.[itemKey]);
+                              const savedQty = (shop as any)?.quantities?.[itemKey];
+                              const numericQty = savedQty !== undefined ? savedQty : (/^\d+$/.test(String(ing.qty || '').trim()) ? String(ing.qty).trim() : '1');
+
                               return (
                                 <div
                                   key={itemKey}
@@ -1148,9 +1175,18 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                                       checked={checked}
                                       onChange={() => handleToggleShopCheck(itemKey, checked)}
                                     />
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      className="shopping-item-qty-input"
+                                      value={numericQty}
+                                      onChange={(e) => handleUpdateQuantity(itemKey, e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="Quantity to buy"
+                                    />
                                     <span className="shopping-item-name">
                                       {ing.name}
-                                      {ing.qty && <span className="shopping-item-qty">{ing.qty}</span>}
+                                      {ing.qty && <span className="shopping-item-recipe-detail">({ing.qty})</span>}
                                     </span>
                                   </label>
                                 </div>
@@ -1169,6 +1205,9 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                       const itemKey = `general::${g.name.toLowerCase()}`;
                       const checked = Boolean(g.checked || shop?.checked?.[itemKey]);
                       if (hideChecked && checked) return null;
+                      const savedQty = (shop as any)?.quantities?.[itemKey] || g.qty;
+                      const numericQty = /^\d+$/.test(String(savedQty || '').trim()) ? String(savedQty).trim() : '1';
+                      const recipeDetail = !/^\d+$/.test(String(g.qty || '').trim()) && g.qty ? g.qty : null;
 
                       return (
                         <div
@@ -1182,9 +1221,18 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                               checked={checked}
                               onChange={() => handleToggleShopCheck(itemKey, checked)}
                             />
+                            <input
+                              type="number"
+                              min={1}
+                              className="shopping-item-qty-input"
+                              value={numericQty}
+                              onChange={(e) => handleUpdateQuantity(itemKey, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Quantity to buy"
+                            />
                             <span className="shopping-item-name">
                               {g.name}
-                              {g.qty && <span className="shopping-item-qty">{g.qty}</span>}
+                              {recipeDetail && <span className="shopping-item-recipe-detail">({recipeDetail})</span>}
                             </span>
                           </label>
                           <button
@@ -1206,62 +1254,57 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
           })}
         </div>
 
-        <div className="shopping-action-row" style={{ marginTop: 10 }}>
-          <button
-            type="button"
-            className="edit-btn"
-            id="clear-checked-shopping-btn"
-            onClick={handleClearCheckedShopping}
+        {/* Add New Store Modal */}
+        {newStoreModalOpen && (
+          <Modal
+            open={newStoreModalOpen}
+            onClose={() => setNewStoreModalOpen(false)}
+            title="Add New Store"
           >
-            <i className="fas fa-eraser" /> Uncheck All
-          </button>
-          <button type="button" className="edit-btn" id="add-store-btn" onClick={handleAddStorePrompt}>
-            <i className="fas fa-plus" /> Add Store
-          </button>
-        </div>
-
-        {/* Archived History */}
-        <div
-          className={`shopping-archived-wrap collapsible-section${archivedCollapsed ? ' collapsed' : ''}`}
-          id="shopping-archived-section"
-        >
-          <h3
-            className="section-toggle shopping-archived-toggle"
-            onClick={() => setArchivedCollapsed((p) => !p)}
-          >
-            <i className="fas fa-box-archive" /> Old Archived Shopping List
-            <span id="shopping-archived-count" className="shopping-archived-count">
-              {(shop?.archived || []).length || ''}
-            </span>
-            <i className="fas fa-chevron-down section-chevron" />
-          </h3>
-          <div id="shopping-archived-list">
-            {(shop?.archived || []).length === 0 ? (
-              <div className="shopping-empty-msg" style={{ padding: '8px 12px' }}>
-                No archived items yet.
-              </div>
-            ) : (
-              (shop?.archived || []).slice(0, 30).map((item, idx) => (
-                <div key={idx} className="shopping-archived-row">
-                  <span className="shopping-archived-name">{item.name}</span>
-                  <span className="shopping-archived-store">{item.store}</span>
-                  {item.purchased_at && (
-                    <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>
-                      {new Date(item.purchased_at).toLocaleDateString()}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="shopping-restore-btn"
-                    onClick={() => handleSelectComboboxItem(item.name, item.store)}
-                  >
-                    + Re-add
-                  </button>
+            <form onSubmit={handleCreateNewStore} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <FormField label="Store Name" required>
+                <Input
+                  placeholder="e.g. Costco, Coles, Chemist Warehouse"
+                  value={newStoreName}
+                  onChange={(e) => setNewStoreName(e.target.value)}
+                  autoFocus
+                />
+              </FormField>
+              <FormField label="Store Icon">
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: '1.6rem' }}>{newStoreIcon}</span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {['🛒', '🏪', '🥦', '🥩', '💊', '🥖', '🏬', '🛍️', '🍎', '🐟'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setNewStoreIcon(emoji)}
+                        style={{
+                          fontSize: '1.2rem',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          border: newStoreIcon === emoji ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                          background: newStoreIcon === emoji ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.05)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              </FormField>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <Button variant="ghost" onClick={() => setNewStoreModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" type="submit" disabled={!newStoreName.trim()}>
+                  Add Store
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
       </PageContainer>
       )}
 
@@ -1279,6 +1322,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
             <Button
               variant="secondary"
               size="sm"
+              icon={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSyncNotion();
@@ -1286,8 +1330,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
               disabled={notionSyncing}
               title="Sync recipes directly from Notion database"
             >
-              <i className={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'} />
-              <span>{notionSyncing ? 'Syncing...' : 'Sync from Notion'}</span>
+              {notionSyncing ? 'Syncing...' : 'Sync from Notion'}
             </Button>
           }
         >

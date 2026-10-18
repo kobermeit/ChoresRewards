@@ -648,6 +648,7 @@ export function getShoppingData() {
   return {
     checked: raw?.checked && typeof raw.checked === 'object' ? raw.checked : {},
     general: Array.isArray(raw?.general) ? raw.general : [],
+    quantities: raw?.quantities && typeof raw.quantities === 'object' ? raw.quantities : {},
     hidden: raw?.hidden && typeof raw.hidden === 'object' ? raw.hidden : {},
     active: Array.isArray(raw?.active) ? raw.active : [],
     meal_order: Array.isArray(raw?.meal_order) ? raw.meal_order : [],
@@ -1441,17 +1442,30 @@ householdRouter.post('/api/shopping/batch_add', (req: Request, res: Response) =>
 
 householdRouter.post('/api/update_shopping_item', (req: Request, res: Response) => {
   const key = String(req.body?.key || '').trim();
+  const hasChecked = req.body?.checked !== undefined;
   const checked = Boolean(req.body?.checked);
+  const qty = req.body?.qty !== undefined ? String(req.body.qty).trim() : undefined;
   const current = getShoppingData();
   if (key) {
-    if (checked) current.checked[key] = true;
-    else delete current.checked[key];
+    if (hasChecked) {
+      if (checked) current.checked[key] = true;
+      else delete current.checked[key];
+    }
+    if (qty !== undefined) {
+      current.quantities[key] = qty;
+    }
 
     if (key.startsWith('general::')) {
       const lowerName = key.slice('general::'.length).toLowerCase();
-      current.general = current.general.map((g: any) =>
-        String(g.name || '').toLowerCase() === lowerName ? { ...g, checked } : g
-      );
+      current.general = current.general.map((g: any) => {
+        if (String(g.name || '').toLowerCase() === lowerName) {
+          const updated = { ...g };
+          if (hasChecked) updated.checked = checked;
+          if (qty !== undefined) updated.qty = qty;
+          return updated;
+        }
+        return g;
+      });
     }
   }
   AppSetting.set('shopping_list_json', JSON.stringify(current));
@@ -1470,6 +1484,7 @@ householdRouter.post('/api/remove_shopping_item', (req: Request, res: Response) 
   });
   const itemKey = `general::${itemName.toLowerCase()}`;
   delete current.checked[itemKey];
+  delete current.quantities[itemKey];
   AppSetting.set('shopping_list_json', JSON.stringify(current));
   res.json({ success: true, ...current });
 });

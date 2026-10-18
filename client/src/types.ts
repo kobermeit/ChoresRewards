@@ -54,6 +54,7 @@ export interface Chore {
   due_datetime: string | null;
   deleted: boolean;
   icon: string | null;
+  image_url?: string | null;
   is_extra: boolean;
   extra_id: string | null;
   is_overdue?: boolean;

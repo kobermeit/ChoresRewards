@@ -65,6 +65,7 @@ export function initDatabase() {
       due_datetime DATETIME,
       deleted BOOLEAN DEFAULT 0,
       icon VARCHAR(20),
+      image_url VARCHAR(255),
       is_extra BOOLEAN DEFAULT 0,
       extra_id VARCHAR(32)
     );
@@ -185,6 +186,7 @@ export function initDatabase() {
   ensureColumn('person', 'role', "VARCHAR(20) DEFAULT 'child'");
   ensureColumn('person', 'calendar_ical_url', 'TEXT');
   ensureColumn('chore', 'icon', 'VARCHAR(20)');
+  ensureColumn('chore', 'image_url', 'VARCHAR(255)');
   ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
   ensureColumn('chore', 'extra_id', 'VARCHAR(32)');
   ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');

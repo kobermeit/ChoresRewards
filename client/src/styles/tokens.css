@@ -138,6 +138,26 @@
   box-sizing: border-box;
 }
 
+.cr-btn i, .cr-btn svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-btn span > i, .cr-btn span > svg {
+  margin-right: 8px;
+}
+
+.cr-btn .cr-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-btn .cr-btn-icon i, .cr-btn .cr-btn-icon svg {
+  margin-right: 0 !important;
+}
+
 .cr-btn:disabled,
 .cr-btn[aria-disabled="true"] {
   opacity: 0.55;

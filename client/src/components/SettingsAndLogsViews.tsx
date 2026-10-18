@@ -9,9 +9,9 @@ import { Button, Input, Select, Card, Badge, FormGrid, FormField } from './ui';
 // 1. SETTINGS VIEW
 // ============================================================================
 export const SettingsView: React.FC = () => {
-  const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme, confirm, openEditMemberModal } = useApp();
+  const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme, confirm, openEditMemberModal, openEditChoreModal } = useApp();
   const [tab, setTab] = useState<
-    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'gotify' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
+    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'discord' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
   >('general');
   const [settingsData, setSettingsData] = useState<any>(null);
 
@@ -42,10 +42,12 @@ export const SettingsView: React.FC = () => {
   const [ecIcon, setEcIcon] = useState('⚡');
   const [ecMinAge, setEcMinAge] = useState('0');
 
-  // Gotify state
-  const [gotifyEnabled, setGotifyEnabled] = useState(false);
-  const [gotifyUrl, setGotifyUrl] = useState('');
-  const [gotifyToken, setGotifyToken] = useState('');
+  // Discord state
+  const [discordEnabled, setDiscordEnabled] = useState(false);
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
+  const [discordNotifyChores, setDiscordNotifyChores] = useState(true);
+  const [discordNotifyRewards, setDiscordNotifyRewards] = useState(true);
+  const [testingDiscord, setTestingDiscord] = useState(false);
 
   // Calendar state
   const [calEnabled, setCalEnabled] = useState(false);
@@ -68,10 +70,11 @@ export const SettingsView: React.FC = () => {
         setDailyResetHour(String(res.daily_reset_hour ?? 0));
         setRewardSys(res.reward_system || 'points');
         setWeatherLoc(res.weather?.location_name || '');
-        if (res.gotify) {
-          setGotifyEnabled(Boolean(res.gotify.enabled));
-          setGotifyUrl(res.gotify.url || '');
-          setGotifyToken(res.gotify.token || '');
+        if (res.discord) {
+          setDiscordEnabled(Boolean(res.discord.enabled));
+          setDiscordWebhookUrl(res.discord.webhook_url || '');
+          setDiscordNotifyChores(res.discord.notify_chores !== false);
+          setDiscordNotifyRewards(res.discord.notify_rewards !== false);
         }
         if (res.google_calendar || res.gcal_ical_url !== undefined || res.gcal_embed_url !== undefined) {
           setCalEnabled(Boolean(res.google_calendar_enabled ?? res.google_calendar?.enabled));
@@ -252,29 +255,32 @@ export const SettingsView: React.FC = () => {
     await loadSettings();
   };
 
-  const handleSaveGotify = async (e: React.FormEvent) => {
+  const handleSaveDiscord = async (e: React.FormEvent) => {
     e.preventDefault();
-    await apiPost('save_gotify_settings', {
-      enabled: gotifyEnabled,
-      url: gotifyUrl.trim(),
-      token: gotifyToken.trim(),
+    await apiPost('save_discord_settings', {
+      discord_webhook_url: discordWebhookUrl.trim(),
+      discord_notify_chores: discordNotifyChores,
+      discord_notify_rewards: discordNotifyRewards,
     });
-    showToast('Saved Gotify settings');
+    showToast('Saved Discord Webhook settings');
+    await loadSettings();
   };
 
-  const handleTestGotify = async () => {
+  const handleTestDiscord = async () => {
+    setTestingDiscord(true);
     try {
-      const res = await apiPost<{ success: boolean; error?: string }>('test_gotify', {
-        url: gotifyUrl.trim(),
-        token: gotifyToken.trim(),
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('test_discord', {
+        discord_webhook_url: discordWebhookUrl.trim(),
       });
       if (res.success) {
-        showToast('✅ Test notification sent to Gotify!');
+        showToast(res.message || '✅ Test notification sent to Discord!');
       } else {
-        showToast(res.error || 'Gotify test failed', { type: 'error' });
+        showToast(res.error || 'Discord webhook test failed', { type: 'error' });
       }
     } catch (err: any) {
-      showToast(err.message || 'Gotify test failed', { type: 'error' });
+      showToast(err.message || 'Discord webhook test failed', { type: 'error' });
+    } finally {
+      setTestingDiscord(false);
     }
   };
 
@@ -318,53 +324,174 @@ export const SettingsView: React.FC = () => {
     await loadSettings();
   };
 
+  // Listen for custom tab navigation events (e.g. from SetupWizard)
+  useEffect(() => {
+    const handleNavigate = (e: any) => {
+      if (e.detail) setTab(e.detail);
+    };
+    window.addEventListener('navigate-settings-tab', handleNavigate);
+    return () => window.removeEventListener('navigate-settings-tab', handleNavigate);
+  }, []);
+
+  const navGroups = [
+    {
+      group: 'System & Preferences',
+      items: [
+        { id: 'general', label: 'General & Security', icon: 'fas fa-sliders', badge: null },
+        { id: 'setup', label: 'System Defaults', icon: 'fas fa-wand-magic-sparkles', badge: null },
+        { id: 'screensaver', label: 'Screensaver', icon: 'fas fa-image', badge: ssEnabled ? 'Active' : null },
+        { id: 'sounds', label: 'Sound FX', icon: 'fas fa-volume-high', badge: null },
+      ],
+    },
+    {
+      group: 'Household & Tasks',
+      items: [
+        { id: 'family', label: 'Family Members', icon: 'fas fa-users', badge: data?.family?.length ? `${data.family.length}` : null },
+        { id: 'chores', label: 'All Chores Catalog', icon: 'fas fa-broom', badge: null },
+        { id: 'extra', label: 'Extra Bonus Pool', icon: 'fas fa-bolt', badge: null },
+        { id: 'quiz', label: 'Daily Brain Quiz', icon: 'fas fa-brain', badge: null },
+      ],
+    },
+    {
+      group: 'Connected Integrations',
+      items: [
+        { id: 'calendar', label: 'Google Calendar', icon: 'fas fa-calendar-days', badge: calEnabled ? 'Connected' : 'Off' },
+        { id: 'discord', label: 'Discord Webhook', icon: 'fab fa-discord', badge: discordWebhookUrl.trim() ? 'Active' : null },
+        { id: 'notion', label: 'Notion Recipes', icon: 'fas fa-book-open', badge: notionStatus?.configured ? 'Linked' : null },
+      ],
+    },
+  ];
+
   return (
-    <div style={{ padding: '20px 0' }}>
+    <div style={{ padding: '16px 0 40px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>⚙️ Household Settings</h2>
-        <button
+        <div>
+          <h2 style={{ margin: '0 0 4px', fontSize: '1.6rem', fontWeight: 800 }}>⚙️ Household Settings</h2>
+          <p style={{ margin: 0, color: 'var(--cr-text-secondary)', fontSize: '0.88rem' }}>
+            Manage family profiles, task schedules, integrations, and display preferences.
+          </p>
+        </div>
+        <Button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="btn-primary"
-          style={{ padding: '8px 18px', borderRadius: 10 }}
+          variant="secondary"
+          size="sm"
+          icon="fas fa-arrow-left"
         >
-          ← Back to Dashboard
-        </button>
+          Back to Dashboard
+        </Button>
       </div>
 
-      {/* Settings Sub-Navigation */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-        {[
-          { id: 'general', label: '🌐 General & Reset' },
-          { id: 'setup', label: '🪄 Setup Wizard' },
-          { id: 'family', label: '👨‍👩‍👧‍👦 Family Members' },
-          { id: 'chores', label: '🧹 All Chores' },
-          { id: 'extra', label: '⚡ Extra Chores' },
-          { id: 'sounds', label: '🔊 Sounds' },
-          { id: 'gotify', label: '🔔 Gotify Push' },
-          { id: 'calendar', label: '📅 Google Calendar' },
-          { id: 'screensaver', label: '🖼️ Screensaver' },
-          { id: 'quiz', label: '🧠 Brain Quiz' },
-          { id: 'notion', label: '📖 Notion Recipes' },
-        ].map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id as any)}
-            style={{
-              padding: '9px 14px',
-              borderRadius: 10,
-              border: tab === t.id ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.14)',
-              background: tab === t.id ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-              color: 'inherit',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Modern Two-Column Layout (MakerWorld / Linear style) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(220px, 260px) 1fr',
+          gap: 24,
+          alignItems: 'flex-start',
+        }}
+        className="settings-layout-grid"
+      >
+        {/* Left Navigation Sidebar */}
+        <div
+          style={{
+            background: 'var(--cr-surface-1)',
+            border: '1px solid var(--cr-surface-border)',
+            borderRadius: 18,
+            padding: '14px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            position: 'sticky',
+            top: 80,
+          }}
+        >
+          {navGroups.map((g, gIdx) => (
+            <div key={gIdx} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: 'var(--cr-text-secondary)',
+                  padding: '4px 10px 6px',
+                  opacity: 0.8,
+                }}
+              >
+                {g.group}
+              </div>
+              {g.items.map((item) => {
+                const isActive = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id as any)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: isActive ? 'var(--color-primary-subtle, rgba(59, 130, 246, 0.16))' : 'transparent',
+                      color: isActive ? 'var(--color-primary-light, #93c5fd)' : 'var(--cr-text-primary)',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '0.86rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                      outline: 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <i
+                        className={item.icon}
+                        style={{
+                          width: 16,
+                          textAlign: 'center',
+                          color: isActive ? 'var(--color-primary, #3b82f6)' : 'var(--cr-text-secondary)',
+                        }}
+                      />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge && (
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          padding: '2px 7px',
+                          borderRadius: 999,
+                          fontWeight: 700,
+                          background:
+                            item.badge === 'Connected' || item.badge === 'Active' || item.badge === 'Linked'
+                              ? 'rgba(34, 197, 94, 0.2)'
+                              : 'rgba(255, 255, 255, 0.08)',
+                          color:
+                            item.badge === 'Connected' || item.badge === 'Active' || item.badge === 'Linked'
+                              ? '#4ade80'
+                              : 'var(--cr-text-secondary)',
+                        }}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Right Content Column */}
+        <div style={{ minWidth: 0 }}>
 
       {/* SETUP WIZARD TAB */}
       {tab === 'setup' && (
@@ -729,39 +856,155 @@ export const SettingsView: React.FC = () => {
       {/* 3. ALL CHORES TAB */}
       {tab === 'chores' && (
         <div className="card" style={{ padding: 24, borderRadius: 18 }}>
-          <h3 style={{ marginTop: 0 }}>🧹 All Household Chores ({data?.chores?.length || 0})</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {(data?.chores || []).map((c) => (
-              <div
-                key={c.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                }}
-              >
-                <div>
-                  <strong>
-                    {c.icon || '🧹'} {c.title}
-                  </strong>{' '}
-                  — <span style={{ opacity: 0.8 }}>{c.assigned_to}</span> ({c.points} pts)
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="fas fa-trash-alt"
-                  onClick={async () => {
-                    await apiPost('delete_chore', { chore_id: c.id, permanent: true });
-                    await refresh();
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>🧹 All Household Chores ({data?.chores?.length || 0})</h3>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="fas fa-plus"
+              onClick={() => openEditChoreModal(null)}
+            >
+              Add Chore
+            </Button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(data?.chores || []).map((c) => {
+              const assignedPerson = (data?.family || []).find((p) => p.name === c.assigned_to);
+              const memberColor = assignedPerson?.color || '#3b82f6';
+              const rawDays = c.days_of_week ? c.days_of_week.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean) : [];
+              let daysText = c.is_daily ? 'Every day' : 'Once-off';
+              if (rawDays.length >= 7) {
+                daysText = 'Every day';
+              } else if (rawDays.length === 5 && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].every((d) => rawDays.includes(d))) {
+                daysText = 'Mon – Fri';
+              } else if (rawDays.length === 2 && ['saturday', 'sunday'].every((d) => rawDays.includes(d))) {
+                daysText = 'Weekends';
+              } else if (rawDays.length > 0) {
+                const mapDay: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+                daysText = rawDays.map((d) => mapDay[d] || d.slice(0, 3)).join(', ');
+              }
+
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    padding: '12px 16px',
+                    borderRadius: 'var(--card-radius)',
+                    background: 'rgba(255,255,255,0.05)',
+                    borderLeft: `5px solid ${memberColor}`,
                   }}
                 >
-                  Delete
-                </Button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    {c.image_url ? (
+                      <img
+                        src={resolveAssetUrl(c.image_url)}
+                        alt={c.title}
+                        style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          background: `${memberColor}22`,
+                          border: `1.5px solid ${memberColor}44`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.4rem',
+                        }}
+                      >
+                        {c.icon || '🧹'}
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{c.title}</span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: `${memberColor}22`,
+                            color: memberColor,
+                            border: `1px solid ${memberColor}44`,
+                          }}
+                        >
+                          {c.assigned_to}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: '#cbd5e1',
+                          }}
+                        >
+                          {daysText}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.75, marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span>
+                          {data?.reward_system === 'cash' ? `$${Number(c.points).toFixed(2)}` : `${c.points} pts`}
+                        </span>
+                        {c.due_datetime && (
+                          <span style={{ color: '#f87171' }}>• Due {c.due_datetime}</span>
+                        )}
+                        {c.completed ? (
+                          <span style={{ color: '#4ade80', fontWeight: 700 }}>• Done today</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon="fas fa-pencil-alt"
+                      onClick={() => openEditChoreModal(c)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon="fas fa-trash-alt"
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Delete Chore',
+                          message: `Are you sure you want to permanently delete "${c.title}"?`,
+                          confirmText: 'Delete',
+                          danger: true,
+                        });
+                        if (ok) {
+                          await apiPost('delete_chore', { chore_id: c.id, permanent: true });
+                          showToast(`Deleted chore "${c.title}"`);
+                          await refresh();
+                        }
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {(data?.chores || []).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '32px 16px', opacity: 0.6 }}>
+                No chores found. Tap &quot;Add Chore&quot; to create your first household chore!
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -927,44 +1170,74 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 6. GOTIFY TAB */}
-      {tab === 'gotify' && (
-        <form onSubmit={handleSaveGotify} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 600 }}>
-          <h3 style={{ marginTop: 0 }}>🔔 Gotify Push Notifications</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={gotifyEnabled}
-                onChange={(e) => setGotifyEnabled(e.target.checked)}
-              />
-              Enable Gotify Push Notifications
-            </label>
+      {/* 6. DISCORD TAB */}
+      {tab === 'discord' && (
+        <form onSubmit={handleSaveDiscord} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 640 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>💬 Discord Webhook Integration</h3>
+            {discordWebhookUrl.trim() && (
+              <Badge variant="success" size="sm">
+                Configured
+              </Badge>
+            )}
+          </div>
+          <p style={{ fontSize: '0.86rem', color: 'var(--cr-text-secondary)', lineHeight: 1.5, margin: '0 0 16px' }}>
+            Send real-time alerts to your family Discord server or channel when chores are completed, rewards are redeemed, or new tasks are created.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Input
-              label="Gotify Server URL"
-              type="text"
-              placeholder="e.g. http://192.168.1.50:8080"
-              value={gotifyUrl}
-              onChange={(e) => setGotifyUrl(e.target.value)}
+              label="Discord Webhook URL"
+              type="url"
+              placeholder="https://discord.com/api/webhooks/1234567890/abcdef..."
+              value={discordWebhookUrl}
+              onChange={(e) => setDiscordWebhookUrl(e.target.value)}
+              helperText="In Discord, right-click any channel &rarr; Edit Channel &rarr; Integrations &rarr; Webhooks &rarr; Copy Webhook URL."
             />
-            <Input
-              label="Gotify App Token"
-              type="password"
-              placeholder="Token string..."
-              value={gotifyToken}
-              onChange={(e) => setGotifyToken(e.target.value)}
-            />
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                padding: '14px 16px',
+                borderRadius: 12,
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 2 }}>Notification Triggers</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.88rem' }}>
+                <input
+                  type="checkbox"
+                  checked={discordNotifyChores}
+                  onChange={(e) => setDiscordNotifyChores(e.target.checked)}
+                />
+                Notify on chore completion & new chores assigned
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.88rem' }}>
+                <input
+                  type="checkbox"
+                  checked={discordNotifyRewards}
+                  onChange={(e) => setDiscordNotifyRewards(e.target.checked)}
+                />
+                Notify when rewards are added or redeemed
+              </label>
+            </div>
+
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <Button type="submit" variant="primary" icon="fas fa-save">
-                Save Gotify Settings
+                Save Discord Settings
               </Button>
               <Button
                 type="button"
                 variant="secondary"
-                icon="fas fa-paper-plane"
-                onClick={handleTestGotify}
+                icon="fab fa-discord"
+                disabled={!discordWebhookUrl.trim()}
+                isLoading={testingDiscord}
+                onClick={handleTestDiscord}
               >
-                Send Test Push
+                Send Test Webhook
               </Button>
             </div>
           </div>
@@ -975,15 +1248,30 @@ export const SettingsView: React.FC = () => {
       {tab === 'calendar' && (
         <form onSubmit={handleSaveCalendar} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h3 style={{ margin: 0 }}>📅 Google Calendar Integration</h3>
+            <div>
+              <h3 style={{ margin: '0 0 4px' }}>📅 Google Calendar Integration</h3>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--cr-text-secondary)' }}>
+                Sync family events and activities into your Dashboard and Calendar views.
+              </p>
+            </div>
             <Button
               type="button"
               variant="secondary"
               size="sm"
               icon="fas fa-rotate"
+              disabled={!calEnabled}
+              title={!calEnabled ? 'Enable Calendar Sync below to sync events' : 'Sync latest events from Google'}
               onClick={async () => {
-                await apiPost('sync_calendar', {});
-                showToast('Calendar synced with Google!');
+                if (!calEnabled) {
+                  showToast('Please enable Google Calendar Sync first', { type: 'error' });
+                  return;
+                }
+                const res = await apiPost<any>('sync_calendar', {});
+                if (res?.error) {
+                  showToast(`Sync warning: ${res.error}`, { type: 'error' });
+                } else {
+                  showToast('Calendar synced with Google!');
+                }
                 await refresh();
               }}
             >
@@ -993,92 +1281,160 @@ export const SettingsView: React.FC = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <FormErrorAlert error={calFormError} onDismiss={() => setCalFormError(null)} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.95rem', fontWeight: 600 }}>
-              <input type="checkbox" checked={calEnabled} onChange={(e) => setCalEnabled(e.target.checked)} />
-              Enable Google Calendar Sync
-            </label>
 
-            <Input
-              label="Whole-Family Shared Calendar (.ics URL)"
-              type="url"
-              placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
-              value={calIcalUrl}
-              onChange={(e) => setCalIcalUrl(e.target.value)}
-              helperText="Events from this shared family calendar will appear in Gold / Yellow (or mapped to a person if their name is in the event title)."
-            />
-
-            <Input
-              label="Combined Google Calendar Embed URL (Optional for Iframe View)"
-              type="url"
-              placeholder="https://calendar.google.com/calendar/embed?src=..."
-              value={calEmbedUrl}
-              onChange={(e) => setCalEmbedUrl(e.target.value)}
-              helperText="In Google Calendar settings &rarr; 'Integrate calendar', click Customise to select all family sub-calendars together in one single combined embed view."
-            />
-
-            {/* Family Members Sub-Calendars Summary */}
+            {/* Master Toggle */}
             <div
               style={{
-                marginTop: 4,
-                padding: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
                 borderRadius: 14,
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: calEnabled ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: calEnabled ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid var(--color-border-subtle)',
+                transition: 'all 0.2s ease',
               }}
             >
-              <div style={{ marginBottom: 12 }}>
-                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
-                  👨‍👩‍👧‍👦 Individual Family Member Sub-Calendars
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
-                  Sub-calendars are configured per person so their events appear in their own personal accent colour.
-                </p>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--cr-text-primary)' }}>
+                  Enable Google Calendar Sync
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--cr-text-secondary)' }}>
+                  {calEnabled ? 'Events will be automatically fetched on schedule' : 'Sync is paused. Enable to fetch shared & personal calendars.'}
+                </div>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(data?.family || []).map((m) => (
-                  <div
-                    key={m.id}
+              <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 26, margin: 0, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={calEnabled}
+                  onChange={(e) => setCalEnabled(e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    cursor: 'pointer',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: calEnabled ? '#3b82f6' : 'rgba(255, 255, 255, 0.2)',
+                    transition: '.2s',
+                    borderRadius: 34,
+                  }}
+                >
+                  <span
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      borderLeft: `4px solid ${m.color || '#3b82f6'}`,
+                      position: 'absolute',
+                      content: "''",
+                      height: 20,
+                      width: 20,
+                      left: calEnabled ? 24 : 3,
+                      bottom: 3,
+                      backgroundColor: 'white',
+                      transition: '.2s',
+                      borderRadius: '50%',
                     }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img
-                        src={resolveAvatarUrl(m.avatar)}
-                        alt={m.name}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
-                        }}
-                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{m.name}</span>
-                      {m.calendar_ical_url ? (
-                        <span style={{ fontSize: '0.72rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-                          <i className="fas fa-check-circle" /> Connected
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                          No personal calendar set
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon="fas fa-edit"
-                      onClick={() => openEditMemberModal(m)}
+                  />
+                </span>
+              </label>
+            </div>
+
+            {/* Child Inputs Container (conditionally dimmed / disabled when sync is off) */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                opacity: calEnabled ? 1 : 0.45,
+                pointerEvents: calEnabled ? 'auto' : 'none',
+                transition: 'opacity 0.2s ease',
+              }}
+            >
+              <Input
+                label="Whole-Family Shared Calendar (.ics URL)"
+                type="url"
+                placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+                value={calIcalUrl}
+                disabled={!calEnabled}
+                onChange={(e) => setCalIcalUrl(e.target.value)}
+                helperText="Events from this shared family calendar will appear in Gold / Yellow (or mapped to a person if their name is in the event title)."
+              />
+
+              <Input
+                label="Combined Google Calendar Embed URL (Optional for Iframe View)"
+                type="url"
+                placeholder="https://calendar.google.com/calendar/embed?src=..."
+                value={calEmbedUrl}
+                disabled={!calEnabled}
+                onChange={(e) => setCalEmbedUrl(e.target.value)}
+                helperText="In Google Calendar settings &rarr; 'Integrate calendar', click Customise to select all family sub-calendars together in one single combined embed view."
+              />
+
+              {/* Family Members Sub-Calendars Summary */}
+              <div
+                style={{
+                  marginTop: 4,
+                  padding: 16,
+                  borderRadius: 14,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <div style={{ marginBottom: 12 }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
+                    👨‍👩‍👧‍👦 Individual Family Member Sub-Calendars
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Sub-calendars are configured per person so their events appear in their own personal accent colour.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(data?.family || []).map((m) => (
+                    <div
+                      key={m.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        borderLeft: `4px solid ${m.color || '#3b82f6'}`,
+                      }}
                     >
-                      Edit
-                    </Button>
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <img
+                          src={resolveAvatarUrl(m.avatar)}
+                          alt={m.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                          }}
+                          style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{m.name}</span>
+                        {m.calendar_ical_url ? (
+                          <span style={{ fontSize: '0.72rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                            <i className="fas fa-check-circle" /> Connected
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                            No personal calendar set
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon="fas fa-edit"
+                        onClick={() => openEditMemberModal(m)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1298,6 +1654,8 @@ export const SettingsView: React.FC = () => {
           </div>
         </form>
       )}
+        </div>
+      </div>
     </div>
   );
 };

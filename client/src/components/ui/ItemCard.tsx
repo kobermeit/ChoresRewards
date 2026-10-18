@@ -15,6 +15,7 @@ export interface ItemCardProps {
   secondaryActions?: React.ReactNode;
   isOverdue?: boolean;
   isCompleted?: boolean;
+  accentColor?: string | null;
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
@@ -34,6 +35,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   secondaryActions,
   isOverdue = false,
   isCompleted = false,
+  accentColor,
   className = '',
   style = {},
   onClick,
@@ -41,21 +43,31 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const circleSize = Math.max(56, Math.min(84, Math.round(heroHeight * 0.68)));
   const emojiSize = heroHeight <= 100 ? '2.5rem' : '3.3rem';
 
+  const memberBorder = accentColor ? `${accentColor}38` : 'rgba(255, 255, 255, 0.12)';
+  const memberTopBorder = accentColor ? `${accentColor}cc` : 'rgba(255, 255, 255, 0.22)';
+
   return (
     <div
       className={`cr-item-card ${isCompleted ? 'cr-item-card-completed' : ''} ${className}`.trim()}
       style={{
-        background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+        background: 'linear-gradient(150deg, #24344d 0%, #152238 100%)',
         border: isOverdue
-          ? '1.5px solid rgba(239, 68, 68, 0.75)'
+          ? '1.5px solid rgba(239, 68, 68, 0.85)'
           : isCompleted
-            ? '1.5px solid rgba(16, 185, 129, 0.5)'
-            : '1px solid rgba(255, 255, 255, 0.09)',
+            ? '1.5px solid rgba(16, 185, 129, 0.55)'
+            : `1.5px solid ${memberBorder}`,
+        borderTop: isOverdue
+          ? '2.5px solid #ef4444'
+          : isCompleted
+            ? '2.5px solid #10b981'
+            : `2.5px solid ${memberTopBorder}`,
         borderRadius: 'var(--card-radius, 16px)',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+        boxShadow: accentColor
+          ? `0 6px 20px rgba(0, 0, 0, 0.4), 0 0 16px ${accentColor}18`
+          : '0 6px 20px rgba(0, 0, 0, 0.35)',
         boxSizing: 'border-box',
         width: '100%',
         position: 'relative',

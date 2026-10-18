@@ -34,10 +34,11 @@ app.use(
     secret: loadSecretKey(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year for wall tablet convenience
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days for tablet/kiosk persistence
     },
   })
 );

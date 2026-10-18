@@ -74,16 +74,21 @@ function detectChoreIcon(title: string, customIcon?: string | null): string {
   return '✅';
 }
 
-function formatDaysTag(daysOfWeek: string | string[] | null | undefined): string | null {
-  if (!daysOfWeek) return null;
-  const raw = Array.isArray(daysOfWeek) ? daysOfWeek : String(daysOfWeek).split(',');
+function formatDaysTag(daysOfWeek: string | string[] | null | undefined, isDaily?: boolean): string | null {
+  const raw = Array.isArray(daysOfWeek) ? daysOfWeek : daysOfWeek ? String(daysOfWeek).split(',') : [];
   const shortDays = raw.map((d) => d.trim().toLowerCase()).filter(Boolean);
-  if (shortDays.length === 0) return null;
+
+  if (shortDays.length === 0) {
+    return isDaily ? 'Every day' : null;
+  }
+  if (shortDays.length >= 7) {
+    return 'Every day';
+  }
   const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
   const weekends = ['saturday', 'sunday'];
   const sorted = [...shortDays].sort();
   if (sorted.length === 5 && sorted.every((d, i) => d === [...weekdays].sort()[i])) {
-    return 'Weekdays';
+    return 'Mon – Fri';
   }
   if (sorted.length === 2 && sorted.every((d, i) => d === [...weekends].sort()[i])) {
     return 'Weekends';
@@ -124,6 +129,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     activeUser,
     isParent,
     isChild,
+    openEditChoreModal,
   } = useApp();
 
   // If active user is a child, automatically focus their chore column
@@ -547,26 +553,14 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     selectedChorePersonId != null ? family.find((p) => p.id === selectedChorePersonId) || null : null;
 
   const headerActions = isParent ? (
-    <button
-      type="button"
-      className="btn-primary"
-      onClick={() => {
-        if (selectedPerson) setNewAssignedTo(selectedPerson.name);
-        setAddChoreModalOpen(true);
-      }}
-      style={{
-        height: 36,
-        padding: '0 16px',
-        borderRadius: 'var(--btn-radius)',
-        fontWeight: 700,
-        fontSize: '0.88rem',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-      }}
+    <Button
+      variant="primary"
+      size="sm"
+      icon="fas fa-plus"
+      onClick={() => openEditChoreModal(null)}
     >
-      <i className="fas fa-plus" /> Add Chore
-    </button>
+      Add Chore
+    </Button>
   ) : null;
 
   const filterToolbar = (
@@ -894,10 +888,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                           alignItems: 'center',
                           gap: 6,
                         }}
-                        onClick={() => {
-                          setNewAssignedTo(person.name);
-                          setAddChoreModalOpen(true);
-                        }}
+                        onClick={() => openEditChoreModal(null)}
                       >
                         <i className="fas fa-plus" /> Add Chore
                       </button>
@@ -915,7 +906,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                         {visibleChores.map((chore) => {
                           const isDone = Boolean(chore.completed);
                           const isOverdue = !isDone && (overdueIds.has(chore.id) || Boolean(chore.is_overdue));
-                          const daysLabel = formatDaysTag(chore.days_of_week);
+                          const daysLabel = formatDaysTag(chore.days_of_week, chore.is_daily);
                           const memberColor = person.color || '#fbbf24';
 
                           const pointsPill = (
@@ -1064,16 +1055,28 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                           );
 
                           const secondaryActions = isParent ? (
-                            <button
-                              type="button"
-                              className="reward-icon-btn delete"
-                              style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
-                              onClick={() => setChoreToDelete(chore)}
-                              title="Delete chore"
-                              aria-label="Delete chore"
-                            >
-                              <i className="fas fa-trash-alt" />
-                            </button>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                type="button"
+                                className="reward-icon-btn edit"
+                                style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
+                                onClick={() => openEditChoreModal(chore)}
+                                title="Edit chore"
+                                aria-label="Edit chore"
+                              >
+                                <i className="fas fa-pencil-alt" />
+                              </button>
+                              <button
+                                type="button"
+                                className="reward-icon-btn delete"
+                                style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
+                                onClick={() => setChoreToDelete(chore)}
+                                title="Delete chore"
+                                aria-label="Delete chore"
+                              >
+                                <i className="fas fa-trash-alt" />
+                              </button>
+                            </div>
                           ) : null;
 
                           return (
@@ -1083,6 +1086,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               subtitle={subtitleNode}
                               imageUrl={chore.image_url}
                               icon={detectChoreIcon(chore.title, chore.icon)}
+                              accentColor={person.color}
                               heroHeight={120}
                               pointsBadge={pointsPill}
                               statusBadges={statusBadges}
@@ -1335,7 +1339,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                         {visibleChores.map((chore) => {
                           const isDone = Boolean(chore.completed);
                           const isOverdue = !isDone && (overdueIds.has(chore.id) || Boolean(chore.is_overdue));
-                          const daysLabel = formatDaysTag(chore.days_of_week);
+                          const daysLabel = formatDaysTag(chore.days_of_week, chore.is_daily);
                           const memberColor = person.color || '#fbbf24';
 
                           const pointsPill = (
@@ -1470,16 +1474,28 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                           );
 
                           const secondaryActions = isParent ? (
-                            <button
-                              type="button"
-                              className="reward-icon-btn delete"
-                              style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
-                              onClick={() => setChoreToDelete(chore)}
-                              title="Delete chore"
-                              aria-label="Delete chore"
-                            >
-                              <i className="fas fa-trash-alt" />
-                            </button>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                type="button"
+                                className="reward-icon-btn edit"
+                                style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
+                                onClick={() => openEditChoreModal(chore)}
+                                title="Edit chore"
+                                aria-label="Edit chore"
+                              >
+                                <i className="fas fa-pencil-alt" />
+                              </button>
+                              <button
+                                type="button"
+                                className="reward-icon-btn delete"
+                                style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
+                                onClick={() => setChoreToDelete(chore)}
+                                title="Delete chore"
+                                aria-label="Delete chore"
+                              >
+                                <i className="fas fa-trash-alt" />
+                              </button>
+                            </div>
                           ) : null;
 
                           return (
@@ -1489,6 +1505,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               subtitle={subtitleNode}
                               imageUrl={chore.image_url}
                               icon={detectChoreIcon(chore.title, chore.icon)}
+                              accentColor={person.color}
                               heroHeight={95}
                               pointsBadge={pointsPill}
                               statusBadges={statusBadges}
@@ -1541,10 +1558,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                   <button
                     type="button"
                     className="chore-kanban-add-btn"
-                    onClick={() => {
-                      setNewAssignedTo(person.name);
-                      setAddChoreModalOpen(true);
-                    }}
+                    onClick={() => openEditChoreModal(null)}
                   >
                     <i className="fas fa-plus" /> Add Chore
                   </button>
@@ -1556,282 +1570,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         </div>
         )}
       </PageContainer>
-
-      {/* ADD CHORE MODAL */}
-      <Modal
-        open={addChoreModalOpen}
-        onClose={() => setAddChoreModalOpen(false)}
-        title="Add Chore"
-        icon="fas fa-tasks"
-        maxWidth={580}
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={() => setAddChoreModalOpen(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={submittingChore}
-              onClick={(e) => handleAddChoreSubmit(e as any)}
-            >
-              <i className="fas fa-plus" /> {submittingChore ? 'Adding...' : 'Add Chore'}
-            </button>
-          </>
-        }
-      >
-        {/* Quick Suggestions Chips */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: 0.5, color: '#94a3b8', fontWeight: 700 }}>
-              Quick Suggestions
-            </span>
-            <button
-              type="button"
-              className="btn-suggestion-add"
-              title="Add a new chore suggestion"
-              onClick={() => setShowAddSuggestionInput((p) => !p)}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              <i className="fas fa-pencil-alt" />
-            </button>
-          </div>
-          {showAddSuggestionInput && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <input
-                type="text"
-                placeholder="Add chore suggestion..."
-                className="modern-input"
-                style={{ height: 32, fontSize: '0.82rem' }}
-                value={newSuggestionText}
-                onChange={(e) => setNewSuggestionText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const trimmed = newSuggestionText.trim();
-                    if (trimmed && !choreSuggestions.includes(trimmed)) {
-                      saveSuggestions([...choreSuggestions, trimmed]);
-                    }
-                    setNewSuggestionText('');
-                    setShowAddSuggestionInput(false);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ padding: '4px 10px', height: 32, fontSize: '0.8rem' }}
-                onClick={() => {
-                  const trimmed = newSuggestionText.trim();
-                  if (trimmed && !choreSuggestions.includes(trimmed)) {
-                    saveSuggestions([...choreSuggestions, trimmed]);
-                  }
-                  setNewSuggestionText('');
-                  setShowAddSuggestionInput(false);
-                }}
-              >
-                Add
-              </button>
-            </div>
-          )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
-            {choreSuggestions.map((s, idx) => (
-              <button
-                key={idx}
-                type="button"
-                className="chore-suggestion-chip"
-                onClick={() => setNewTitle(s)}
-                style={{ fontSize: '0.78rem', padding: '4px 9px' }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Add Chore Form */}
-        <FormGrid id="add-chore-form" onSubmit={handleAddChoreSubmit}>
-          <FormField colSpan={12}>
-            <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
-          </FormField>
-
-          <FormField colSpan={12}>
-            <Input
-              id="chore-title-input"
-              label="Chore Title"
-              type="text"
-              name="title"
-              placeholder="e.g. Clean your room, Pack lunch..."
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              required
-              autoComplete="off"
-            />
-          </FormField>
-
-          <FormField colSpan={4}>
-            <Input
-              id="points-input"
-              label={isCash ? 'Cash ($)' : 'Points'}
-              type="number"
-              name="points"
-              value={newPoints}
-              onChange={(e) => setNewPoints(e.target.value)}
-              min="0"
-              step={isCash ? '0.01' : '0.5'}
-              required
-            />
-          </FormField>
-
-          <FormField colSpan={8}>
-            <div className="chore-field-group">
-              <label className="chore-field-label" style={{ fontSize: '0.84rem', fontWeight: 700, marginBottom: 4 }}>
-                <i className="fas fa-user-circle" /> Assign to
-              </label>
-              <div className="chore-assign-pills" id="assigned-to-btn-group" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {family.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    className={`chore-assign-pill assigned-to-btn${selectedAssignee === person.name ? ' selected' : ''}`}
-                    onClick={() => setNewAssignedTo(person.name)}
-                    style={{ padding: '6px 12px', fontSize: '0.84rem' }}
-                  >
-                    <span className="pill-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
-                    <span className="pill-name">{person.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </FormField>
-
-          {/* Repeating row */}
-          <FormField colSpan={12}>
-            <div className="chore-field-group">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label className="chore-field-label" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                  <i className="fas fa-sync-alt" style={{ color: '#60a5fa' }} /> Repeating Chore
-                </label>
-                <label className="chore-toggle-wrap">
-                  <input
-                    type="checkbox"
-                    checked={isRepeating}
-                    onChange={(e) => {
-                      setIsRepeating(e.target.checked);
-                      if (!e.target.checked) setNewDaysOfWeek([]);
-                    }}
-                    className="chore-toggle-input"
-                  />
-                  <span className="chore-toggle-track">
-                    <span className="chore-toggle-thumb" />
-                  </span>
-                  <span className="chore-toggle-label">{isRepeating ? 'On' : 'Off'}</span>
-                </label>
-              </div>
-            </div>
-          </FormField>
-
-          {/* Days of week */}
-          {isRepeating && (
-            <FormField colSpan={12}>
-              <div className="chore-days-row">
-                <label className="chore-field-label" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  <i className="fas fa-calendar-day" /> Which days{' '}
-                  <span className="chore-days-hint">(leave all unchecked for every day)</span>
-                </label>
-                <div className="chore-day-pills">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                    <label key={day} className="chore-day-pill">
-                      <input
-                        type="checkbox"
-                        checked={newDaysOfWeek.includes(day)}
-                        onChange={() => toggleDayOfWeek(day)}
-                        className="day-checkbox"
-                      />
-                      <span>{day.slice(0, 3)}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </FormField>
-          )}
-
-          {/* Due date/time */}
-          <FormField colSpan={12}>
-            <div className="chore-due-row">
-              <div className="chore-due-toggle-line" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span className="chore-field-label" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                  <i className="fas fa-clock" style={{ color: '#f87171' }} /> Set due date &amp; time{' '}
-                  <span className="optional-label">(optional)</span>
-                </span>
-                <label className="chore-toggle-wrap">
-                  <input
-                    type="checkbox"
-                    checked={hasDueDatetime}
-                    onChange={(e) => setHasDueDatetime(e.target.checked)}
-                    className="chore-toggle-input"
-                  />
-                  <span className="chore-toggle-track">
-                    <span className="chore-toggle-thumb" />
-                  </span>
-                </label>
-              </div>
-              {hasDueDatetime && (
-                <div style={{ marginTop: 8 }}>
-                  <Input
-                    type="datetime-local"
-                    value={newDueDatetime}
-                    onChange={(e) => setNewDueDatetime(e.target.value)}
-                    helperText="No points will be awarded if completed after the due date."
-                  />
-                </div>
-              )}
-            </div>
-          </FormField>
-
-          {/* Emoji icon picker */}
-          <FormField colSpan={12}>
-            <div className="chore-field-group">
-              <label className="chore-field-label" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                <i className="fas fa-face-smile" /> Icon{' '}
-                <span className="optional-label">(optional — auto-detected if blank)</span>
-              </label>
-              <div className="chore-emoji-picker-wrap">
-                <button
-                  type="button"
-                  className="chore-emoji-preview-btn"
-                  title="Click to choose an icon"
-                  onClick={() => setEmojiPickerOpen((p) => !p)}
-                >
-                  <span>{newIcon || '✅'}</span>
-                  <i className="fas fa-chevron-down" style={{ fontSize: '0.65em', marginLeft: 4, opacity: 0.6 }} />
-                </button>
-                {emojiPickerOpen && (
-                  <div className="chore-emoji-grid" style={{ display: 'flex' }}>
-                    {CHORE_EMOJI_OPTIONS.map((emoji, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        className="chore-emoji-opt"
-                        onClick={() => {
-                          setNewIcon(emoji);
-                          setEmojiPickerOpen(false);
-                        }}
-                      >
-                        {emoji || 'Auto ✨'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </FormField>
-        </FormGrid>
-      </Modal>
 
       {/* EDIT NAME MODAL */}
       <Modal

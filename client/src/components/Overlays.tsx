@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiGet, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { Modal } from './common/Modal';
+import { ChoreModal } from './ChoreModal';
 
 export const Overlays: React.FC = () => {
   return (
@@ -10,6 +11,7 @@ export const Overlays: React.FC = () => {
       <ScreensaverOverlay />
       <VisualTimerModal />
       <KidsPlayWidgetModal />
+      <ChoreModal />
     </>
   );
 };
@@ -197,183 +199,204 @@ const ScreensaverOverlay: React.FC = () => {
 };
 
 // ============================================================================
-// 2. VISUAL TIMER MODAL
+// 2. VISUAL TIMER MODAL (CONNECTED TO GLOBAL TIMER STATE)
 // ============================================================================
 const VisualTimerModal: React.FC = () => {
-  const { visualTimerOpen, setVisualTimerOpen, playSound } = useApp();
+  const {
+    visualTimerOpen,
+    setVisualTimerOpen,
+    timerTotalSeconds,
+    timerRemainingSeconds,
+    timerRunning,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    setTimerPreset,
+  } = useApp();
   useBodyScrollLock(visualTimerOpen);
-  const [totalSeconds, setTotalSeconds] = useState(300); // default 5 min
-  const [remainingSeconds, setRemainingSeconds] = useState(300);
-  const [running, setRunning] = useState(false);
 
-  useEffect(() => {
-    if (!running || !visualTimerOpen) return;
-    const timer = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          setRunning(false);
-          playSound();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [running, visualTimerOpen, playSound]);
-
-  if (!visualTimerOpen) return null;
-
-  const setPreset = (minutes: number) => {
-    const secs = minutes * 60;
-    setRunning(false);
-    setTotalSeconds(secs);
-    setRemainingSeconds(secs);
-  };
-
-  const mins = Math.floor(remainingSeconds / 60);
-  const secs = remainingSeconds % 60;
-  const pct = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
+  const mins = Math.floor(timerRemainingSeconds / 60);
+  const secs = timerRemainingSeconds % 60;
+  const pct = timerTotalSeconds > 0 ? timerRemainingSeconds / timerTotalSeconds : 0;
   const strokeColor = pct > 0.5 ? '#22c55e' : pct > 0.2 ? '#f59e0b' : '#ef4444';
   const radius = 95;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - pct);
 
   return (
-    <Modal
-      open={visualTimerOpen}
-      onClose={() => setVisualTimerOpen(false)}
-      title="Visual Timer"
-      icon="fas fa-stopwatch"
-      maxWidth={440}
-    >
-      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Preset Buttons */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-          {[1, 2, 5, 10, 15, 20, 30].map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setPreset(m)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: totalSeconds === m * 60 ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.18)',
-                background: totalSeconds === m * 60 ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-                color: 'inherit',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {m}m
-            </button>
-          ))}
+    <>
+      {/* Floating Always-On-Top Mini Timer Pill when active in background */}
+      {timerRunning && !visualTimerOpen && (
+        <div
+          onClick={() => setVisualTimerOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 99990,
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))',
+            border: '2px solid #38bdf8',
+            borderRadius: '24px',
+            padding: '8px 16px',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            boxShadow: '0 8px 24px rgba(56, 189, 248, 0.35)',
+            backdropFilter: 'blur(10px)',
+          }}
+          title="Visual Timer is running — tap to open"
+        >
+          <i className="fas fa-stopwatch" style={{ color: '#38bdf8', fontSize: '1.1rem' }} />
+          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '1px' }}>
+            {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+          </span>
+          <span style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase', fontWeight: 700 }}>
+            Active
+          </span>
         </div>
+      )}
 
-        {/* Circular SVG Ring */}
-        <div style={{ position: 'relative', width: 230, height: 230, margin: '0 auto 20px' }}>
-          <svg width="230" height="230" style={{ transform: 'rotate(-90deg)' }}>
-            <circle
-              cx="115"
-              cy="115"
-              r={radius}
-              fill="transparent"
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="16"
-            />
-            <circle
-              cx="115"
-              cy="115"
-              r={radius}
-              fill="transparent"
-              stroke={strokeColor}
-              strokeWidth="16"
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dashoffset 0.5s linear, stroke 0.3s ease' }}
-            />
-          </svg>
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ fontSize: '3rem', fontWeight: 900, fontFamily: 'monospace' }}>
-              {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+      {visualTimerOpen && (
+        <Modal
+          open={visualTimerOpen}
+          onClose={() => setVisualTimerOpen(false)}
+          title="Visual Timer"
+          icon="fas fa-stopwatch"
+          maxWidth={440}
+        >
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Preset Buttons */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+              {[1, 2, 5, 10, 15, 20, 30].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setTimerPreset(m)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    border: timerTotalSeconds === m * 60 ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.18)',
+                    background: timerTotalSeconds === m * 60 ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
+                    color: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {m}m
+                </button>
+              ))}
             </div>
-            {remainingSeconds === 0 && (
-              <div style={{ color: '#4ade80', fontWeight: 800, marginTop: 4 }}>🎉 Time's Up!</div>
-            )}
-          </div>
-        </div>
 
-        {/* Controls */}
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (remainingSeconds === 0) setRemainingSeconds(totalSeconds);
-              setRunning((prev) => !prev);
-            }}
-            style={{
-              padding: '0 24px',
-              height: 42,
-              minHeight: 42,
-              borderRadius: 'var(--btn-radius)',
-              border: 'none',
-              background: running ? 'var(--color-warning)' : 'var(--color-success)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '1rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              transition: 'all 0.15s ease',
-              boxShadow: running
-                ? '0 3px 12px rgba(245, 158, 11, 0.35)'
-                : '0 3px 12px rgba(16, 185, 129, 0.35)',
-            }}
-          >
-            <i className={running ? 'fas fa-pause' : 'fas fa-play'} />
-            <span>{running ? 'Pause' : 'Start'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRunning(false);
-              setRemainingSeconds(totalSeconds);
-            }}
-            style={{
-              padding: '0 20px',
-              height: 42,
-              minHeight: 42,
-              borderRadius: 'var(--btn-radius)',
-              border: '1px solid var(--color-border-medium)',
-              background: 'var(--color-bg-surface-elevated)',
-              color: 'var(--color-text-primary)',
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <i className="fas fa-rotate-left" />
-            <span>Reset</span>
-          </button>
-        </div>
-      </div>
-    </Modal>
+            {/* Circular SVG Ring */}
+            <div style={{ position: 'relative', width: 230, height: 230, margin: '0 auto 20px' }}>
+              <svg width="230" height="230" style={{ transform: 'rotate(-90deg)' }}>
+                <circle
+                  cx="115"
+                  cy="115"
+                  r={radius}
+                  fill="transparent"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth="16"
+                />
+                <circle
+                  cx="115"
+                  cy="115"
+                  r={radius}
+                  fill="transparent"
+                  stroke={strokeColor}
+                  strokeWidth="16"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={dashOffset}
+                  strokeLinecap="round"
+                  style={{ transition: 'stroke-dashoffset 0.5s linear, stroke 0.3s ease' }}
+                />
+              </svg>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <div style={{ fontSize: '3rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                  {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                </div>
+                {timerRemainingSeconds === 0 && (
+                  <div style={{ color: '#4ade80', fontWeight: 800, marginTop: 4 }}>🎉 Time's Up!</div>
+                )}
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (timerRemainingSeconds === 0) resetTimer();
+                  if (timerRunning) {
+                    pauseTimer();
+                  } else {
+                    startTimer();
+                  }
+                }}
+                style={{
+                  padding: '0 24px',
+                  height: 42,
+                  minHeight: 42,
+                  borderRadius: 'var(--btn-radius)',
+                  border: 'none',
+                  background: timerRunning ? 'var(--color-warning)' : 'var(--color-success)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'all 0.15s ease',
+                  boxShadow: timerRunning
+                    ? '0 3px 12px rgba(245, 158, 11, 0.35)'
+                    : '0 3px 12px rgba(16, 185, 129, 0.35)',
+                }}
+              >
+                <i className={timerRunning ? 'fas fa-pause' : 'fas fa-play'} />
+                <span>{timerRunning ? 'Pause' : 'Start'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={resetTimer}
+                style={{
+                  padding: '0 20px',
+                  height: 42,
+                  minHeight: 42,
+                  borderRadius: 'var(--btn-radius)',
+                  border: '1px solid var(--color-border-medium)',
+                  background: 'var(--color-bg-surface-elevated)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <i className="fas fa-rotate-left" />
+                <span>Reset</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 };
 
