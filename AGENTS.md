@@ -18,11 +18,16 @@
 - **Always build production bundles before push**: Run `npm run build` (`npm run build:client` + `npm run build:server`) before committing.
 
 ## Quality Standards & Live Browser Verification
+- **Mandatory Ingress & Environment Portability Audit**:
+  - Run `npm run verify` (`node scripts/verify_ingress.js`) before every deploy or commit.
+  - Zero tolerance for hardcoded absolute paths (`/static/...` or `/api/...`). All paths must be relative (`./static/...`) or passed through `resolveAssetUrl(url)`.
+  - Ensure the client runs seamlessly in standalone mode (direct port `8099`), sub-path proxies, and Home Assistant Ingress dynamic token prefixes (`/api/hassio_ingress/<token>/`).
 - **Full UI Regression Test Before Deploy**: Before doing a version push or deploy, run a comprehensive regression test in the local UI across every screen. Verify:
   - Adding, editing, and redeeming rewards
   - Adding, completing, and undoing chores
   - Adding, checking off, and removing shopping list items and meals
-  - Notes kanban and sticky notes
+  - Notes full-length feed, inline expand/collapse, and full view modal
+  - Extra bonus chores pool in settings with add, edit, and delete flow
   - Profile switcher modal and active user transitions
   - Visual polish: NO broken images, broken avatars, layout shifts, or horizontal scrollbars
   - Never modify user-configured external configs (like Calendar iCal/Embed URLs or Notion tokens).
@@ -30,7 +35,7 @@
 
 ## Design System & Component Library Standards
 - **Strict Compliance with [DESIGN_SYSTEM.md](file:///d:/projects/choresrewards/DESIGN_SYSTEM.md)**: All frontend development MUST adhere to the design tokens and UI primitives documented in `DESIGN_SYSTEM.md`.
-- **UI Primitives Requirement**: Use `<Button>`, `<Input>`, `<Select>`, `<Card>`, and `<Badge>` from `@/components/ui`. Never add raw `<button>` or `<input>` tags for UI actions.
+- **UI Primitives Requirement**: Use `<Button>`, `<Input>`, `<Select>`, `<Card>`, and `<Badge>` from `@/components/ui`. Never add raw unstyled `<button>` or `<input>` tags for UI actions.
 - **Forbid Arbitrary Inline Styles**: Inline styles for design attributes (colors, corner radius, borders, shadows) are forbidden unless required for dynamic data-driven values (e.g. person accent colors). Use CSS variables (`var(--btn-radius)`, `var(--card-radius)`, `var(--modal-radius)`) instead.
 - **Single-Line Reskinning Guarantee**: The design system must maintain single-variable theme overrides in `tokens.css` so buttons, modals, and card styles can be reskinned in 1 line.
 
@@ -42,6 +47,7 @@
   - When declaring stock asset catalogs or audio clip arrays in frontend code, always specify them as `./static/...` (never `/static/...`).
   - Audio playback must pass `resolveAssetUrl(url)` to `new Audio(...)`.
 - **Backend Dual-Path Mounting**: The Express server must continue to serve both `/static` and `/api/static`, as well as `/` and `/api`, guaranteeing both direct port 8099 and Ingress reverse-proxy traffic find all files.
+- **Automated Verification**: Run `npm run verify` to automatically scan all source files for path violations before building production bundles.
 
 
 

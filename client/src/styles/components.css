@@ -4477,59 +4477,166 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   width: 100% !important;
 }
 
-/* Text Pad Formatted Rendered View */
-.text-pad-rendered-view {
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 16px 20px;
+/* Text Pad Formatted Rendered View & Notes Rich Content */
+.text-pad-rendered-view,
+.cr-rendered-rich-content {
   color: #e2e8f0;
   font-size: 0.92rem;
   line-height: 1.6;
-  max-height: 550px;
-  overflow-y: auto;
   user-select: text;
 }
-.text-pad-rendered-view h2 {
+.text-pad-rendered-view h1,
+.cr-rendered-rich-content h1 {
   font-size: 1.35rem;
   color: #f8fafc;
-  margin: 16px 0 8px;
+  margin: 10px 0 6px;
+  font-weight: 800;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
-.text-pad-rendered-view h3 {
-  font-size: 1.15rem;
+.text-pad-rendered-view h2,
+.cr-rendered-rich-content h2 {
+  font-size: 1.18rem;
+  color: #f8fafc;
+  margin: 8px 0 4px;
+  font-weight: 700;
+}
+.text-pad-rendered-view h3,
+.cr-rendered-rich-content h3 {
+  font-size: 1.05rem;
   color: #60a5fa;
-  margin: 14px 0 6px;
+  margin: 8px 0 4px;
+  font-weight: 700;
 }
-.text-pad-rendered-view h4 {
-  font-size: 0.98rem;
+.text-pad-rendered-view h4,
+.cr-rendered-rich-content h4 {
+  font-size: 0.95rem;
   color: #93c5fd;
-  margin: 10px 0 4px;
+  margin: 6px 0 3px;
+  font-weight: 600;
 }
-.text-pad-rendered-view p {
-  margin: 6px 0;
+.text-pad-rendered-view p,
+.cr-rendered-rich-content p {
+  margin: 4px 0 6px;
   line-height: 1.55;
   color: #cbd5e1;
 }
-.text-pad-rendered-view ul {
-  margin: 6px 0 12px 22px;
+.text-pad-rendered-view ul,
+.cr-rendered-rich-content ul {
+  list-style-type: disc;
+  margin: 4px 0 8px 22px;
   padding: 0;
 }
-.text-pad-rendered-view li {
-  margin: 4px 0;
+.text-pad-rendered-view ol,
+.cr-rendered-rich-content ol {
+  list-style-type: decimal;
+  margin: 4px 0 8px 22px;
+  padding: 0;
+}
+.text-pad-rendered-view li,
+.cr-rendered-rich-content li {
+  margin: 3px 0;
   color: #e2e8f0;
   line-height: 1.5;
 }
-.text-pad-rendered-view strong {
+.text-pad-rendered-view strong,
+.cr-rendered-rich-content strong {
   color: #f8fafc;
   font-weight: 700;
 }
-.text-pad-rendered-view hr {
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  margin: 16px 0;
+.text-pad-rendered-view em,
+.cr-rendered-rich-content em {
+  color: #cbd5e1;
+  font-style: italic;
 }
+.text-pad-rendered-view code,
+.cr-rendered-rich-content code {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #93c5fd;
+  font-size: 0.88em;
+}
+.text-pad-rendered-view pre,
+.cr-rendered-rich-content pre {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.text-pad-rendered-view pre code,
+.cr-rendered-rich-content pre code {
+  background: transparent;
+  padding: 0;
+}
+.text-pad-rendered-view blockquote,
+.cr-rendered-rich-content blockquote {
+  border-left: 3px solid #3b82f6;
+  padding-left: 10px;
+  margin: 6px 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+.cr-rendered-rich-content ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 2px !important;
+  margin: 4px 0 8px !important;
+}
+.cr-rendered-rich-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 3px 0;
+}
+.cr-rendered-rich-content ul[data-type="taskList"] li > label {
+  margin-top: 3px;
+  user-select: none;
+}
+.cr-rendered-rich-content ul[data-type="taskList"] li > label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+.cr-rendered-rich-content ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+/* Reddit-Style Note Row Card */
+.note-reddit-row {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.88) 100%);
+  border-radius: var(--card-radius, 12px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  cursor: pointer;
+}
+.note-reddit-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+}
+.note-reddit-body-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.note-reddit-body-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.note-reddit-body-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.note-reddit-body-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.note-reddit-body-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 .text-pad-mode-btn.active {
   background: rgba(59, 130, 246, 0.25);
   border-color: rgba(59, 130, 246, 0.5);

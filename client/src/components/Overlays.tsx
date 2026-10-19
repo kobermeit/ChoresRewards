@@ -444,7 +444,7 @@ const VisualTimerModal: React.FC = () => {
                 >
                   {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
                 </div>
-                {timerRemainingSeconds === 0 ? (
+                {timerRemainingSeconds === 0 && timerTotalSeconds > 0 ? (
                   <div
                     style={{
                       color: '#4ade80',
@@ -469,7 +469,6 @@ const VisualTimerModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (timerRemainingSeconds === 0) resetTimer();
                   if (timerRunning) {
                     pauseTimer();
                   } else {

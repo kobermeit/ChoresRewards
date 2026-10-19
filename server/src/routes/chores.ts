@@ -11,6 +11,9 @@ import {
   calculateWeeklyProgress,
   checkAndAwardBadges,
   getExtraChores,
+  saveExtraChores,
+  seedExtraChores,
+  normaliseExtraChore,
   getExtrasForPerson,
   getPersonAgeValue,
   extraMatchesAge,
@@ -657,4 +660,111 @@ choresRouter.post('/api/extra_chores/claim', requireAuth, (req: Request, res: Re
     is_extra: true,
     extra_id: extra.id,
   });
+});
+
+// Admin Extra Chores Pool CRUD
+choresRouter.post(['/api/extra_chores/add', '/extra_chores/add'], requireAdult, (req: Request, res: Response) => {
+  try {
+    const { title, points, icon, min_age, max_age, enabled } = req.body || {};
+    const cleanTitle = String(title || '').trim().slice(0, 100);
+    if (!cleanTitle) {
+      res.status(400).json({ success: false, error: 'Chore title cannot be empty' });
+      return;
+    }
+    const extras = getExtraChores();
+    const newId = `extra_${crypto.randomBytes(6).toString('hex')}`;
+    const newChore = normaliseExtraChore({
+      id: newId,
+      title: cleanTitle,
+      points: points !== undefined ? Number(points) : 2,
+      icon: String(icon || '⚡').trim() || '⚡',
+      min_age: min_age !== undefined ? Number(min_age) : 0,
+      max_age: max_age !== undefined && max_age !== null && max_age !== '' ? Number(max_age) : null,
+      enabled: enabled !== undefined ? Boolean(enabled) : true,
+      sort_order: extras.length,
+    }, extras.length);
+
+    if (!newChore) {
+      res.status(400).json({ success: false, error: 'Invalid bonus chore data' });
+      return;
+    }
+    extras.push(newChore);
+    saveExtraChores(extras);
+    logActivity('settings_updated', `Bonus chore '${cleanTitle}' added to pool`);
+    res.json({ success: true, chore: newChore, extras });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+choresRouter.post(['/api/extra_chores/edit', '/extra_chores/edit', '/api/extra_chores/update', '/extra_chores/update'], requireAdult, (req: Request, res: Response) => {
+  try {
+    const { id, title, points, icon, min_age, max_age, enabled } = req.body || {};
+    const choreId = String(id || '').trim();
+    if (!choreId) {
+      res.status(400).json({ success: false, error: 'Bonus chore ID is required' });
+      return;
+    }
+    const cleanTitle = String(title || '').trim().slice(0, 100);
+    if (!cleanTitle) {
+      res.status(400).json({ success: false, error: 'Chore title cannot be empty' });
+      return;
+    }
+    const extras = getExtraChores();
+    const idx = extras.findIndex((e) => e.id === choreId);
+    if (idx === -1) {
+      res.status(404).json({ success: false, error: 'Bonus chore not found' });
+      return;
+    }
+    const existing = extras[idx];
+    const updated = normaliseExtraChore({
+      ...existing,
+      title: cleanTitle,
+      points: points !== undefined ? Number(points) : existing.points,
+      icon: icon !== undefined ? String(icon).trim() || '⚡' : existing.icon,
+      min_age: min_age !== undefined ? Number(min_age) : existing.min_age,
+      max_age: max_age !== undefined ? (max_age !== null && max_age !== '' ? Number(max_age) : null) : existing.max_age,
+      enabled: enabled !== undefined ? Boolean(enabled) : existing.enabled,
+    }, idx);
+
+    if (!updated) {
+      res.status(400).json({ success: false, error: 'Failed to update bonus chore' });
+      return;
+    }
+    extras[idx] = updated;
+    saveExtraChores(extras);
+    logActivity('settings_updated', `Bonus chore '${cleanTitle}' updated`);
+    res.json({ success: true, chore: updated, extras });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+choresRouter.post(['/api/extra_chores/delete', '/extra_chores/delete'], requireAdult, (req: Request, res: Response) => {
+  try {
+    const choreId = String(req.body?.id || '').trim();
+    if (!choreId) {
+      res.status(400).json({ success: false, error: 'Bonus chore ID is required' });
+      return;
+    }
+    const extras = getExtraChores();
+    const existing = extras.find((e) => e.id === choreId);
+    const filtered = extras.filter((e) => e.id !== choreId);
+    saveExtraChores(filtered);
+    logActivity('settings_updated', `Bonus chore '${existing?.title || choreId}' deleted`);
+    res.json({ success: true, extras: filtered });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+choresRouter.post(['/api/extra_chores/reset_defaults', '/extra_chores/reset_defaults'], requireAdult, (_req: Request, res: Response) => {
+  try {
+    const seeded = seedExtraChores();
+    saveExtraChores(seeded);
+    logActivity('settings_updated', 'Bonus chores pool reset to defaults');
+    res.json({ success: true, extras: seeded });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
 });

@@ -31,10 +31,20 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
   const { data, refresh, showToast, confirm } = useApp();
 
   const [activeModalNote, setActiveModalNote] = useState<NoteItem | null>(null);
+  const [viewNoteItem, setViewNoteItem] = useState<NoteItem | null>(null);
+  const [expandedNoteIds, setExpandedNoteIds] = useState<Record<string, boolean>>({});
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState('');
   const [modalColor, setModalColor] = useState('#fef08a');
   const [isNewNote, setIsNewNote] = useState(false);
+
+  const toggleExpandNote = (noteId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedNoteIds((prev) => ({
+      ...prev,
+      [noteId]: !prev[noteId],
+    }));
+  };
 
   if (!data) return null;
 
@@ -107,17 +117,42 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
   const renderFormattedContent = (content: string) => {
     if (!content) return <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Empty note</span>;
 
-    // Check if the content is rich HTML from the WYSIWYG editor
-    if (content.trim().startsWith('<') && (content.includes('</') || content.includes('/>'))) {
+    let textToParse = content;
+
+    // Check if the content is wrapped in a single <p> containing markdown or escaped newlines
+    const isSinglePWrapper =
+      content.trim().startsWith('<p>') &&
+      content.trim().endsWith('</p>') &&
+      !content.slice(3, -4).includes('<p>');
+
+    if (isSinglePWrapper) {
+      const inner = content.trim().slice(3, -4);
+      // If inner has markdown headings or bullet points, extract and treat as markdown
+      if (inner.includes('#') || inner.includes(' - ') || inner.includes('##') || inner.includes('*')) {
+        textToParse = inner
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\\n/g, '\n')
+          .replace(/\s+##\s+/g, '\n\n## ')
+          .replace(/\s+#\s+/g, '\n\n# ')
+          .replace(/\s+-\s+\*\*/g, '\n- **');
+      }
+    }
+
+    // Check if the content is rich HTML from the WYSIWYG editor (and not unwrapped markdown)
+    if (textToParse.trim().startsWith('<') && (textToParse.includes('</') || textToParse.includes('/>'))) {
       return (
         <div
           className="text-pad-rendered-view cr-rendered-rich-content"
-          dangerouslySetInnerHTML={{ __html: content }}
+          dangerouslySetInnerHTML={{ __html: textToParse }}
         />
       );
     }
 
-    const lines = content.split('\n');
+    const lines = textToParse.split('\n');
     const elements: React.ReactNode[] = [];
     let inList = false;
     let listItems: React.ReactNode[] = [];
@@ -125,7 +160,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
     const flushList = (keyPrefix: string) => {
       if (inList && listItems.length > 0) {
         elements.push(
-          <ul key={`${keyPrefix}-ul`} style={{ margin: '6px 0 12px 22px', padding: 0 }}>
+          <ul key={`${keyPrefix}-ul`} style={{ margin: '4px 0 8px 22px', padding: 0 }}>
             {listItems}
           </ul>
         );
@@ -175,7 +210,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       if (trimmed.startsWith('# ')) {
         flushList(`h1-${idx}`);
         elements.push(
-          <h2 key={`h1-${idx}`} style={{ margin: '10px 0 6px', fontSize: '1.15rem', color: '#f8fafc', fontWeight: 800 }}>
+          <h2 key={`h1-${idx}`} style={{ margin: '8px 0 4px', fontSize: '1.15rem', color: '#f8fafc', fontWeight: 800 }}>
             {formatInline(trimmed.slice(2))}
           </h2>
         );
@@ -185,9 +220,19 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       if (trimmed.startsWith('## ')) {
         flushList(`h2-${idx}`);
         elements.push(
-          <h3 key={`h2-${idx}`} style={{ margin: '8px 0 4px', fontSize: '1.02rem', color: '#f8fafc', fontWeight: 700 }}>
+          <h3 key={`h2-${idx}`} style={{ margin: '8px 0 4px', fontSize: '1.02rem', color: '#60a5fa', fontWeight: 700 }}>
             {formatInline(trimmed.slice(3))}
           </h3>
+        );
+        return;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        flushList(`h3-${idx}`);
+        elements.push(
+          <h4 key={`h3-${idx}`} style={{ margin: '6px 0 3px', fontSize: '0.94rem', color: '#93c5fd', fontWeight: 600 }}>
+            {formatInline(trimmed.slice(4))}
+          </h4>
         );
         return;
       }
@@ -196,7 +241,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
         inList = true;
         const bulletText = trimmed.slice(2);
         listItems.push(
-          <li key={`li-${idx}`} style={{ margin: '4px 0', lineHeight: 1.5, color: '#e2e8f0' }}>
+          <li key={`li-${idx}`} style={{ margin: '3px 0', lineHeight: 1.5, color: '#e2e8f0' }}>
             {formatInline(bulletText)}
           </li>
         );
@@ -205,20 +250,20 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
 
       flushList(`p-${idx}`);
       elements.push(
-        <p key={`p-${idx}`} style={{ margin: '6px 0', lineHeight: 1.55, color: '#e2e8f0' }}>
+        <p key={`p-${idx}`} style={{ margin: '4px 0 6px', lineHeight: 1.55, color: '#e2e8f0' }}>
           {formatInline(line)}
         </p>
       );
     });
 
     flushList('final');
-    return <div className="text-pad-rendered-view">{elements}</div>;
+    return <div className="text-pad-rendered-view cr-rendered-rich-content">{elements}</div>;
   };
 
   return (
     <PageContainer
       title="Notes"
-      icon="fas fa-note-sticky"
+      icon="fas fa-newspaper"
       iconClass="section-icon-notes"
       badge={notes.length}
       boxed={!isStandalonePage}
@@ -266,9 +311,9 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       ) : (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
             width: '100%',
           }}
         >
@@ -276,41 +321,36 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
             const cardColor = note.color || POSTIT_COLORS[idx % POSTIT_COLORS.length];
             const plainText = (note.content || '').replace(/<[^>]*>/g, '');
             const charCount = plainText.length;
+            const isExpanded = Boolean(expandedNoteIds[note.id]);
 
             return (
               <div
                 key={note.id}
+                className="note-reddit-row"
                 style={{
-                  background: 'linear-gradient(150deg, #1e293b 0%, #0f172a 100%)',
-                  borderRadius: 'var(--card-radius, 14px)',
-                  border: `1.5px solid ${cardColor}44`,
-                  borderTop: `4px solid ${cardColor}`,
-                  boxShadow: `0 6px 20px rgba(0, 0, 0, 0.3), 0 0 16px ${cardColor}15`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-                  minHeight: 220,
-                  position: 'relative',
+                  border: `1px solid ${cardColor}33`,
+                  borderLeft: `5px solid ${cardColor}`,
                 }}
               >
-                {/* Sticky Header */}
+                {/* Note Row Header (Reddit post style) */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '12px 14px 10px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    gap: 10,
+                    padding: '10px 16px 8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    gap: 12,
+                    cursor: 'pointer',
                   }}
+                  onClick={() => setViewNoteItem(note)}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                     <span
                       style={{
-                        width: 10,
-                        height: 10,
+                        width: 8,
+                        height: 8,
                         borderRadius: '50%',
                         background: cardColor,
                         boxShadow: `0 0 8px ${cardColor}`,
@@ -320,21 +360,54 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
                     <h3
                       style={{
                         margin: 0,
-                        fontSize: '1rem',
-                        fontWeight: 800,
+                        fontSize: '1.05rem',
+                        fontWeight: 700,
                         color: '#f8fafc',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        letterSpacing: '-0.01em',
                       }}
                       title={note.title}
                     >
                       {note.title || 'Untitled Note'}
                     </h3>
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        color: '#94a3b8',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        padding: '1px 8px',
+                        borderRadius: '10px',
+                        flexShrink: 0,
+                        marginLeft: 4,
+                      }}
+                    >
+                      {charCount.toLocaleString()} chars
+                    </span>
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon={isExpanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down'}
+                      aria-label={isExpanded ? 'Collapse note' : 'Expand note'}
+                      title={isExpanded ? 'Collapse note' : 'Expand note'}
+                      onClick={(e) => toggleExpandNote(note.id, e)}
+                    />
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon="fas fa-expand"
+                      aria-label="View full note"
+                      title="View full note"
+                      onClick={() => setViewNoteItem(note)}
+                    />
                     <IconButton
                       size="sm"
                       variant="ghost"
@@ -365,43 +438,98 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
                   </div>
                 </div>
 
-                {/* Sticky Body */}
+                {/* Note Row Body (Max height or expanded, clicking opens full-page modal) */}
                 <div
+                  className="note-reddit-body-scroll"
                   style={{
-                    padding: '14px 16px',
-                    flex: 1,
-                    overflowY: 'auto',
-                    maxHeight: 280,
+                    padding: '12px 18px 14px',
+                    maxHeight: isExpanded ? 'none' : 150,
+                    overflowY: isExpanded ? 'visible' : 'auto',
                     fontSize: '0.92rem',
                     lineHeight: 1.6,
                     color: '#e2e8f0',
+                    cursor: 'pointer',
                   }}
-                  onClick={() => handleOpenEditNoteModal(note)}
-                  title="Click to edit note"
+                  onClick={() => setViewNoteItem(note)}
+                  title="Click to view full note"
                 >
                   {renderFormattedContent(note.content)}
-                </div>
-
-                {/* Footer Meta */}
-                <div
-                  style={{
-                    padding: '6px 14px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '0.74rem',
-                    color: '#94a3b8',
-                    background: 'rgba(0, 0, 0, 0.15)',
-                  }}
-                >
-                  <span>{charCount.toLocaleString()} chars</span>
-                  <span style={{ color: cardColor, fontWeight: 700 }}>Sticky Note</span>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Full-Page View Note Modal */}
+      {viewNoteItem && (
+        <Modal
+          open={Boolean(viewNoteItem)}
+          onClose={() => setViewNoteItem(null)}
+          title={viewNoteItem.title || 'Untitled Note'}
+          icon="fas fa-newspaper"
+          maxWidth={840}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="fas fa-copy"
+                  onClick={() => {
+                    const plain = (viewNoteItem.content || '').replace(/<[^>]*>/g, '');
+                    navigator.clipboard?.writeText(plain);
+                    showToast('Note copied to clipboard');
+                  }}
+                >
+                  Copy
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon="fas fa-trash-alt"
+                  onClick={async () => {
+                    const id = viewNoteItem.id;
+                    setViewNoteItem(null);
+                    await handleDeleteNote(id);
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon="fas fa-pencil-alt"
+                  onClick={() => {
+                    const current = viewNoteItem;
+                    setViewNoteItem(null);
+                    handleOpenEditNoteModal(current);
+                  }}
+                >
+                  Edit Note
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => setViewNoteItem(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <div
+            className="note-reddit-body-scroll"
+            style={{
+              maxHeight: '65vh',
+              overflowY: 'auto',
+              padding: '8px 12px',
+              fontSize: '1rem',
+              lineHeight: 1.65,
+            }}
+          >
+            {renderFormattedContent(viewNoteItem.content)}
+          </div>
+        </Modal>
       )}
 
       {/* Spacious Edit / Add Note Modal (At least 10 lines of height!) */}
@@ -410,8 +538,8 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
           open={Boolean(activeModalNote)}
           onClose={() => setActiveModalNote(null)}
           title={isNewNote ? 'New Note' : `Edit Note: ${modalTitle || 'Untitled'}`}
-          icon="fas fa-sticky-note"
-          maxWidth={720}
+          icon="fas fa-align-left"
+          maxWidth={760}
           footer={
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
               <Button variant="ghost" size="sm" onClick={() => setActiveModalNote(null)}>

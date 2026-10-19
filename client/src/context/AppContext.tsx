@@ -242,6 +242,14 @@ export const AppProvider: React.FC<{
   }, []);
 
   const startTimer = useCallback(() => {
+    // If starting from 00:00, default to 5 minutes (300s)
+    setTimerRemainingSeconds((prev) => {
+      if (prev <= 0) {
+        setTimerTotalSeconds(300);
+        return 300;
+      }
+      return prev;
+    });
     setTimerRunning(true);
   }, []);
 
@@ -250,9 +258,15 @@ export const AppProvider: React.FC<{
   }, []);
 
   const resetTimer = useCallback(() => {
-    // If running, continue counting down from the beginning; if paused/stopped, stay stopped
-    setTimerRemainingSeconds(timerTotalSeconds);
-  }, [timerTotalSeconds]);
+    // If currently running, reset to beginning of total duration and keep running
+    // If not running / stopped, reset timer to 00:00
+    if (timerRunning) {
+      setTimerRemainingSeconds(timerTotalSeconds);
+    } else {
+      setTimerRemainingSeconds(0);
+      setTimerTotalSeconds(0);
+    }
+  }, [timerRunning, timerTotalSeconds]);
 
   const setTimerPreset = useCallback((minutes: number) => {
     const s = Math.max(10, Math.round(minutes * 60));
