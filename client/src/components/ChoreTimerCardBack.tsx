@@ -42,7 +42,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 
   // SVG circular geometry
-  const radius = 48;
+  const radius = 42;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (pct / 100) * circumference;
 
@@ -61,7 +61,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
         boxSizing: 'border-box',
         width: '100%',
         height: '100%',
-        padding: '14px 14px 16px',
+        padding: '10px 12px 12px',
         justifyContent: 'space-between',
         position: 'relative',
       }}
@@ -117,27 +117,27 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '4px auto',
+          margin: '2px auto',
         }}
       >
-        <svg width="116" height="116" viewBox="0 0 116 116" style={{ transform: 'rotate(-90deg)' }}>
+        <svg width="100" height="100" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
           {/* Background Track */}
           <circle
-            cx="58"
-            cy="58"
+            cx="50"
+            cy="50"
             r={radius}
             fill="transparent"
             stroke="rgba(255, 255, 255, 0.08)"
-            strokeWidth="8"
+            strokeWidth="7"
           />
           {/* Progress Indicator */}
           <circle
-            cx="58"
-            cy="58"
+            cx="50"
+            cy="50"
             r={radius}
             fill="transparent"
             stroke={timerColor}
-            strokeWidth="8"
+            strokeWidth="7"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -162,25 +162,25 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
         >
           <span
             style={{
-              fontSize: '1.75rem',
+              fontSize: '1.5rem',
               fontWeight: 900,
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
               color: '#ffffff',
               lineHeight: 1,
-              filter: `drop-shadow(0 2px 8px ${timerColor}66)`,
+              filter: `drop-shadow(0 2px 6px ${timerColor}66)`,
             }}
           >
             {timeFormatted}
           </span>
           <span
             style={{
-              fontSize: '0.72rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
               color: timerColor,
-              marginTop: 4,
+              marginTop: 2,
               textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.04em',
             }}
           >
             {remaining === 0 ? 'Time Up!' : isRunning ? 'Active' : 'Paused'}
@@ -189,8 +189,8 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
       </div>
 
       {/* Control Buttons Row */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        {/* Play/Pause Toggle */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', marginTop: 'auto' }}>
+        {/* Play/Pause Toggle - Icon Only */}
         <button
           type="button"
           onClick={() => {
@@ -203,8 +203,9 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
             }
           }}
           style={{
-            flex: 1,
+            width: 40,
             height: 36,
+            flexShrink: 0,
             borderRadius: 'var(--btn-radius, 8px)',
             border: isRunning
               ? '1px solid rgba(245, 158, 11, 0.5)'
@@ -213,42 +214,17 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
               ? 'rgba(245, 158, 11, 0.18)'
               : 'rgba(16, 185, 129, 0.22)',
             color: isRunning ? '#fcd34d' : '#6ee7b7',
-            fontWeight: 800,
-            fontSize: '0.82rem',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6,
+            fontSize: '1rem',
             transition: 'all 0.15s ease',
           }}
+          title={isRunning ? 'Pause timer' : 'Start/Resume timer'}
+          aria-label={isRunning ? 'Pause timer' : 'Start/Resume timer'}
         >
           <i className={isRunning ? 'fas fa-pause' : 'fas fa-play'} />
-          <span>{isRunning ? 'Pause' : 'Resume'}</span>
-        </button>
-
-        {/* Reset Button */}
-        <button
-          type="button"
-          onClick={() => resetChoreTimer(chore.id)}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--btn-radius, 8px)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            background: 'rgba(255, 255, 255, 0.06)',
-            color: '#cbd5e1',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.82rem',
-            transition: 'all 0.15s ease',
-          }}
-          title="Reset timer to full duration"
-          aria-label="Reset timer"
-        >
-          <i className="fas fa-rotate-left" />
         </button>
 
         {/* Complete Chore Button */}
@@ -256,14 +232,19 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
           type="button"
           className="btn-complete-chore"
           style={{
-            flex: 1.2,
+            flex: 1,
             height: 36,
             borderRadius: 'var(--btn-radius, 8px)',
-            fontSize: '0.82rem',
+            fontSize: '0.86rem',
+            fontWeight: 800,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
           }}
           onClick={onComplete}
         >
-          <i className="fas fa-check" /> Done!
+          <i className="fas fa-check" /> Done
         </button>
       </div>
     </div>

@@ -143,9 +143,10 @@ choresRouter.post(
         dueDate = getFamilyToday();
       }
 
-      const durationSeconds = data.duration_seconds !== undefined && data.duration_seconds !== '' && data.duration_seconds !== null
-        ? Math.max(10, parseInt(String(data.duration_seconds), 10) || 0)
-        : null;
+      const parsedDuration = data.duration_seconds !== undefined && data.duration_seconds !== '' && data.duration_seconds !== null
+        ? parseInt(String(data.duration_seconds), 10)
+        : 0;
+      const durationSeconds = parsedDuration > 0 ? Math.max(10, parsedDuration) : null;
 
       const info = db
         .prepare(
@@ -260,11 +261,18 @@ choresRouter.post(
       }
 
       const icon = 'icon' in data ? (data.icon ? String(data.icon).trim().slice(0, 20) : null) : chore.icon;
-      const durationSeconds = 'duration_seconds' in data
-        ? data.duration_seconds !== '' && data.duration_seconds !== null && data.duration_seconds !== undefined
-          ? Math.max(10, parseInt(String(data.duration_seconds), 10) || 0)
-          : null
-        : chore.duration_seconds;
+      let durationSeconds: number | null = null;
+      if ('duration_seconds' in data) {
+        const raw = data.duration_seconds;
+        if (raw !== '' && raw !== null && raw !== undefined) {
+          const parsed = parseInt(String(raw), 10);
+          durationSeconds = parsed > 0 ? parsed : null;
+        } else {
+          durationSeconds = null;
+        }
+      } else {
+        durationSeconds = chore.duration_seconds && chore.duration_seconds > 0 ? chore.duration_seconds : null;
+      }
 
       db.prepare(
         `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ? WHERE id = ?`

@@ -1687,6 +1687,7 @@ householdRouter.post('/api/add_text_pad', (req: Request, res: Response) => {
     id: `pad_${crypto.randomBytes(6).toString('hex')}`,
     title: String(req.body?.title || 'Untitled').trim().slice(0, 80),
     content: String(req.body?.content || '').slice(0, 100000),
+    color: req.body?.color || '#fef08a',
     created_at: new Date().toISOString(),
   });
   AppSetting.set('text_pads_json', JSON.stringify(pads));
@@ -1701,6 +1702,7 @@ householdRouter.post('/api/update_text_pad', (req: Request, res: Response) => {
           ...p,
           title: req.body?.title !== undefined ? String(req.body.title).slice(0, 80) : p.title,
           content: req.body?.content !== undefined ? String(req.body.content).slice(0, 100000) : p.content,
+          color: req.body?.color !== undefined ? String(req.body.color) : (p.color || '#fef08a'),
         }
       : p
   );

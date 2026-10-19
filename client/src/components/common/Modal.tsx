@@ -9,6 +9,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: number | string;
+  className?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -19,6 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   maxWidth = 580,
+  className = '',
 }) => {
   useBodyScrollLock(open);
 
@@ -36,7 +38,7 @@ export const Modal: React.FC<ModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="cr-modal-overlay" onClick={onClose}>
+    <div className={`cr-modal-overlay ${className}`.trim()} onClick={onClose}>
       <div
         className="cr-modal-dialog"
         style={{ maxWidth }}

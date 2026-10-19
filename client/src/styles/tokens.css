@@ -714,4 +714,36 @@ button.btn-cancel {
 .section-icon-notes     { color: #fbbf24 !important; }
 .section-icon-organise  { color: #38bdf8 !important; }
 
+/* ==========================================================================
+   Sleek Dark Custom Scrollbars (Thin, unobtrusive, modern dark theme)
+   ========================================================================== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: var(--radius-pill, 9999px);
+  transition: background 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
 

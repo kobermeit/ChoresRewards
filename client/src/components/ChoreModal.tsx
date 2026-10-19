@@ -318,8 +318,9 @@ export const ChoreModal: React.FC = () => {
   const memberColor = assignedPerson?.color || '#3b82f6';
 
   return (
-    <Modal
-      open={isOpen}
+    <>
+      <Modal
+        open={isOpen}
       onClose={closeEditChoreModal}
       title={isEditing ? 'Edit Chore' : 'Add Chore'}
       icon={isEditing ? 'fas fa-pencil-alt' : 'fas fa-plus-circle'}
@@ -597,168 +598,127 @@ export const ChoreModal: React.FC = () => {
           >
             Chore Image / Photo <span style={{ color: '#94a3b8', fontWeight: 500 }}>(optional)</span>
           </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            id="chore-modal-file-upload"
+          />
+
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 14,
+              gap: 16,
               padding: 12,
-              borderRadius: '12px',
+              borderRadius: '14px',
               background: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
             }}
           >
-            {imagePreview ? (
-              <div style={{ position: 'relative', width: 68, height: 68, flexShrink: 0 }}>
-                <img
-                  src={imagePreview}
-                  alt="Chore"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    borderRadius: 10,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleClearImage}
-                  style={{
-                    position: 'absolute',
-                    top: -6,
-                    right: -6,
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: '#ef4444',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '0.7rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="Remove image"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <div
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: 10,
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px dashed rgba(255, 255, 255, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#94a3b8',
-                  fontSize: '1.4rem',
-                  flexShrink: 0,
-                }}
-              >
-                <i className="fas fa-image" />
-              </div>
-            )}
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                style={{ display: 'none' }}
-                id="chore-modal-file-upload"
-              />
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  icon="fas fa-camera"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {imagePreview ? 'Change Photo' : 'Upload Photo'}
-                </Button>
-                <Button
-                  type="button"
-                  variant={stockPickerOpen ? 'primary' : 'outline'}
-                  size="sm"
-                  icon="fas fa-shapes"
-                  onClick={() => setStockPickerOpen((prev) => !prev)}
-                >
-                  Choose Illustration
-                </Button>
-                {imagePreview && (
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="sm"
-                    icon="fas fa-trash"
-                    onClick={() => {
-                      handleClearImage();
-                      setStockPickerOpen(false);
+            {/* Combined Photo Box & Upload Trigger */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="chore-upload-box"
+              style={{
+                width: 82,
+                height: 82,
+                borderRadius: 14,
+                cursor: 'pointer',
+                position: 'relative',
+                flexShrink: 0,
+                background: imagePreview ? '#0f172a' : 'rgba(255, 255, 255, 0.05)',
+                border: imagePreview
+                  ? '2px solid rgba(59, 130, 246, 0.6)'
+                  : '2px dashed rgba(255, 255, 255, 0.28)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '6px 4px',
+                boxSizing: 'border-box',
+                overflow: 'hidden',
+              }}
+              title={imagePreview ? 'Click to change photo' : 'Click to upload photo'}
+            >
+              {imagePreview ? (
+                <>
+                  <img
+                    src={imagePreview}
+                    alt="Chore"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      borderRadius: 10,
+                    }}
+                  />
+                  <div
+                    className="chore-upload-overlay"
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0, 0, 0, 0.55)',
+                      opacity: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      borderRadius: 10,
+                      textAlign: 'center',
                     }}
                   >
-                    Remove
-                  </Button>
-                )}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
-                Choose a stock illustration or upload a custom photo for this chore
-              </div>
+                    <i className="fas fa-camera" style={{ fontSize: '1.1rem', marginBottom: 2 }} />
+                    <span>Change</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-camera" style={{ fontSize: '1.35rem', color: '#94a3b8', marginBottom: 4 }} />
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      color: '#cbd5e1',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      lineHeight: 1.15,
+                      width: '100%',
+                      display: 'block',
+                      padding: '0 4px',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    Upload Photo
+                  </span>
+                </>
+              )}
+            </div>
 
-              {stockPickerOpen && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))',
-                    gap: 8,
-                    padding: 10,
-                    borderRadius: 12,
-                    background: 'rgba(0, 0, 0, 0.35)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    marginTop: 10,
-                    maxHeight: 190,
-                    overflowY: 'auto',
-                  }}
+            {/* Actions: Choose Photo & Remove */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                variant="secondary"
+                icon="fas fa-images"
+                onClick={() => setStockPickerOpen(true)}
+              >
+                Choose photo
+              </Button>
+              {imagePreview && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  icon="fas fa-trash"
+                  onClick={handleClearImage}
                 >
-                  {STOCK_CHORE_IMAGES.map((item) => (
-                    <div
-                      key={item.url}
-                      onClick={() => {
-                        setImageUrl(item.url);
-                        setImagePreview(item.url);
-                        setImageFile(null);
-                        setRemoveImage(false);
-                        setStockPickerOpen(false);
-                      }}
-                      style={{
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        padding: 6,
-                        borderRadius: 8,
-                        border: imageUrl === item.url ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
-                        background: imageUrl === item.url ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={item.label}
-                    >
-                      <img
-                        src={item.url}
-                        alt={item.label}
-                        style={{ width: 36, height: 36, margin: '0 auto 4px', display: 'block', borderRadius: 6 }}
-                      />
-                      <span style={{ fontSize: '0.68rem', display: 'block', lineHeight: 1.2, color: '#f1f5f9', fontWeight: 600 }}>
-                        {item.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                  Remove
+                </Button>
               )}
             </div>
           </div>
@@ -1130,5 +1090,81 @@ export const ChoreModal: React.FC = () => {
         </div>
       </form>
     </Modal>
+
+    {/* Dedicated Stock Photo Picker Modal */}
+    <Modal
+      open={stockPickerOpen}
+      onClose={() => setStockPickerOpen(false)}
+      title="Choose a Photo"
+      icon="fas fa-images"
+      className="cr-modal-stacked"
+      maxWidth={680}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+          <Button variant="secondary" onClick={() => setStockPickerOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      }
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
+          gap: 12,
+          padding: '6px 2px 12px',
+          maxHeight: '62vh',
+          overflowY: 'auto',
+        }}
+      >
+        {STOCK_CHORE_IMAGES.map((item) => {
+          const isSelected = imageUrl === item.url;
+          return (
+            <div
+              key={item.url}
+              onClick={() => {
+                setImageUrl(item.url);
+                setImagePreview(item.url);
+                setImageFile(null);
+                setRemoveImage(false);
+                setStockPickerOpen(false);
+              }}
+              className="chore-stock-card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                padding: '16px 10px',
+                borderRadius: 14,
+                cursor: 'pointer',
+                background: isSelected ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.04)',
+                border: isSelected ? '2px solid #3b82f6' : '1.5px solid rgba(255, 255, 255, 0.1)',
+                textAlign: 'center',
+              }}
+              title={item.label}
+            >
+              <img
+                src={item.url}
+                alt={item.label}
+                style={{ width: 56, height: 56, objectFit: 'contain' }}
+              />
+              <span
+                style={{
+                  fontSize: '0.82rem',
+                  fontWeight: isSelected ? 800 : 600,
+                  color: isSelected ? '#93c5fd' : '#e2e8f0',
+                  lineHeight: 1.25,
+                }}
+              >
+                {item.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
+  </>
   );
 };

@@ -233,6 +233,10 @@ export const AppProvider: React.FC<{
     }
   }, []);
 
+  useEffect(() => {
+    (window as any).__openEditChoreModal = openEditChoreModal;
+  }, [openEditChoreModal]);
+
   const closeEditChoreModal = useCallback(() => {
     setEditingChoreModalItem(undefined);
   }, []);
@@ -269,7 +273,12 @@ export const AppProvider: React.FC<{
   const activeDateRef = useRef<string>(new Date().toISOString().slice(0, 10));
 
   const refresh = useCallback(async (showOverlay = false) => {
-    if (showOverlay) setIsSyncing(true);
+    let syncTimer: any = null;
+    if (showOverlay) {
+      setIsSyncing(true);
+      // Hard cap: Never block the screen for more than 2 seconds
+      syncTimer = setTimeout(() => setIsSyncing(false), 2000);
+    }
     try {
       const res = await apiGet<BootstrapData>('bootstrap');
       if (res && res.success) {
@@ -292,7 +301,8 @@ export const AppProvider: React.FC<{
     } finally {
       setLoading(false);
       if (showOverlay) {
-        setTimeout(() => setIsSyncing(false), 400);
+        if (syncTimer) clearTimeout(syncTimer);
+        setTimeout(() => setIsSyncing(false), 250);
       }
     }
   }, [setAdultMode]);

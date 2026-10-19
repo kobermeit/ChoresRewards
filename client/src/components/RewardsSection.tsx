@@ -445,8 +445,18 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                   transition: 'transform 0.2s, box-shadow 0.2s',
                 }}
               >
-                {/* Hero Visual Banner (Netflix style) */}
-                <div style={{ height: 140, position: 'relative', overflow: 'hidden', background: '#0f172a' }}>
+                {/* Hero Visual Banner (Matching Chore Card Style) */}
+                <div
+                  style={{
+                    height: 140,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: 'radial-gradient(circle at 50% 35%, rgba(59, 130, 246, 0.22) 0%, #0f172a 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   {reward.image_url ? (
                     <FallbackImage
                       src={resolveAssetUrl(reward.image_url)}
@@ -463,11 +473,11 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                        color: 'rgba(255,255,255,0.3)',
+                        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                        color: 'rgba(255,255,255,0.4)',
                       }}
                     >
-                      <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '3rem', opacity: 0.5 }} />
+                      <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '3rem', opacity: 0.6 }} />
                     </div>
                   )}
 
@@ -476,7 +486,7 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                     style={{
                       position: 'absolute',
                       inset: 0,
-                      background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.3) 50%, transparent 100%)',
+                      background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 100%)',
                       pointerEvents: 'none',
                     }}
                   />

@@ -1,190 +1,110 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
-import { SectionHelpTip } from './HelpTooltipAndView';
-import { PageContainer, Button, RichEditor, WipBanner } from './ui';
+import { PageContainer, Button, IconButton, Input, RichEditor } from './ui';
 import { Modal } from './common/Modal';
 
-const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
+const POSTIT_COLORS = [
+  '#fef08a', // classic yellow
+  '#86efac', // mint green
+  '#93c5fd', // soft blue
+  '#f9a8d4', // soft pink
+  '#fdba74', // warm orange
+  '#c4b5fd', // lavender
+  '#6ee7b7', // seafoam
+  '#fca5a5', // coral
+];
 
 export interface NotesSectionProps {
   isStandalonePage?: boolean;
 }
 
+interface NoteItem {
+  id: string;
+  title: string;
+  content: string;
+  color?: string;
+  created_at?: string;
+}
+
 export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = false }) => {
   const { data, refresh, showToast, confirm } = useApp();
 
-  const [sectionCollapsed, setSectionCollapsed] = useState(false);
-  const [deletedCollapsed, setDeletedCollapsed] = useState(true);
-  const [padsCollapsed, setPadsCollapsed] = useState(false);
-
-  const [newNoteText, setNewNoteText] = useState<Record<string, string>>({});
-  const [editingNoteModal, setEditingNoteModal] = useState<{ id: string; text: string; colColor: string } | null>(null);
-  const [editingNoteHtml, setEditingNoteHtml] = useState('');
-  const [newPadTitle, setNewPadTitle] = useState('');
-  const [newPadContent, setNewPadContent] = useState('');
-  const [editingPadContent, setEditingPadContent] = useState<Record<string, string>>({});
-  const [padModes, setPadModes] = useState<Record<string, 'view' | 'edit'>>({});
+  const [activeModalNote, setActiveModalNote] = useState<NoteItem | null>(null);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalContent, setModalContent] = useState('');
+  const [modalColor, setModalColor] = useState('#fef08a');
+  const [isNewNote, setIsNewNote] = useState(false);
 
   if (!data) return null;
 
-  const nk = data.notes_kanban || { columns: [], notes: [] };
-  const columns = [...(nk.columns || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const activeNotes = (nk.notes || []).filter((n) => !n.deleted);
-  const deletedNotes = (nk.notes || []).filter((n) => n.deleted);
-  const textPads = data.text_pads || [];
+  const notes: NoteItem[] = data.text_pads || [];
 
-  const handleAddNote = async (colId: string) => {
-    const txt = (newNoteText[colId] || '').trim();
-    if (!txt) return;
+  const handleOpenNewNoteModal = () => {
+    setIsNewNote(true);
+    setModalTitle('');
+    setModalContent('');
+    setModalColor(POSTIT_COLORS[notes.length % POSTIT_COLORS.length]);
+    setActiveModalNote({ id: '', title: '', content: '' });
+  };
+
+  const handleOpenEditNoteModal = (note: NoteItem) => {
+    setIsNewNote(false);
+    setModalTitle(note.title || '');
+    setModalContent(note.content || '');
+    setModalColor(note.color || POSTIT_COLORS[0]);
+    setActiveModalNote(note);
+  };
+
+  const handleSaveModalNote = async () => {
+    if (!modalContent.trim() && !modalTitle.trim()) {
+      showToast('Note cannot be empty', { type: 'error' });
+      return;
+    }
+
     try {
-      await apiPost('add_kanban_note', { column_id: colId, text: txt });
-      setNewNoteText((prev) => ({ ...prev, [colId]: '' }));
+      if (isNewNote) {
+        await apiPost('add_text_pad', {
+          title: modalTitle.trim() || 'Untitled Note',
+          content: modalContent,
+          color: modalColor,
+        });
+        showToast('Created new note!');
+      } else if (activeModalNote) {
+        await apiPost('update_text_pad', {
+          id: activeModalNote.id,
+          title: modalTitle.trim() || 'Untitled Note',
+          content: modalContent,
+          color: modalColor,
+        });
+        showToast('Note saved!');
+      }
+      setActiveModalNote(null);
       await refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to add note', { type: 'error' });
+      showToast(err.message || 'Failed to save note', { type: 'error' });
     }
   };
 
-  const handleSaveNoteEdit = async () => {
-    if (!editingNoteModal) return;
-    try {
-      await apiPost('update_kanban_note', {
-        id: editingNoteModal.id,
-        text: editingNoteHtml || editingNoteModal.text,
-      });
-      setEditingNoteModal(null);
-      await refresh();
-      showToast('Note updated!');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update note', { type: 'error' });
-    }
-  };
-
-  const handleToggleNote = async (noteId: string, checked: boolean) => {
-    try {
-      await apiPost('update_kanban_note', { id: noteId, checked: !checked });
-      await refresh();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleDeleteNote = async (noteId: string, permanent = false) => {
-    try {
-      await apiPost('delete_kanban_note', { id: noteId, permanent });
-      await refresh();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleAddColumnPrompt = async () => {
-    const title = window.prompt('List name:');
-    if (!title || !title.trim()) return;
-    const color = POSTIT_COLORS[columns.length % POSTIT_COLORS.length];
-    try {
-      await apiPost('add_note_column', { title: title.trim(), color });
-      await refresh();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to add column', { type: 'error' });
-    }
-  };
-
-  const handleDeleteColumn = async (colId: string, colTitle: string) => {
+  const handleDeleteNote = async (noteId: string) => {
     const ok = await confirm({
-      title: `Delete List "${colTitle}"?`,
-      message: `Are you sure you want to delete the list "${colTitle}" and all of its notes?`,
+      title: 'Delete Note?',
+      message: 'Are you sure you want to delete this note? This action cannot be undone.',
       confirmText: 'Delete',
       danger: true,
     });
     if (!ok) return;
+
     try {
-      await apiPost('delete_note_column', { id: colId });
+      await apiPost('delete_text_pad', { id: noteId });
+      showToast('Note deleted');
       await refresh();
     } catch {
       // ignore
     }
   };
 
-  const handleClearChecked = async () => {
-    const checkedList = activeNotes.filter((n) => n.checked);
-    if (!checkedList.length) return;
-    const ok = await confirm({
-      title: 'Move Checked Notes?',
-      message: `Move ${checkedList.length} checked note(s) to Deleted Notes?`,
-      confirmText: 'Move to Deleted',
-    });
-    if (!ok) return;
-    try {
-      await Promise.all(checkedList.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: false })));
-      await refresh();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleEmptyDeleted = async () => {
-    if (!deletedNotes.length) return;
-    const ok = await confirm({
-      title: 'Permanently Delete Notes?',
-      message: `Permanently delete all ${deletedNotes.length} note(s)? This cannot be undone.`,
-      confirmText: 'Delete Permanently',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await Promise.all(deletedNotes.map((n) => apiPost('delete_kanban_note', { id: n.id, permanent: true })));
-      await refresh();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleAddTextPad = async () => {
-    if (!newPadContent.trim()) return;
-    try {
-      await apiPost('add_text_pad', {
-        title: newPadTitle.trim() || 'Untitled',
-        content: newPadContent,
-      });
-      setNewPadTitle('');
-      setNewPadContent('');
-      await refresh();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to create text pad', { type: 'error' });
-    }
-  };
-
-  const handleSaveTextPad = async (padId: string, title: string) => {
-    const content = editingPadContent[padId];
-    if (content === undefined) return;
-    try {
-      await apiPost('update_text_pad', { id: padId, title, content });
-      showToast(`Saved "${title}"`);
-      await refresh();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to save pad', { type: 'error' });
-    }
-  };
-
-  const handleDeleteTextPad = async (padId: string) => {
-    const ok = await confirm({
-      title: 'Delete Text Pad?',
-      message: 'Are you sure you want to delete this text pad? This cannot be undone.',
-      confirmText: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await apiPost('delete_text_pad', { id: padId });
-      await refresh();
-    } catch {
-      // ignore
-    }
-  };
-
-  const renderFormattedNote = (content: string) => {
+  const renderFormattedContent = (content: string) => {
     if (!content) return <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Empty note</span>;
 
     // Check if the content is rich HTML from the WYSIWYG editor
@@ -248,27 +168,14 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       const trimmed = line.trim();
       if (!trimmed) {
         flushList(`flush-${idx}`);
-        return;
-      }
-
-      if (trimmed === '---' || trimmed === '***') {
-        flushList(`hr-${idx}`);
-        elements.push(
-          <hr
-            key={`hr-${idx}`}
-            style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.12)', margin: '14px 0' }}
-          />
-        );
+        elements.push(<div key={`br-${idx}`} style={{ height: 6 }} />);
         return;
       }
 
       if (trimmed.startsWith('# ')) {
         flushList(`h1-${idx}`);
         elements.push(
-          <h2
-            key={`h1-${idx}`}
-            style={{ fontSize: '1.35rem', margin: '16px 0 8px', color: '#f8fafc', fontWeight: 700 }}
-          >
+          <h2 key={`h1-${idx}`} style={{ margin: '10px 0 6px', fontSize: '1.15rem', color: '#f8fafc', fontWeight: 800 }}>
             {formatInline(trimmed.slice(2))}
           </h2>
         );
@@ -278,25 +185,9 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       if (trimmed.startsWith('## ')) {
         flushList(`h2-${idx}`);
         elements.push(
-          <h3
-            key={`h2-${idx}`}
-            style={{ fontSize: '1.14rem', margin: '14px 0 6px', color: '#60a5fa', fontWeight: 700 }}
-          >
+          <h3 key={`h2-${idx}`} style={{ margin: '8px 0 4px', fontSize: '1.02rem', color: '#f8fafc', fontWeight: 700 }}>
             {formatInline(trimmed.slice(3))}
           </h3>
-        );
-        return;
-      }
-
-      if (trimmed.startsWith('### ')) {
-        flushList(`h3-${idx}`);
-        elements.push(
-          <h4
-            key={`h3-${idx}`}
-            style={{ fontSize: '0.98rem', margin: '10px 0 4px', color: '#93c5fd', fontWeight: 600 }}
-          >
-            {formatInline(trimmed.slice(4))}
-          </h4>
         );
         return;
       }
@@ -326,340 +217,269 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
 
   return (
     <PageContainer
-      title="Notes & Text Pads"
-      icon="fas fa-sticky-note"
+      title="Notes"
+      icon="fas fa-note-sticky"
       iconClass="section-icon-notes"
-      badge={activeNotes.length}
+      badge={notes.length}
       boxed={!isStandalonePage}
       actions={
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button variant="secondary" size="sm" icon="fas fa-broom" onClick={handleClearChecked} title="Clear checked notes">
-            Clear Checked
-          </Button>
-          <Button variant="primary" size="sm" icon="fas fa-plus" onClick={handleAddColumnPrompt} title="Add new sticky list">
-            Add List
-          </Button>
-        </div>
+        <Button
+          variant="primary"
+          size="sm"
+          icon="fas fa-plus"
+          onClick={handleOpenNewNoteModal}
+          title="Create a new note"
+        >
+          Add Note
+        </Button>
       }
     >
-      <WipBanner />
-
-      <div className="notes-kanban-board" id="notes-kanban-board">
-        {columns.map((col) => {
-          const colNotes = activeNotes.filter((n) => n.column_id === col.id);
-          return (
-            <div key={col.id} className="notes-kanban-col" data-col-id={col.id}>
-              <div
-                className="notes-col-header"
-                style={{ '--col-color': col.color } as React.CSSProperties}
-              >
-                <span className="notes-col-drag-handle" title="Hold and drag to reorder lists">
-                  <i className="fas fa-grip-vertical" />
-                </span>
-                <span className="notes-col-dot" style={{ background: col.color }} />
-                <span className="notes-col-title">{col.title}</span>
-                <button
-                  type="button"
-                  className="notes-col-delete-btn"
-                  title="Delete list"
-                  onClick={() => handleDeleteColumn(col.id, col.title)}
-                >
-                  <i className="fas fa-times" />
-                </button>
-              </div>
-
-              <div className="notes-list">
-                {colNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    className={`notes-sticky${note.checked ? ' notes-sticky-checked' : ''}`}
-                    style={{ '--note-color': col.color } as React.CSSProperties}
-                  >
-                    <input
-                      type="checkbox"
-                      className="notes-sticky-check"
-                      checked={Boolean(note.checked)}
-                      onChange={() => handleToggleNote(note.id, Boolean(note.checked))}
-                    />
-                    <div
-                      className="notes-sticky-text"
-                      style={{ cursor: 'pointer', flex: 1, minWidth: 0 }}
-                      onClick={() => {
-                        setEditingNoteModal({ id: note.id, text: note.text, colColor: col.color });
-                        setEditingNoteHtml(note.text);
-                      }}
-                      title="Click to edit with rich text"
-                    >
-                      {renderFormattedNote(note.text)}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        className="notes-sticky-del"
-                        title="Edit note (WYSIWYG)"
-                        style={{ fontSize: '0.78rem', opacity: 0.7 }}
-                        onClick={() => {
-                          setEditingNoteModal({ id: note.id, text: note.text, colColor: col.color });
-                          setEditingNoteHtml(note.text);
-                        }}
-                      >
-                        <i className="fas fa-pencil-alt" />
-                      </button>
-                      <button
-                        type="button"
-                        className="notes-sticky-del"
-                        title="Delete note"
-                        onClick={() => handleDeleteNote(note.id, false)}
-                      >
-                        <i className="fas fa-times" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="notes-add-row">
-                <textarea
-                  className="notes-add-input"
-                  placeholder="New note..."
-                  rows={2}
-                  value={newNoteText[col.id] || ''}
-                  onChange={(e) => setNewNoteText((prev) => ({ ...prev, [col.id]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAddNote(col.id);
-                    }
-                  }}
-                />
-                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon="fas fa-plus"
-                    onClick={() => handleAddNote(col.id)}
-                  >
-                    Add Note
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-
-      <div
-        className={`notes-deleted-wrap collapsible-section${deletedCollapsed ? ' collapsed' : ''}`}
-        id="notes-deleted-section"
-      >
-        <h3
-          className="notes-deleted-toggle section-toggle"
-          onClick={() => setDeletedCollapsed((p) => !p)}
+      {notes.length === 0 ? (
+        <div
+          style={{
+            padding: '48px 20px',
+            textAlign: 'center',
+            background: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: 'var(--card-radius, 14px)',
+            border: '1.5px dashed rgba(255, 255, 255, 0.12)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+          }}
         >
-          <i className="fas fa-trash" /> Deleted Notes
-          <span id="notes-deleted-count" className="notes-deleted-count">
-            {deletedNotes.length}
-          </span>
-          <i className="fas fa-chevron-down section-chevron" />
-        </h3>
-        <div id="notes-deleted-list" className="notes-deleted-list">
-          {deletedNotes.length === 0 ? (
-            <p className="notes-deleted-empty">No deleted notes.</p>
-          ) : (
-            deletedNotes.map((note) => (
-              <div key={note.id} className="notes-deleted-item">
-                <span className="notes-deleted-text">{note.text}</span>
-                <div className="notes-deleted-item-actions">
-                  <button
-                    type="button"
-                    className="notes-deleted-permanent"
-                    title="Delete permanently"
-                    onClick={() => handleDeleteNote(note.id, true)}
-                  >
-                    <i className="fas fa-trash-alt" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="notes-deleted-actions">
+          <span style={{ fontSize: '2.5rem' }}>📝</span>
+          <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem', fontWeight: 700 }}>No notes yet</h3>
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.88rem', maxWidth: 360 }}>
+            Keep track of recipes, Wi-Fi details, household reminders, and important notes here.
+          </p>
           <Button
-            variant="danger"
-            size="sm"
-            icon="fas fa-trash-alt"
-            id="notes-empty-trash-btn"
-            onClick={handleEmptyDeleted}
+            variant="primary"
+            size="md"
+            icon="fas fa-plus"
+            onClick={handleOpenNewNoteModal}
+            style={{ marginTop: 8 }}
           >
-            Empty Deleted
+            Create Your First Note
           </Button>
         </div>
-      </div>
-
-      <div
-        className={`text-pads-wrap collapsible-section${padsCollapsed ? ' collapsed' : ''}`}
-        id="text-pads-section"
-      >
-        <h3
-          className="text-pads-section-toggle section-toggle"
-          onClick={() => setPadsCollapsed((p) => !p)}
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: 16,
+            width: '100%',
+          }}
         >
-          <i className="fas fa-file-alt" /> Text Pads
-          <i className="fas fa-chevron-down section-chevron" />
-        </h3>
-        <div id="text-pads-list" className="text-pads-list">
-          {textPads.length === 0 ? (
-            <p className="text-pads-empty">No text pads yet — add one below.</p>
-          ) : (
-            textPads.map((pad) => {
-              const val = editingPadContent[pad.id] !== undefined ? editingPadContent[pad.id] : pad.content;
-              const mode = padModes[pad.id] || 'view';
-              const isView = mode === 'view';
+          {notes.map((note, idx) => {
+            const cardColor = note.color || POSTIT_COLORS[idx % POSTIT_COLORS.length];
+            const plainText = (note.content || '').replace(/<[^>]*>/g, '');
+            const charCount = plainText.length;
 
-              return (
-                <div key={pad.id} className="text-pad-card">
-                  <div className="text-pad-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 160 }}>
-                      <input
-                        type="text"
-                        className="text-pad-title-input modern-input"
-                        value={pad.title || ''}
-                        readOnly
-                        style={{ fontWeight: 800, fontSize: '1rem' }}
-                      />
-                    </div>
-                    <span className="text-pad-meta" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                      {(val || '').replace(/<[^>]*>/g, '').length.toLocaleString()} chars
-                    </span>
-                    <div className="text-pad-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Button
-                        variant={isView ? 'secondary' : 'primary'}
-                        size="sm"
-                        icon={isView ? 'fas fa-pencil' : 'fas fa-eye'}
-                        onClick={() =>
-                          setPadModes((prev) => ({ ...prev, [pad.id]: isView ? 'edit' : 'view' }))
-                        }
-                      >
-                        {isView ? 'Edit' : 'View'}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon="fas fa-copy"
-                        title="Copy to clipboard"
-                        onClick={() => {
-                          const plain = (val || '').replace(/<[^>]*>/g, '');
-                          navigator.clipboard?.writeText(plain);
-                          showToast('Copied to clipboard');
-                        }}
-                      />
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        icon="fas fa-trash"
-                        title="Delete pad"
-                        onClick={() => handleDeleteTextPad(pad.id)}
-                      />
-                    </div>
+            return (
+              <div
+                key={note.id}
+                style={{
+                  background: 'linear-gradient(150deg, #1e293b 0%, #0f172a 100%)',
+                  borderRadius: 'var(--card-radius, 14px)',
+                  border: `1.5px solid ${cardColor}44`,
+                  borderTop: `4px solid ${cardColor}`,
+                  boxShadow: `0 6px 20px rgba(0, 0, 0, 0.3), 0 0 16px ${cardColor}15`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+                  minHeight: 220,
+                  position: 'relative',
+                }}
+              >
+                {/* Sticky Header */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px 10px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: cardColor,
+                        boxShadow: `0 0 8px ${cardColor}`,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: '1rem',
+                        fontWeight: 800,
+                        color: '#f8fafc',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={note.title}
+                    >
+                      {note.title || 'Untitled Note'}
+                    </h3>
                   </div>
 
-                  {isView ? (
-                    <div className="text-pad-rendered-view" style={{ padding: '14px 16px', minHeight: 140 }}>
-                      {renderFormattedNote(val)}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '10px 0' }}>
-                      <RichEditor
-                        value={val}
-                        onChange={(html) =>
-                          setEditingPadContent((prev) => ({ ...prev, [pad.id]: html }))
-                        }
-                        minHeight="220px"
-                      />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                        <Button
-                          variant="primary"
-                          size="md"
-                          icon="fas fa-check"
-                          onClick={async () => {
-                            await handleSaveTextPad(pad.id, pad.title);
-                            setPadModes((prev) => ({ ...prev, [pad.id]: 'view' }));
-                          }}
-                        >
-                          Done &amp; View
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon="fas fa-pencil-alt"
+                      aria-label="Edit note"
+                      title="Edit note"
+                      onClick={() => handleOpenEditNoteModal(note)}
+                    />
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon="fas fa-copy"
+                      aria-label="Copy note text"
+                      title="Copy note text"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(plainText);
+                        showToast('Note copied to clipboard');
+                      }}
+                    />
+                    <IconButton
+                      size="sm"
+                      variant="danger"
+                      icon="fas fa-trash-alt"
+                      aria-label="Delete note"
+                      title="Delete note"
+                      onClick={() => handleDeleteNote(note.id)}
+                    />
+                  </div>
                 </div>
-              );
-            })
-          )}
-        </div>
-        <div className="text-pad-composer" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
-          <input
-            type="text"
-            id="text-pad-new-title"
-            className="modern-input"
-            placeholder="Document Title (optional)..."
-            maxLength={80}
-            value={newPadTitle}
-            onChange={(e) => setNewPadTitle(e.target.value)}
-            style={{ fontWeight: 700 }}
-          />
-          <RichEditor
-            value={newPadContent}
-            onChange={(html) => setNewPadContent(html)}
-            placeholder="Paste or type your document text with rich formatting..."
-            minHeight="140px"
-          />
-          <div className="text-pad-composer-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-            <span className="text-pad-char-count" id="text-pad-char-count" style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-              {newPadContent.replace(/<[^>]*>/g, '').length.toLocaleString()} chars
-            </span>
-            <Button
-              variant="primary"
-              size="md"
-              icon="fas fa-plus"
-              id="text-pad-add-btn"
-              onClick={handleAddTextPad}
-            >
-              Save Pad
-            </Button>
-          </div>
-        </div>
-      </div>
 
-      {/* Edit Sticky Note WYSIWYG Modal */}
-      {editingNoteModal && (
+                {/* Sticky Body */}
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    flex: 1,
+                    overflowY: 'auto',
+                    maxHeight: 280,
+                    fontSize: '0.92rem',
+                    lineHeight: 1.6,
+                    color: '#e2e8f0',
+                  }}
+                  onClick={() => handleOpenEditNoteModal(note)}
+                  title="Click to edit note"
+                >
+                  {renderFormattedContent(note.content)}
+                </div>
+
+                {/* Footer Meta */}
+                <div
+                  style={{
+                    padding: '6px 14px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.74rem',
+                    color: '#94a3b8',
+                    background: 'rgba(0, 0, 0, 0.15)',
+                  }}
+                >
+                  <span>{charCount.toLocaleString()} chars</span>
+                  <span style={{ color: cardColor, fontWeight: 700 }}>Sticky Note</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Spacious Edit / Add Note Modal (At least 10 lines of height!) */}
+      {activeModalNote && (
         <Modal
-          open={Boolean(editingNoteModal)}
-          onClose={() => setEditingNoteModal(null)}
-          title="Edit Sticky Note"
+          open={Boolean(activeModalNote)}
+          onClose={() => setActiveModalNote(null)}
+          title={isNewNote ? 'New Note' : `Edit Note: ${modalTitle || 'Untitled'}`}
           icon="fas fa-sticky-note"
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <RichEditor
-              value={editingNoteHtml}
-              onChange={(html) => setEditingNoteHtml(html)}
-              placeholder="Type your note content..."
-              minHeight="180px"
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button
-                variant="secondary"
-                onClick={() => setEditingNoteModal(null)}
-              >
+          maxWidth={720}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+              <Button variant="ghost" size="sm" onClick={() => setActiveModalNote(null)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
+                size="sm"
                 icon="fas fa-check"
-                onClick={handleSaveNoteEdit}
+                onClick={handleSaveModalNote}
               >
-                Save Changes
+                Save Note
               </Button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Input
+              label="Note Title"
+              placeholder="e.g. Wi-Fi Password, Shopping Checklist, Babysitter Instructions..."
+              value={modalTitle}
+              onChange={(e) => setModalTitle(e.target.value)}
+              autoFocus
+            />
+
+            {/* Color Swatch Picker */}
+            <div>
+              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
+                Note Color
+              </label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {POSTIT_COLORS.map((col) => {
+                  const isSelected = modalColor === col;
+                  return (
+                    <button
+                      key={col}
+                      type="button"
+                      onClick={() => setModalColor(col)}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: col,
+                        border: isSelected ? '3px solid #ffffff' : '2px solid rgba(0,0,0,0.3)',
+                        boxShadow: isSelected ? `0 0 10px ${col}` : 'none',
+                        cursor: 'pointer',
+                        transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={col}
+                      aria-label={`Select color ${col}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Spacious Rich Text Area - At least 10 lines (320px min-height) */}
+            <div>
+              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}>
+                Note Content
+              </label>
+              <RichEditor
+                value={modalContent}
+                onChange={(html) => setModalContent(html)}
+                placeholder="Write your note here... Use formatting, bullets, checklists, or paste text."
+                minHeight="320px"
+              />
             </div>
           </div>
         </Modal>
@@ -667,4 +487,3 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
     </PageContainer>
   );
 };
-

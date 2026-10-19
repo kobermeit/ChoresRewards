@@ -800,13 +800,13 @@ export const DashboardSection: React.FC = () => {
             <i className="fas fa-star" style={{ color: '#fbbf24' }} />
             <span>Play Games</span>
           </h3>
-          <div className="play-launch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, maxWidth: 280, margin: '0 auto', width: '100%' }}>
+          <div className="play-launch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, maxWidth: 280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
             <button
               type="button"
               className="play-launch play-launch-maths"
               id="play-open-maths"
               aria-label="Play maths"
-              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
+              style={{ aspectRatio: '1 / 1', minHeight: 0, width: '100%' }}
               onClick={() => openPlayGame('maths')}
             >
               <span className="play-launch-mark" aria-hidden="true">×</span>
@@ -817,7 +817,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-colours"
               id="play-open-colours"
               aria-label="Play colours"
-              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
+              style={{ aspectRatio: '1 / 1', minHeight: 0, width: '100%' }}
               onClick={() => openPlayGame('colours')}
             >
               <span className="play-launch-swatches" aria-hidden="true">
@@ -833,7 +833,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-patterns"
               id="play-open-patterns"
               aria-label="Play patterns"
-              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
+              style={{ aspectRatio: '1 / 1', minHeight: 0, width: '100%' }}
               onClick={() => openPlayGame('patterns')}
             >
               <span className="play-launch-mark play-launch-mark-sm" aria-hidden="true">2 4 6</span>
@@ -844,7 +844,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-memory"
               id="play-open-memory"
               aria-label="Play memory"
-              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
+              style={{ aspectRatio: '1 / 1', minHeight: 0, width: '100%' }}
               onClick={() => openPlayGame('memory')}
             >
               <span className="play-launch-cards" aria-hidden="true">

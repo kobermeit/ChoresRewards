@@ -203,20 +203,37 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         }}
       >
         <div>
-          <h3
-            className="cr-item-card-title"
-            style={{
-              margin: '0 0 4px',
-              fontSize: '1rem',
-              fontWeight: 800,
-              color: '#f8fafc',
-              lineHeight: 1.3,
-              wordBreak: 'break-word',
-            }}
-            title={typeof title === 'string' ? title : undefined}
-          >
-            {title}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+            <h3
+              className="cr-item-card-title"
+              style={{
+                margin: '0 0 4px',
+                fontSize: '1rem',
+                fontWeight: 800,
+                color: '#f8fafc',
+                lineHeight: 1.3,
+                wordBreak: 'break-word',
+                flex: 1,
+              }}
+              title={typeof title === 'string' ? title : undefined}
+            >
+              {title}
+            </h3>
+
+            {secondaryActions && (
+              <div
+                className="cr-item-card-secondary-actions"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  flexShrink: 0,
+                }}
+              >
+                {secondaryActions}
+              </div>
+            )}
+          </div>
 
           {subtitle && (
             <div className="cr-item-card-subtitle" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
@@ -232,7 +249,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         </div>
 
         {/* Bottom Actions Row */}
-        {(primaryAction || secondaryActions) && (
+        {primaryAction && (
           <div
             className="cr-item-card-actions"
             style={{
@@ -242,14 +259,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               marginTop: 'auto',
               paddingTop: 8,
               borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              width: '100%',
             }}
           >
-            {primaryAction && <div style={{ flex: 1, minWidth: 0 }}>{primaryAction}</div>}
-            {secondaryActions && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                {secondaryActions}
-              </div>
-            )}
+            <div style={{ flex: 1, minWidth: 0 }}>{primaryAction}</div>
           </div>
         )}
       </div>

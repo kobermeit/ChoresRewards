@@ -6,7 +6,7 @@ import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
-import { PageContainer, Button, IconButton, PillButton, Badge, Input, Select, Textarea, FormField } from './ui';
+import { PageContainer, Button, IconButton, PillButton, Badge, Input, Select, Textarea, FormField, WheelPickerOverlay } from './ui';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -212,6 +212,12 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
   const [recentlyPurchasedOpen, setRecentlyPurchasedOpen] = useState(false);
   const [selectedFrequentKeys, setSelectedFrequentKeys] = useState<Record<string, boolean>>({});
   const [selectedSuggestedKeys, setSelectedSuggestedKeys] = useState<Record<string, boolean>>({});
+  const [quantityPickerTarget, setQuantityPickerTarget] = useState<{
+    key: string;
+    name: string;
+    currentQty: number | string;
+    onRemove?: () => void;
+  } | null>(null);
 
   // Kanban Meal Planner Add/Edit Modal
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -828,7 +834,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
     }
   };
 
-  const handleOpenRecipeModal = (card: { title: string; meal_key?: string }) => {
+  const handleOpenRecipeModal = (card: { title: string; meal_key?: string; id?: string }, dateIso?: string) => {
     const key = (card.meal_key || card.title).toLowerCase().trim();
     const existing = recipesRecord[key] || {
       meal_key: key,
@@ -839,7 +845,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
       servings: '4',
       prep_time: '25 mins',
     };
-    setActiveRecipe(existing);
+    setActiveRecipe({ ...existing, _cardId: card.id, _dateIso: dateIso } as any);
   };
 
   const handleOpenEditRecipeModal = (recipe: RecipeItem) => {
@@ -957,7 +963,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
       await apiPost('add_general_shopping_item', {
         name: trimmed,
         qty: '',
-        store: preferredStore || shoppingStore || stores[0]?.id || 'aldi',
+        store: shoppingStore || preferredStore || stores[0]?.id || 'aldi',
       });
       showToast(`Added "${trimmed}" to list`);
       await refresh();
@@ -1168,34 +1174,29 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                         title={`Click to plan "${suggestedTitle}" for ${day.day_full}`}
                         style={{
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4,
-                          padding: '6px 8px',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 10px',
                           border: '1.5px dashed rgba(245, 158, 11, 0.45)',
                           background: 'rgba(245, 158, 11, 0.06)',
                           borderRadius: 'var(--card-radius, 10px)',
                           cursor: 'pointer',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                          <span style={{ fontSize: '1rem', lineHeight: 1, flexShrink: 0 }}>💡</span>
-                          <span
-                            className="meal-kanban-card-title"
-                            style={{
-                              fontSize: '0.82rem',
-                              color: '#fbbf24',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {suggestedTitle}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.66rem', color: 'rgba(255, 255, 255, 0.45)', paddingLeft: 22 }}>
-                          + Plan Suggestion
-                        </div>
+                        <span style={{ fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>💡</span>
+                        <span
+                          className="meal-kanban-card-title"
+                          style={{
+                            fontSize: '0.84rem',
+                            color: '#fbbf24',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {suggestedTitle}
+                        </span>
                       </div>
                     ) : (
                       dayCards.map((card) => {
@@ -1209,23 +1210,10 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                             draggable
                             onDragStart={() => setDraggedSlot({ dateIso: day.date_iso, mealKey: card.id as any })}
                             onDragEnd={() => setDraggedSlot(null)}
-                            onClick={() => handleOpenRecipeModal(card)}
-                            title="Click to view recipe & ingredients"
+                            onClick={() => handleOpenRecipeModal(card, day.date_iso)}
+                            title="Click to view recipe, method & ingredients"
                             style={{ position: 'relative', padding: '6px 8px' }}
                           >
-                            {/* Floating Top-Right Corner Delete Button */}
-                            {!isChild && (
-                              <button
-                                type="button"
-                                className="meal-kanban-delete-corner"
-                                aria-label="Delete meal"
-                                title="Delete meal"
-                                onClick={(e) => handleDeleteCard(day.date_iso, card.id, e)}
-                              >
-                                ✕
-                              </button>
-                            )}
-
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minWidth: 0 }}>
                               {customImg ? (
                                 <FallbackImage
@@ -1302,7 +1290,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
             }
 
             return (
-              <div id="meal-planner-editable" className="meal-week-display">
+              <div id="meal-planner-editable" className="meal-week-display meal-week-display-1week">
                 {week1Days.map(renderKanbanDay)}
               </div>
             );
@@ -1436,8 +1424,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                 </div>
               )}
             </div>
-            <select
-              className="meal-quick-add shopping-store-select shopping-dynamic-store-select"
+            <Select
               value={shoppingStore || stores[0]?.id || ''}
               onChange={(e) => {
                 if (e.target.value === '__add_new_store__') {
@@ -1446,14 +1433,12 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                   setShoppingStore(e.target.value);
                 }
               }}
-            >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-              <option value="__add_new_store__">+ Add store…</option>
-            </select>
+              options={[
+                ...stores.map((s) => ({ value: s.id, label: s.name })),
+                { value: '__add_new_store__', label: '+ Add store…' },
+              ]}
+              style={{ minWidth: 140 }}
+            />
             <Button
               variant="primary"
               size="md"
@@ -1493,8 +1478,8 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
             );
 
             let uncheckedCount = 0;
-            mealGroupsForStore.forEach(([mealKey, ings]) => {
-              (ings || [])
+            mealGroupsForStore.forEach(([mealKey, allIngs]) => {
+              (allIngs || [])
                 .filter(
                   (i: MealIngredient) =>
                     (i.store || '').toLowerCase() === store.id.toLowerCase() ||
@@ -1593,15 +1578,24 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                                       checked={checked}
                                       onChange={() => handleToggleShopCheck(itemKey, checked)}
                                     />
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      className="shopping-item-qty-input"
-                                      value={numericQty}
-                                      onChange={(e) => handleUpdateQuantity(itemKey, e.target.value)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      title="Quantity to buy"
-                                    />
+                                    <button
+                                      type="button"
+                                      className="shopping-item-qty-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setQuantityPickerTarget({
+                                          key: itemKey,
+                                          name: ing.name,
+                                          currentQty: numericQty,
+                                          onRemove: undefined,
+                                        });
+                                      }}
+                                      title="Change quantity"
+                                      aria-label={`Change quantity for ${ing.name}`}
+                                    >
+                                      {numericQty}×
+                                    </button>
                                     <span className="shopping-item-name">
                                       {ing.name}
                                       {ing.qty && <span className="shopping-item-recipe-detail">({ing.qty})</span>}
@@ -1639,15 +1633,24 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                               checked={checked}
                               onChange={() => handleToggleShopCheck(itemKey, checked)}
                             />
-                            <input
-                              type="number"
-                              min={1}
-                              className="shopping-item-qty-input"
-                              value={numericQty}
-                              onChange={(e) => handleUpdateQuantity(itemKey, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              title="Quantity to buy"
-                            />
+                            <button
+                              type="button"
+                              className="shopping-item-qty-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setQuantityPickerTarget({
+                                  key: itemKey,
+                                  name: g.name,
+                                  currentQty: numericQty,
+                                  onRemove: () => handleRemoveGeneralItem(g.name, g.id),
+                                });
+                              }}
+                              title="Change quantity"
+                              aria-label={`Change quantity for ${g.name}`}
+                            >
+                              {numericQty}×
+                            </button>
                             <span className="shopping-item-name">
                               {g.name}
                               {recipeDetail && <span className="shopping-item-recipe-detail">({recipeDetail})</span>}
@@ -1787,43 +1790,68 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                     onClick={() => handleOpenRecipeModal({ title: displayName, meal_key: mealKey })}
                     style={{ cursor: 'pointer' }}
                   >
-                    <div className="meal-card-img-area">
+                    <div className="meal-card-img-area" style={{ position: 'relative', height: 110, overflow: 'hidden' }}>
                       <FallbackImage
                         src={imageUrl ? resolveAssetUrl(imageUrl) : ''}
                         alt={displayName}
                         className="meal-card-img"
                         fallbackEmoji={getMealEmoji(mealKey)}
                         fallbackIcon="fa-utensils"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
-                    </div>
-                    <div className="meal-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                      <span className="meal-card-title" style={{ flex: 1, minWidth: 0 }}>{displayName}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        {isSynced ? (
+                      {isSynced ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 6,
+                            left: 6,
+                            zIndex: 3,
+                          }}
+                        >
                           <span
                             title="Synced from Notion (read-only)"
                             style={{
-                              fontSize: '0.7rem',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
                               color: '#c4b5fd',
-                              background: 'rgba(167, 139, 250, 0.16)',
-                              border: '1px solid rgba(167, 139, 250, 0.3)',
+                              background: 'rgba(15, 23, 42, 0.75)',
+                              backdropFilter: 'blur(4px)',
+                              border: '1px solid rgba(167, 139, 250, 0.4)',
                               borderRadius: 'var(--radius-pill)',
-                              padding: '1px 6px',
+                              padding: '2px 7px',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 3,
+                              gap: 4,
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
                             }}
                           >
-                            <i className="fas fa-arrows-rotate" style={{ fontSize: '0.65rem' }} /> Notion
+                            <i className="fas fa-arrows-rotate" style={{ fontSize: '0.62rem' }} /> Notion
                           </span>
-                        ) : !isChild ? (
+                        </div>
+                      ) : !isChild ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 6,
+                            right: 6,
+                            zIndex: 3,
+                          }}
+                        >
                           <IconButton
                             size="sm"
                             variant="ghost"
                             icon="fas fa-pencil-alt"
                             aria-label="Edit recipe"
                             title="Edit manual recipe"
-                            style={{ width: 26, height: 26 }}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              background: 'rgba(15, 23, 42, 0.7)',
+                              backdropFilter: 'blur(4px)',
+                              borderRadius: '50%',
+                              color: '#f8fafc',
+                              border: '1px solid rgba(255,255,255,0.18)',
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenEditRecipeModal(
@@ -1839,7 +1867,36 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                               );
                             }}
                           />
-                        ) : null}
+                        </div>
+                      ) : null}
+
+                      {/* Recipe Name Overlay with slight dark gradient backdrop at bottom of image */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          padding: '16px 10px 6px',
+                          background: 'linear-gradient(to top, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.6) 65%, transparent 100%)',
+                          zIndex: 2,
+                        }}
+                      >
+                        <span
+                          className="meal-card-title"
+                          style={{
+                            display: 'block',
+                            fontSize: '0.88rem',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            textShadow: '0 1px 3px rgba(0,0,0,0.85)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {displayName}
+                        </span>
                       </div>
                     </div>
                     <div className="meal-card-ing-list">
@@ -2158,13 +2215,13 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         </div>
       </Modal>
 
-      {/* 2. Recipe View & Edit Modal */}
+      {/* 2. Recipe View & Edit Modal — Wide Side-by-Side Reading Layout */}
       <Modal
         open={Boolean(activeRecipe)}
         onClose={() => setActiveRecipe(null)}
         title={activeRecipe?.title || 'Recipe Details'}
         icon="fas fa-book-open"
-        maxWidth={640}
+        maxWidth={1000}
         footer={
           activeRecipe ? (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -2176,7 +2233,22 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
               >
                 Add to Shopping List
               </Button>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {(activeRecipe as any)._cardId && (activeRecipe as any)._dateIso && !isChild && (
+                  <IconButton
+                    size="sm"
+                    variant="danger"
+                    icon="fas fa-trash-alt"
+                    aria-label="Remove meal from day"
+                    title="Remove meal from this day"
+                    onClick={async (e) => {
+                      const dateIso = (activeRecipe as any)._dateIso;
+                      const cardId = (activeRecipe as any)._cardId;
+                      setActiveRecipe(null);
+                      await handleDeleteCard(dateIso, cardId, e);
+                    }}
+                  />
+                )}
                 {!activeRecipe.notion_id && !isChild && (
                   <Button
                     variant="secondary"
@@ -2200,55 +2272,152 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         }
       >
         {activeRecipe && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {activeRecipe.image_url ? (
-              <FallbackImage
-                src={resolveAssetUrl(activeRecipe.image_url)}
-                alt={activeRecipe.title}
-                className="recipe-modal-img"
-                fallbackEmoji={getMealEmoji(activeRecipe.meal_key || activeRecipe.title)}
-                fallbackIcon="fa-utensils"
-                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }}
-              />
-            ) : null}
-            <div className="recipe-meta-row">
-              <span>
-                <i className="fas fa-clock" /> {activeRecipe.prep_time || '25 mins'}
-              </span>
-              <span>
-                <i className="fas fa-users" /> {activeRecipe.servings || '4 servings'}
-              </span>
-              {activeRecipe.notion_id && (
-                <span style={{ color: '#a78bfa' }}>
-                  <i className="fas fa-arrows-rotate" /> Synced from Notion
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: 'calc(80vh - 140px)', maxHeight: 600, minHeight: 380, overflow: 'hidden' }}>
+            {/* Top metadata & optional banner row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, flexShrink: 0, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="recipe-meta-row" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 16 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#e2e8f0' }}>
+                  <i className="fas fa-clock" style={{ color: '#60a5fa' }} /> {activeRecipe.prep_time || '25 mins'}
                 </span>
-              )}
-            </div>
-
-            <div>
-              <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Ingredients</strong>
-              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {(activeRecipe.ingredients || []).length === 0 ? (
-                  <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic' }}>
-                    No ingredients specified.
-                  </div>
-                ) : (
-                  (activeRecipe.ingredients || []).map((ing, idx) => (
-                    <div key={idx} className="recipe-ing-item">
-                      <span>{ing.name}</span>
-                      {ing.qty ? (
-                        <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.88rem' }}>{ing.qty}</span>
-                      ) : null}
-                    </div>
-                  ))
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#e2e8f0' }}>
+                  <i className="fas fa-users" style={{ color: '#34d399' }} /> {activeRecipe.servings || '4 servings'}
+                </span>
+                {activeRecipe.notion_id && (
+                  <span style={{ color: '#c4b5fd', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <i className="fas fa-arrows-rotate" /> Synced from Notion
+                  </span>
                 )}
               </div>
             </div>
 
-            <div>
-              <strong style={{ fontSize: '0.9rem', color: '#f8fafc' }}>Instructions / Method</strong>
-              <div className="recipe-instructions-box">
-                {activeRecipe.instructions || 'No instructions specified.'}
+            {/* Side-by-side columns: Ingredients (left, max 270px) and Method (right, flex 1) */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(220px, 270px) 1fr',
+                gap: 16,
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Left Column: Ingredients with self-scroll */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: 'rgba(15, 23, 42, 0.45)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  minHeight: 0,
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
+                  <strong style={{ fontSize: '0.88rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Ingredients ({(activeRecipe.ingredients || []).length})
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    minHeight: 0,
+                    paddingRight: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  {(activeRecipe.ingredients || []).length === 0 ? (
+                    <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic', padding: '12px 0' }}>
+                      No ingredients specified.
+                    </div>
+                  ) : (
+                    (activeRecipe.ingredients || []).map((ing, idx) => (
+                      <div
+                        key={idx}
+                        className="recipe-ing-item"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          padding: '6px 8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          borderRadius: 6,
+                          border: '1px solid rgba(255, 255, 255, 0.04)',
+                        }}
+                      >
+                        <span
+                          title={ing.name}
+                          style={{
+                            fontSize: '0.84rem',
+                            color: '#f1f5f9',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: 170,
+                          }}
+                        >
+                          {ing.name}
+                        </span>
+                        {ing.qty ? (
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: '#93c5fd',
+                              fontSize: '0.82rem',
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {ing.qty}
+                          </span>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Instructions / Method with self-scroll */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: 'rgba(15, 23, 42, 0.45)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  minHeight: 0,
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ marginBottom: 8, flexShrink: 0 }}>
+                  <strong style={{ fontSize: '0.88rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Instructions / Method
+                  </strong>
+                </div>
+
+                <div
+                  className="recipe-instructions-box"
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    minHeight: 0,
+                    paddingRight: 6,
+                    fontSize: '0.92rem',
+                    lineHeight: 1.6,
+                    color: '#e2e8f0',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {activeRecipe.instructions || 'No instructions specified.'}
+                </div>
               </div>
             </div>
           </div>
@@ -2702,6 +2871,27 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
           )}
         </div>
       </Modal>
+
+      {/* Quantity Picker Google Clock-style Wheel Overlay */}
+      {quantityPickerTarget && (
+        <WheelPickerOverlay
+          open={Boolean(quantityPickerTarget)}
+          onClose={() => setQuantityPickerTarget(null)}
+          value={quantityPickerTarget.currentQty}
+          min={0}
+          max={15}
+          showZeroAsTrash={true}
+          onSelect={(n) => {
+            if (quantityPickerTarget) {
+              if (n === 0) {
+                quantityPickerTarget.onRemove();
+              } else {
+                handleUpdateQuantity(quantityPickerTarget.key, String(n));
+              }
+            }
+          }}
+        />
+      )}
     </>
   );
 };

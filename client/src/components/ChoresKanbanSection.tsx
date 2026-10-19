@@ -1023,33 +1023,22 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                                 await apiPost('undo_complete_chore', { chore_id: chore.id });
                                 await refresh();
                               }}
-                              title="Mark as not completed (takes back points)"
-                            >
-                              Undo
-                            </Button>
+                              title="Undo completion (takes back points)"
+                              aria-label="Undo completion"
+                            />
                           ) : isTimed ? (
                             <div style={{ display: 'flex', gap: 6, width: '100%' }}>
                               <Button
                                 size="sm"
                                 variant="success"
                                 icon="fas fa-play"
-                                style={{ flex: 1.2 }}
+                                fullWidth
                                 onClick={() => {
                                   startChoreTimer(chore);
                                   toggleChoreFlip(chore.id, true);
                                 }}
                               >
                                 Start ({Math.round((chore.duration_seconds || 600) / 60)}m)
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="fas fa-check"
-                                style={{ flex: 1 }}
-                                onClick={() => handleCompleteChore(chore, person)}
-                                title="Skip timer and mark complete"
-                              >
-                                Skip
                               </Button>
                             </div>
                           ) : (
@@ -1094,7 +1083,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               imageUrl={chore.image_url}
                               icon={detectChoreIcon(chore.title, chore.icon)}
                               accentColor={person.color}
-                              heroHeight={120}
+                              heroHeight={110}
                               pointsBadge={pointsPill}
                               statusBadges={statusBadges}
                               primaryAction={primaryAction}
@@ -1476,33 +1465,22 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                                 await apiPost('undo_complete_chore', { chore_id: chore.id });
                                 await refresh();
                               }}
-                              title="Mark as not completed (takes back points)"
-                            >
-                              Undo
-                            </Button>
+                              title="Undo completion (takes back points)"
+                              aria-label="Undo completion"
+                            />
                           ) : isTimed ? (
                             <div style={{ display: 'flex', gap: 6, width: '100%' }}>
                               <Button
                                 size="sm"
                                 variant="success"
                                 icon="fas fa-play"
-                                style={{ flex: 1.2 }}
+                                fullWidth
                                 onClick={() => {
                                   startChoreTimer(chore);
                                   toggleChoreFlip(chore.id, true);
                                 }}
                               >
                                 Start ({Math.round((chore.duration_seconds || 600) / 60)}m)
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="fas fa-check"
-                                style={{ flex: 1 }}
-                                onClick={() => handleCompleteChore(chore, person)}
-                                title="Skip timer and mark complete"
-                              >
-                                Skip
                               </Button>
                             </div>
                           ) : (
