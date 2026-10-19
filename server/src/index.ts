@@ -13,6 +13,7 @@ import { rewardsRouter } from './routes/rewards';
 import { householdRouter } from './routes/household';
 import { organiseRouter } from './routes/organise';
 import { settingsRouter } from './routes/settings';
+import { mediaRouter } from './routes/media';
 
 initDatabase();
 
@@ -61,6 +62,7 @@ const routers = [
   householdRouter,
   organiseRouter,
   settingsRouter,
+  mediaRouter,
 ];
 
 for (const router of routers) {

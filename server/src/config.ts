@@ -34,7 +34,9 @@ export const CLIENT_DIST_DIR = path.join(REPO_ROOT, 'client', 'dist');
 for (const dir of [
   DATA_DIR,
   UPLOADS_DIR,
+  path.join(UPLOADS_DIR, 'chores'),
   path.join(UPLOADS_DIR, 'rewards'),
+  path.join(UPLOADS_DIR, 'library'),
   path.join(UPLOADS_DIR, 'meals'),
   path.join(UPLOADS_DIR, 'organise'),
   path.join(UPLOADS_DIR, 'sounds'),

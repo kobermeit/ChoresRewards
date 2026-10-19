@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Chore, Person } from '../types';
-import { apiPost, resolveAssetUrl } from '../api';
+import { apiPost, resolveAssetUrl, resolveApiUrl } from '../api';
 import { Modal } from './common/Modal';
+import { PhotoPickerModal } from './common/PhotoPickerModal';
 import { UserAvatar } from './ui/UserAvatar';
 import { Button, Input, NumberStepper, DurationStepper } from './ui';
 import { FormErrorAlert } from './FormErrorAlert';
@@ -28,21 +29,30 @@ const DEFAULT_CHORE_SUGGESTIONS = [
 ];
 
 export const STOCK_CHORE_IMAGES = [
-  { url: './static/images/chores/chore_lunchbox.svg', label: 'Lunchbox on Bench' },
-  { url: './static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
-  { url: './static/images/chores/chore_bed.svg', label: 'Make Bed' },
-  { url: './static/images/chores/chore_tidy_room.svg', label: 'Tidy Room' },
-  { url: './static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
-  { url: './static/images/chores/chore_feed_pets.svg', label: 'Feed Pets' },
+  { url: './static/images/chores/chore_clean_bedroom.jpg', label: 'Clean Bedroom' },
+  { url: './static/images/chores/chore_feed_pets.jpg', label: 'Feed Pets' },
+  { url: './static/images/chores/chore_reading_time.jpg', label: 'Reading Time' },
+  { url: './static/images/chores/chore_music_practice.jpg', label: 'Music Practice' },
+  { url: './static/images/chores/chore_arts_crafts.jpg', label: 'Arts & Crafts' },
+  { url: './static/images/chores/chore_homework.jpg', label: 'Do Homework' },
+  { url: './static/images/chores/chore_building_blocks.jpg', label: 'Building Blocks / LEGO' },
+  { url: './static/images/chores/chore_brush_teeth.jpg', label: 'Brush Teeth' },
+  { url: './static/images/chores/chore_bubble_bath.jpg', label: 'Bath & Shower' },
+  { url: './static/images/chores/chore_get_dressed.jpg', label: 'Get Dressed Independently' },
+  { url: './static/images/chores/chore_healthy_snack.jpg', label: 'Drink Water & Healthy Snack' },
+  { url: './static/images/chores/chore_quiet_time.jpg', label: 'Quiet Time & Mindfulness' },
+  { url: './static/images/chores/chore_bike_ride.jpg', label: 'Outdoor Bike / Scooter Ride' },
   { url: './static/images/chores/chore_walk_dog.svg', label: 'Walk the Dog' },
-  { url: './static/images/chores/chore_homework.svg', label: 'Do Homework' },
-  { url: './static/images/chores/chore_teeth.svg', label: 'Brush Teeth' },
+  { url: './static/images/chores/chore_bed.svg', label: 'Make Bed' },
+  { url: './static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
+  { url: './static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
   { url: './static/images/chores/chore_laundry.svg', label: 'Fold Laundry' },
   { url: './static/images/chores/chore_vacuum.svg', label: 'Vacuum & Sweep' },
   { url: './static/images/chores/chore_table.svg', label: 'Set Table' },
   { url: './static/images/chores/chore_plants.svg', label: 'Water Plants' },
   { url: './static/images/chores/chore_wipe_bench.svg', label: 'Wipe Bench' },
   { url: './static/images/chores/chore_backpack.svg', label: 'Pack School Bag' },
+  { url: './static/images/chores/chore_lunchbox.svg', label: 'Lunchbox on Bench' },
   { url: './static/images/chores/chore_shoes.svg', label: 'Put Away Shoes' },
 ];
 
@@ -197,13 +207,46 @@ export const ChoreModal: React.FC = () => {
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length === 1) {
+      const file = files[0];
       setImageFile(file);
       setRemoveImage(false);
+      setImageUrl(null);
       const url = URL.createObjectURL(file);
       setImagePreview(url);
+    } else {
+      // Multiple files selected: bulk upload to custom media library
+      try {
+        setSubmitting(true);
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append('files', files[i]);
+        }
+        const res = await fetch(resolveApiUrl('media/bulk_upload'), {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.files?.length > 0) {
+            const primary = json.files[0];
+            setImageUrl(primary.url);
+            setImagePreview(resolveAssetUrl(primary.url));
+            setImageFile(null);
+            setRemoveImage(false);
+            showToast(`Uploaded ${json.files.length} photos to your library!`);
+          }
+        }
+      } catch {
+        showToast('Error uploading photos');
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -601,6 +644,7 @@ export const ChoreModal: React.FC = () => {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept="image/*"
             onChange={handleFileChange}
             style={{ display: 'none' }}
@@ -1091,80 +1135,20 @@ export const ChoreModal: React.FC = () => {
       </form>
     </Modal>
 
-    {/* Dedicated Stock Photo Picker Modal */}
-    <Modal
+    {/* Dedicated Photo Picker Modal with Default and My Photos tabs */}
+    <PhotoPickerModal
       open={stockPickerOpen}
       onClose={() => setStockPickerOpen(false)}
-      title="Choose a Photo"
-      icon="fas fa-images"
-      className="cr-modal-stacked"
-      maxWidth={680}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-          <Button variant="secondary" onClick={() => setStockPickerOpen(false)}>
-            Cancel
-          </Button>
-        </div>
-      }
-    >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
-          gap: 12,
-          padding: '6px 2px 12px',
-          maxHeight: '62vh',
-          overflowY: 'auto',
-        }}
-      >
-        {STOCK_CHORE_IMAGES.map((item) => {
-          const isSelected = imageUrl === item.url;
-          return (
-            <div
-              key={item.url}
-              onClick={() => {
-                setImageUrl(item.url);
-                setImagePreview(resolveAssetUrl(item.url));
-                setImageFile(null);
-                setRemoveImage(false);
-                setStockPickerOpen(false);
-              }}
-              className="chore-stock-card"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                padding: '16px 10px',
-                borderRadius: 14,
-                cursor: 'pointer',
-                background: isSelected ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.04)',
-                border: isSelected ? '2px solid #3b82f6' : '1.5px solid rgba(255, 255, 255, 0.1)',
-                textAlign: 'center',
-              }}
-              title={item.label}
-            >
-              <img
-                src={resolveAssetUrl(item.url)}
-                alt={item.label}
-                style={{ width: 56, height: 56, objectFit: 'contain' }}
-              />
-              <span
-                style={{
-                  fontSize: '0.82rem',
-                  fontWeight: isSelected ? 800 : 600,
-                  color: isSelected ? '#93c5fd' : '#e2e8f0',
-                  lineHeight: 1.25,
-                }}
-              >
-                {item.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </Modal>
+      title="Choose Chore Photo"
+      stockImages={STOCK_CHORE_IMAGES}
+      selectedUrl={imageUrl || undefined}
+      onSelect={(url) => {
+        setImageUrl(url);
+        setImagePreview(resolveAssetUrl(url));
+        setImageFile(null);
+        setRemoveImage(false);
+      }}
+    />
   </>
   );
 };

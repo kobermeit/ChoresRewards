@@ -1,26 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
+import { apiPost, resolveAssetUrl, resolveAvatarUrl, resolveApiUrl } from '../api';
 import { Reward, FamilyMember } from '../types';
 import { Modal } from './common/Modal';
+import { PhotoPickerModal } from './common/PhotoPickerModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FormErrorAlert } from './FormErrorAlert';
 import { FallbackImage } from './common/FallbackImage';
 import { Button, IconButton, PillButton, Input, Select, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, UserAvatar, NumberStepper } from './ui';
 
 const STOCK_REWARD_IMAGES = [
-  { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
-  { url: './static/images/rewards/reward_order_in.svg', label: 'Order In Dinner' },
-  { url: './static/images/rewards/reward_shopping.svg', label: 'Shopping Trip' },
+  { url: './static/images/rewards/reward_bike_ride.jpg', label: 'Outdoor Bike / Park Ride' },
+  { url: './static/images/rewards/reward_reading.jpg', label: 'Cozy Reading Time' },
+  { url: './static/images/rewards/reward_crafts.jpg', label: 'Arts & Crafts Fun' },
+  { url: './static/images/rewards/reward_building_blocks.jpg', label: 'Building Blocks & LEGO' },
+  { url: './static/images/rewards/reward_music_session.jpg', label: 'Music Jam Session' },
+  { url: './static/images/rewards/reward_bubble_bath.jpg', label: 'Fun Bubble Bath with Toys' },
+  { url: './static/images/rewards/reward_quiet_time.jpg', label: 'Quiet Time / Chill Session' },
+  { url: './static/images/rewards/reward_screentime.svg', label: '1 Hour Tablet / Screen Time' },
+  { url: './static/images/rewards/reward_tv.svg', label: 'Pick Tonight TV Show' },
   { url: './static/images/rewards/reward_movie.svg', label: 'Movie Night' },
-  { url: './static/images/rewards/reward_baking.svg', label: 'Baking Day' },
-  { url: './static/images/rewards/reward_minigolf.svg', label: 'Mini Golf' },
-  { url: './static/images/rewards/reward_screentime.svg', label: 'Screen Time' },
-  { url: './static/images/rewards/reward_tv.svg', label: 'TV Time' },
-  { url: './static/images/rewards/reward_icecream.svg', label: 'Ice Cream' },
   { url: './static/images/rewards/reward_gaming.svg', label: 'Gaming Session' },
-  { url: './static/images/rewards/reward_swimming.svg', label: 'Swimming' },
-  { url: './static/images/rewards/reward_cafe.svg', label: 'Café Treat' },
+  { url: './static/images/rewards/reward_icecream.svg', label: 'Ice Cream Treat' },
+  { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
+  { url: './static/images/rewards/reward_baking.svg', label: 'Baking Day Together' },
+  { url: './static/images/rewards/reward_shopping.svg', label: 'Shopping Trip / Toy Pick' },
+  { url: './static/images/rewards/reward_minigolf.svg', label: 'Mini Golf' },
+  { url: './static/images/rewards/reward_swimming.svg', label: 'Swimming / Pool Trip' },
+  { url: './static/images/rewards/reward_cafe.svg', label: 'Café Treat & Hot Cocoa' },
 ];
 
 const STANDARD_SUGGESTIONS = [
@@ -862,62 +869,64 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                   <i className="fa-solid fa-upload" /> {formImageFile ? formImageFile.name : 'Upload File'}
                   <input
                     type="file"
+                    multiple
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] || null;
-                      setFormImageFile(f);
-                      if (f) {
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      if (files.length === 1) {
+                        setFormImageFile(files[0]);
                         setFormStockImageUrl('');
-                        setFormStockLabel('Choose a Stock Image');
+                        setFormStockLabel('Custom Upload');
                         setFormImageUrl('');
+                      } else {
+                        try {
+                          setSubmitting(true);
+                          const formData = new FormData();
+                          for (let i = 0; i < files.length; i++) {
+                            formData.append('files', files[i]);
+                          }
+                          const res = await fetch(resolveApiUrl('media/bulk_upload'), {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'include',
+                          });
+                          if (res.ok) {
+                            const json = await res.json();
+                            if (json.success && json.files?.length > 0) {
+                              const primary = json.files[0];
+                              setFormImageUrl(primary.url);
+                              setFormStockImageUrl(primary.url);
+                              setFormStockLabel(`✓ ${primary.originalname}`);
+                              setFormImageFile(null);
+                              showToast(`Uploaded ${json.files.length} photos to your library!`);
+                            }
+                          }
+                        } catch {
+                          showToast('Error uploading photos');
+                        } finally {
+                          setSubmitting(false);
+                        }
                       }
                     }}
                   />
                 </label>
               </div>
 
-              {stockPickerOpen && (
-                <div
-                  className="stock-image-picker"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
-                    gap: 8,
-                    padding: 10,
-                    borderRadius: 'var(--radius-md)',
-                    background: 'rgba(0,0,0,0.25)',
-                    border: '1px solid var(--color-border-subtle)',
-                    maxHeight: 180,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {STOCK_REWARD_IMAGES.map((item) => (
-                    <div
-                      key={item.url}
-                      className={`stock-image-tile${formStockImageUrl === item.url ? ' selected' : ''}`}
-                      onClick={() => {
-                        setFormStockImageUrl(item.url);
-                        setFormStockLabel(`✓ ${item.label}`);
-                        setFormImageUrl('');
-                        setFormImageFile(null);
-                        setStockPickerOpen(false);
-                      }}
-                      style={{
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        padding: 6,
-                        borderRadius: 8,
-                        border: formStockImageUrl === item.url ? '2px solid #3b82f6' : '1px solid transparent',
-                        background: formStockImageUrl === item.url ? 'rgba(59,130,246,0.2)' : 'transparent',
-                      }}
-                    >
-                      <img src={item.url} alt={item.label} style={{ width: 34, height: 34, margin: '0 auto 4px' }} />
-                      <span style={{ fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <PhotoPickerModal
+                open={stockPickerOpen}
+                onClose={() => setStockPickerOpen(false)}
+                title="Choose Reward Photo"
+                stockImages={STOCK_REWARD_IMAGES}
+                selectedUrl={formStockImageUrl || formImageUrl || undefined}
+                onSelect={(url, label) => {
+                  setFormStockImageUrl(url);
+                  setFormImageUrl(url);
+                  setFormStockLabel(label ? `✓ ${label}` : 'Selected Photo');
+                  setFormImageFile(null);
+                }}
+              />
             </div>
           </FormField>
         </FormGrid>
