@@ -34,5 +34,14 @@
 - **Forbid Arbitrary Inline Styles**: Inline styles for design attributes (colors, corner radius, borders, shadows) are forbidden unless required for dynamic data-driven values (e.g. person accent colors). Use CSS variables (`var(--btn-radius)`, `var(--card-radius)`, `var(--modal-radius)`) instead.
 - **Single-Line Reskinning Guarantee**: The design system must maintain single-variable theme overrides in `tokens.css` so buttons, modals, and card styles can be reskinned in 1 line.
 
+## Production Resource & Ingress Path Safety (CRITICAL)
+- **Home Assistant Ingress Path Routing**: In production, Home Assistant serves the application behind a dynamic path prefix (e.g. `/api/hassio_ingress/<token>/`).
+- **NEVER use Absolute Root Paths in the Client**: Absolute paths like `/static/...` or `/api/...` break in production because the browser requests `http://<ha-ip>:8123/static/...` bypassing the Ingress session token completely (yielding 404/401).
+- **Mandatory Relative Resolution (`resolveAssetUrl` & `resolveAvatarUrl`)**:
+  - Always wrap any static image, uploaded photo, avatar, audio, or resource URL through `resolveAssetUrl(url)` or `resolveAvatarUrl(avatar)`.
+  - When declaring stock asset catalogs or audio clip arrays in frontend code, always specify them as `./static/...` (never `/static/...`).
+  - Audio playback must pass `resolveAssetUrl(url)` to `new Audio(...)`.
+- **Backend Dual-Path Mounting**: The Express server must continue to serve both `/static` and `/api/static`, as well as `/` and `/api`, guaranteeing both direct port 8099 and Ingress reverse-proxy traffic find all files.
+
 
 

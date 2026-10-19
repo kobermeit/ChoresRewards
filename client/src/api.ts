@@ -6,19 +6,18 @@
 
 export function resolveAssetUrl(url: string | null | undefined): string {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('./')) {
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
     return url;
   }
-  if (url.startsWith('/')) {
-    return `.${url}`;
+  // Strip any leading ./, /, or duplicate relative slashes
+  const clean = url.replace(/^(\.\/|\/)+/, '');
+  if (clean.startsWith('static/')) {
+    return `./${clean}`;
   }
-  if (url.startsWith('static/')) {
-    return `./${url}`;
+  if (clean.startsWith('uploads/')) {
+    return `./static/${clean}`;
   }
-  if (url.startsWith('uploads/')) {
-    return `./static/${url}`;
-  }
-  return `./static/uploads/${url}`;
+  return `./static/uploads/${clean}`;
 }
 
 export function resolveAvatarUrl(avatar: string | null | undefined): string {

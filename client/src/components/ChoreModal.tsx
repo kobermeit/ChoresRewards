@@ -28,22 +28,22 @@ const DEFAULT_CHORE_SUGGESTIONS = [
 ];
 
 export const STOCK_CHORE_IMAGES = [
-  { url: '/static/images/chores/chore_lunchbox.svg', label: 'Lunchbox on Bench' },
-  { url: '/static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
-  { url: '/static/images/chores/chore_bed.svg', label: 'Make Bed' },
-  { url: '/static/images/chores/chore_tidy_room.svg', label: 'Tidy Room' },
-  { url: '/static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
-  { url: '/static/images/chores/chore_feed_pets.svg', label: 'Feed Pets' },
-  { url: '/static/images/chores/chore_walk_dog.svg', label: 'Walk the Dog' },
-  { url: '/static/images/chores/chore_homework.svg', label: 'Do Homework' },
-  { url: '/static/images/chores/chore_teeth.svg', label: 'Brush Teeth' },
-  { url: '/static/images/chores/chore_laundry.svg', label: 'Fold Laundry' },
-  { url: '/static/images/chores/chore_vacuum.svg', label: 'Vacuum & Sweep' },
-  { url: '/static/images/chores/chore_table.svg', label: 'Set Table' },
-  { url: '/static/images/chores/chore_plants.svg', label: 'Water Plants' },
-  { url: '/static/images/chores/chore_wipe_bench.svg', label: 'Wipe Bench' },
-  { url: '/static/images/chores/chore_backpack.svg', label: 'Pack School Bag' },
-  { url: '/static/images/chores/chore_shoes.svg', label: 'Put Away Shoes' },
+  { url: './static/images/chores/chore_lunchbox.svg', label: 'Lunchbox on Bench' },
+  { url: './static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
+  { url: './static/images/chores/chore_bed.svg', label: 'Make Bed' },
+  { url: './static/images/chores/chore_tidy_room.svg', label: 'Tidy Room' },
+  { url: './static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
+  { url: './static/images/chores/chore_feed_pets.svg', label: 'Feed Pets' },
+  { url: './static/images/chores/chore_walk_dog.svg', label: 'Walk the Dog' },
+  { url: './static/images/chores/chore_homework.svg', label: 'Do Homework' },
+  { url: './static/images/chores/chore_teeth.svg', label: 'Brush Teeth' },
+  { url: './static/images/chores/chore_laundry.svg', label: 'Fold Laundry' },
+  { url: './static/images/chores/chore_vacuum.svg', label: 'Vacuum & Sweep' },
+  { url: './static/images/chores/chore_table.svg', label: 'Set Table' },
+  { url: './static/images/chores/chore_plants.svg', label: 'Water Plants' },
+  { url: './static/images/chores/chore_wipe_bench.svg', label: 'Wipe Bench' },
+  { url: './static/images/chores/chore_backpack.svg', label: 'Pack School Bag' },
+  { url: './static/images/chores/chore_shoes.svg', label: 'Put Away Shoes' },
 ];
 
 const DAYS_OF_WEEK = [
@@ -1124,7 +1124,7 @@ export const ChoreModal: React.FC = () => {
               key={item.url}
               onClick={() => {
                 setImageUrl(item.url);
-                setImagePreview(item.url);
+                setImagePreview(resolveAssetUrl(item.url));
                 setImageFile(null);
                 setRemoveImage(false);
                 setStockPickerOpen(false);
@@ -1146,7 +1146,7 @@ export const ChoreModal: React.FC = () => {
               title={item.label}
             >
               <img
-                src={item.url}
+                src={resolveAssetUrl(item.url)}
                 alt={item.label}
                 style={{ width: 56, height: 56, objectFit: 'contain' }}
               />

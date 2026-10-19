@@ -6,51 +6,53 @@
  * - Automatic pre-unlock on first user interaction for tablet/mobile browsers
  */
 
+import { resolveAssetUrl } from '../api';
+
 export type SoundCategory = 'celebration' | 'chore_done' | 'timer_alert' | 'timer_done' | 'silly' | 'ding';
 
-// Curated sound file mapping from static/sounds
+// Curated sound file mapping from static/sounds (resolved relative for Home Assistant Ingress)
 const CATEGORY_SOUND_FILES: Record<SoundCategory, string[]> = {
   celebration: [
-    '/static/sounds/ta-da_yrvBrlS.mp3',
-    '/static/sounds/sound_effects_-_reggaeton_air_horn_CkAudio.wav',
-    '/static/sounds/anime-wow-sound-effect.mp3',
-    '/static/sounds/yeah-boiii-i-i-i.mp3',
-    '/static/sounds/yooooooooooooooooooooooooo_4_objp8XX.mp3',
+    './static/sounds/ta-da_yrvBrlS.mp3',
+    './static/sounds/sound_effects_-_reggaeton_air_horn_CkAudio.wav',
+    './static/sounds/anime-wow-sound-effect.mp3',
+    './static/sounds/yeah-boiii-i-i-i.mp3',
+    './static/sounds/yooooooooooooooooooooooooo_4_objp8XX.mp3',
   ],
   chore_done: [
-    '/static/sounds/ta-da_yrvBrlS.mp3',
-    '/static/sounds/anime-wow-sound-effect.mp3',
-    '/static/sounds/best-friends-v1_3Coc8NL.mp3',
-    '/static/sounds/Can_of_Soda_Opened.mp3',
+    './static/sounds/ta-da_yrvBrlS.mp3',
+    './static/sounds/anime-wow-sound-effect.mp3',
+    './static/sounds/best-friends-v1_3Coc8NL.mp3',
+    './static/sounds/Can_of_Soda_Opened.mp3',
   ],
   silly: [
-    '/static/sounds/fart-meme-sound.mp3',
-    '/static/sounds/dry-fart.mp3',
-    '/static/sounds/fart-with-reverb.mp3',
-    '/static/sounds/nuclear-fart-1.mp3',
-    '/static/sounds/goofy-ahh-car-horn-sound-effect.mp3',
-    '/static/sounds/duck-quack.mp3',
-    '/static/sounds/cow-moo.mp3',
-    '/static/sounds/elephant-trumpet.mp3',
-    '/static/sounds/frog-croak.mp3',
-    '/static/sounds/cat-meow.mp3',
-    '/static/sounds/sheep-baa.mp3',
-    '/static/sounds/dog-bark.mp3',
-    '/static/sounds/vine-boom.mp3',
-    '/static/sounds/taco-bell-bong-sfx.mp3',
+    './static/sounds/fart-meme-sound.mp3',
+    './static/sounds/dry-fart.mp3',
+    './static/sounds/fart-with-reverb.mp3',
+    './static/sounds/nuclear-fart-1.mp3',
+    './static/sounds/goofy-ahh-car-horn-sound-effect.mp3',
+    './static/sounds/duck-quack.mp3',
+    './static/sounds/cow-moo.mp3',
+    './static/sounds/elephant-trumpet.mp3',
+    './static/sounds/frog-croak.mp3',
+    './static/sounds/cat-meow.mp3',
+    './static/sounds/sheep-baa.mp3',
+    './static/sounds/dog-bark.mp3',
+    './static/sounds/vine-boom.mp3',
+    './static/sounds/taco-bell-bong-sfx.mp3',
   ],
   timer_alert: [
-    '/static/sounds/samsung-notification-sound-bass-boosted.mp3',
-    '/static/sounds/blaster.mp3',
+    './static/sounds/samsung-notification-sound-bass-boosted.mp3',
+    './static/sounds/blaster.mp3',
   ],
   timer_done: [
-    '/static/sounds/dun-dun-dun-sound-effect-brass_8nFBccR.mp3',
-    '/static/sounds/sound_effects_-_reggaeton_air_horn_CkAudio.wav',
-    '/static/sounds/ta-da_yrvBrlS.mp3',
+    './static/sounds/dun-dun-dun-sound-effect-brass_8nFBccR.mp3',
+    './static/sounds/sound_effects_-_reggaeton_air_horn_CkAudio.wav',
+    './static/sounds/ta-da_yrvBrlS.mp3',
   ],
   ding: [
-    '/static/sounds/Can_of_Soda_Opened.mp3',
-    '/static/sounds/blaster.mp3',
+    './static/sounds/Can_of_Soda_Opened.mp3',
+    './static/sounds/blaster.mp3',
   ],
 };
 
@@ -178,7 +180,7 @@ export function playSoundCategory(
     getAudioContext();
 
     if (options?.customUrl) {
-      const audio = new Audio(options.customUrl);
+      const audio = new Audio(resolveAssetUrl(options.customUrl));
       audio.play().catch(() => {});
       return;
     }
@@ -188,7 +190,8 @@ export function playSoundCategory(
 
     if (soundList.length > 0) {
       const chosenUrl = soundList[Math.floor(Math.random() * soundList.length)];
-      const audio = new Audio(chosenUrl);
+      const resolved = resolveAssetUrl(chosenUrl);
+      const audio = new Audio(resolved);
       audio.play().catch(() => {
         // If audio clip fails or is blocked, fallback to procedural Web Audio Synth
         if (options?.fallbackSynth !== false) {

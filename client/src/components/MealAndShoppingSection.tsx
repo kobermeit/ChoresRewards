@@ -359,8 +359,8 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
   const stores: ShoppingStore[] = shop?.stores?.length
     ? shop.stores
     : [
-        { id: 'aldi', name: 'Aldi', icon: '/static/images/rewards/store_aldi.svg' },
-        { id: 'woolworths', name: 'Woolworths', icon: '/static/images/rewards/store_woolworths.svg' },
+        { id: 'aldi', name: 'Aldi', icon: './static/images/rewards/store_aldi.svg' },
+        { id: 'woolworths', name: 'Woolworths', icon: './static/images/rewards/store_woolworths.svg' },
       ];
 
   const handleNavigateWeek = async (deltaDays: number) => {

@@ -1110,53 +1110,53 @@ export const RedeemedRewardsSection: React.FC<RedeemedRewardsSectionProps> = ({ 
                 position: 'relative',
               }}
             >
-              {/* Hero Image / Banner (Exact Match to Available Rewards) */}
+              {/* Hero Image / Banner (Exact Match to Available Rewards Hero Banner) */}
               <div
                 style={{
+                  height: 140,
                   position: 'relative',
-                  width: '100%',
-                  aspectRatio: '16/9',
-                  maxHeight: 150,
-                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)',
                   overflow: 'hidden',
+                  background: 'radial-gradient(circle at 50% 35%, rgba(34, 197, 94, 0.22) 0%, #0f172a 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
                 {reward.image_url ? (
-                  <img
+                  <FallbackImage
                     src={resolveAssetUrl(reward.image_url)}
                     alt={reward.title}
+                    className="reward-hero-img"
                     style={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                      opacity: 0.85,
-                      filter: 'grayscale(20%)',
+                      opacity: 0.9,
                     }}
+                    fallbackIcon={getRewardIconClass(reward.title)}
                   />
                 ) : (
                   <div
                     style={{
+                      width: '100%',
+                      height: '100%',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8,
-                      opacity: 0.65,
+                      background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                      color: 'rgba(255,255,255,0.4)',
                     }}
                   >
-                    <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '2.5rem', color: '#86efac' }} />
+                    <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '3rem', opacity: 0.6, color: '#86efac' }} />
                   </div>
                 )}
 
-                {/* Hero Overlay */}
+                {/* Hero Gradient Overlay */}
                 <div
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.3) 50%, transparent 100%)',
+                    background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 100%)',
                     pointerEvents: 'none',
                   }}
                 />
