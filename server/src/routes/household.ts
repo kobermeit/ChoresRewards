@@ -1312,6 +1312,43 @@ householdRouter.post('/api/save_meal_ingredients', (req: Request, res: Response)
   res.json({ success: true, ingredients: getMealIngredients() });
 });
 
+householdRouter.post('/api/save_recipe', (req: Request, res: Response) => {
+  const title = String(req.body?.title || '').trim().slice(0, 120);
+  if (!title) {
+    res.status(400).json({ success: false, error: 'Recipe title required' });
+    return;
+  }
+  const mealKey = String(req.body?.meal_key || title).toLowerCase().trim().slice(0, 80);
+  const existingRecipes = getAllRecipes();
+  const existingRec = existingRecipes[mealKey];
+
+  // If synced from Notion, reject edits to preserve sync integrity
+  if (existingRec?.notion_id) {
+    res.status(400).json({
+      success: false,
+      error: 'Recipes synced from Notion cannot be edited here. Update them in Notion and tap Sync.',
+    });
+    return;
+  }
+
+  const items = Array.isArray(req.body?.ingredients) ? req.body.ingredients : [];
+  const instructions = req.body?.instructions !== undefined ? String(req.body.instructions).trim() : existingRec?.instructions;
+  const prepTime = req.body?.prep_time !== undefined ? String(req.body.prep_time).trim() : existingRec?.prep_time;
+  const servings = req.body?.servings !== undefined ? String(req.body.servings).trim() : existingRec?.servings;
+
+  const saved = upsertRecipe({
+    meal_key: mealKey,
+    title,
+    ingredients: items,
+    instructions,
+    prep_time: prepTime,
+    servings,
+  });
+
+  logActivity('settings_updated', `Updated recipe "${title}"`);
+  res.json({ success: true, recipe: saved, recipes: getAllRecipes() });
+});
+
 // Smart Shopping List Endpoints (Deduplication, Frequently Added, Suggested, Archive Checked, Recently Purchased)
 householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Response) => {
   const rawInput = String(req.body?.name || '').trim().slice(0, 120);
@@ -1591,9 +1628,13 @@ householdRouter.post('/api/add_kanban_note', (req: Request, res: Response) => {
 householdRouter.post('/api/update_kanban_note', (req: Request, res: Response) => {
   const noteId = String(req.body?.id || '').trim();
   const nk = getNotesKanban();
-  nk.notes = nk.notes.map((n: any) =>
-    n.id === noteId ? { ...n, checked: Boolean(req.body?.checked) } : n
-  );
+  nk.notes = nk.notes.map((n: any) => {
+    if (n.id !== noteId) return n;
+    const updated = { ...n };
+    if (req.body?.checked !== undefined) updated.checked = Boolean(req.body.checked);
+    if (req.body?.text !== undefined) updated.text = String(req.body.text).trim().slice(0, 10000);
+    return updated;
+  });
   AppSetting.set('notes_kanban_json', JSON.stringify(nk));
   res.json({ success: true, ...nk });
 });
@@ -1681,6 +1722,21 @@ householdRouter.post('/api/add_dashboard_note', (req: Request, res: Response) =>
     title: String(req.body?.title || '').trim().slice(0, 120),
     text: String(req.body?.text || '').trim().slice(0, 2000),
     color: ALLOWED_STICKY_COLORS.includes(req.body?.color) ? req.body.color : '#fef08a',
+  });
+  AppSetting.set('dashboard_notes_json', JSON.stringify(notes));
+  res.json({ success: true, notes });
+});
+
+householdRouter.post('/api/update_dashboard_note', (req: Request, res: Response) => {
+  const noteId = String(req.body?.id || '').trim();
+  const notes = getDashboardNotes().map((n: any) => {
+    if (n.id !== noteId) return n;
+    return {
+      ...n,
+      title: req.body?.title !== undefined ? String(req.body.title).trim().slice(0, 120) : n.title,
+      text: req.body?.text !== undefined ? String(req.body.text).trim().slice(0, 10000) : n.text,
+      color: ALLOWED_STICKY_COLORS.includes(req.body?.color) ? req.body.color : n.color,
+    };
   });
   AppSetting.set('dashboard_notes_json', JSON.stringify(notes));
   res.json({ success: true, notes });

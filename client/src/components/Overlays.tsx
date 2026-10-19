@@ -4,15 +4,47 @@ import { apiGet, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { Modal } from './common/Modal';
 import { ChoreModal } from './ChoreModal';
+import { DurationStepper } from './ui';
 
 export const Overlays: React.FC = () => {
   return (
     <>
+      <SyncSplashOverlay />
       <ScreensaverOverlay />
       <VisualTimerModal />
       <KidsPlayWidgetModal />
       <ChoreModal />
     </>
+  );
+};
+
+const SyncSplashOverlay: React.FC = () => {
+  const { isSyncing } = useApp();
+  if (!isSyncing) return null;
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        background: 'rgba(15, 23, 42, 0.94)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 14,
+        animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      <div style={{ fontSize: '3rem' }}>🏠</div>
+      <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#f8fafc' }}>
+        Refreshing Family Hub...
+      </div>
+      <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+        Checking chores & household updates
+      </div>
+    </div>
   );
 };
 
@@ -93,68 +125,144 @@ const ScreensaverOverlay: React.FC = () => {
   const currentMedia = mediaFiles.length > 0 ? mediaFiles[slideIdx % mediaFiles.length] : null;
   const peopleList = summary.length > 0 ? summary : data?.family || [];
 
+  const handleDismissScreensaver = () => {
+    setScreensaverOpen(false);
+    // Refresh family hub data freshness upon waking from screensaver
+    refresh(false);
+  };
+
   return (
     <div
       id="screensaver-overlay"
-      onClick={() => setScreensaverOpen(false)}
+      onClick={handleDismissScreensaver}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        background: '#050811',
+        background: '#090d16',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '48px 56px',
+        padding: '52px 64px',
         cursor: 'pointer',
         userSelect: 'none',
         overflow: 'hidden',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      {/* Background media if uploaded */}
-      {currentMedia && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          {currentMedia.type === 'video' ? (
+      {/* Background ambient media or default ambient gradient */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+        {currentMedia ? (
+          currentMedia.type === 'video' ? (
             <video
               src={resolveAssetUrl(currentMedia.url)}
               autoPlay
               muted
               loop
               playsInline
-              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
             <img
               src={resolveAssetUrl(currentMedia.url)}
               alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
-          )}
+          )
+        ) : (
           <div
             style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(to bottom, rgba(5,8,17,0.6), rgba(5,8,17,0.3), rgba(5,8,17,0.85))',
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(ellipse at 80% 20%, #1e3a5f 0%, #0f172a 45%, #020617 100%)',
             }}
           />
-        </div>
-      )}
+        )}
+        {/* Cinematic Chromecast Vignette Gradient */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(to top, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0.4) 40%, rgba(2, 6, 23, 0.2) 70%, rgba(2, 6, 23, 0.6) 100%)',
+          }}
+        />
+      </div>
 
-      {/* Top Clock & Date */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ fontSize: '5.5rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-2px' }}>
-          {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {/* Top Bar: Family Hub status & ambient hint */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.2rem' }}>🏡</span>
+          <span style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.04em', color: 'rgba(255, 255, 255, 0.85)' }}>
+            Family Hub Ambient
+          </span>
         </div>
-        <div style={{ fontSize: '1.6rem', opacity: 0.85, marginTop: 8, fontWeight: 600 }}>
-          {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+        <div
+          style={{
+            fontSize: '0.82rem',
+            color: 'rgba(255, 255, 255, 0.6)',
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(10px)',
+            padding: '6px 14px',
+            borderRadius: 999,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          Tap anywhere to wake
         </div>
       </div>
 
-      {/* Bottom Family Progress Pills */}
-      {config?.show_chores !== false && (
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Bottom Area: Google TV / Chromecast style layout */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          flexWrap: 'wrap',
+          gap: 24,
+        }}
+      >
+        {/* Bottom Left: Huge Ambient Clock & Clean Date */}
+        <div>
+          <div
+            style={{
+              fontSize: '6.5rem',
+              fontWeight: 300,
+              lineHeight: 0.95,
+              letterSpacing: '-3px',
+              textShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <div
+            style={{
+              fontSize: '1.45rem',
+              color: 'rgba(255, 255, 255, 0.9)',
+              marginTop: 14,
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+              textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+            }}
+          >
+            {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
+        </div>
+
+        {/* Bottom Right: Family Chore Progress Pills */}
+        {config?.show_chores !== false && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {peopleList.map((p: any, idx: number) => {
               const total = p.total ?? data?.family_progress?.[p.name]?.total ?? 0;
               const completed = p.completed ?? data?.family_progress?.[p.name]?.completed ?? 0;
@@ -166,11 +274,12 @@ const ScreensaverOverlay: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
-                    padding: '12px 20px',
-                    borderRadius: 20,
-                    background: 'rgba(15, 23, 42, 0.75)',
-                    backdropFilter: 'blur(12px)',
-                    border: allDone ? '2px solid #22c55e' : '1px solid rgba(255,255,255,0.18)',
+                    padding: '10px 18px',
+                    borderRadius: 999,
+                    background: 'rgba(15, 23, 42, 0.72)',
+                    backdropFilter: 'blur(16px)',
+                    border: allDone ? '1.5px solid #22c55e' : '1px solid rgba(255, 255, 255, 0.16)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
                   }}
                 >
                   <img
@@ -179,11 +288,11 @@ const ScreensaverOverlay: React.FC = () => {
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
                     }}
-                    style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover' }}
+                    style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
                   />
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{p.name}</div>
-                    <div style={{ fontSize: '0.88rem', color: allDone ? '#4ade80' : '#94a3b8', fontWeight: 700 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#f8fafc' }}>{p.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: allDone ? '#4ade80' : '#94a3b8', fontWeight: 600 }}>
                       {allDone ? '🎉 All Done!' : `${completed}/${total} chores`}
                     </div>
                   </div>
@@ -191,9 +300,8 @@ const ScreensaverOverlay: React.FC = () => {
               );
             })}
           </div>
-          <div style={{ marginTop: 18, fontSize: '0.85rem', opacity: 0.5 }}>Tap anywhere to wake</div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
@@ -211,17 +319,22 @@ const VisualTimerModal: React.FC = () => {
     startTimer,
     pauseTimer,
     resetTimer,
-    setTimerPreset,
+    setTimerDurationSeconds,
   } = useApp();
   useBodyScrollLock(visualTimerOpen);
 
   const mins = Math.floor(timerRemainingSeconds / 60);
   const secs = timerRemainingSeconds % 60;
   const pct = timerTotalSeconds > 0 ? timerRemainingSeconds / timerTotalSeconds : 0;
-  const strokeColor = pct > 0.5 ? '#22c55e' : pct > 0.2 ? '#f59e0b' : '#ef4444';
+  const strokeColor = pct > 0.35 ? '#0097a7' : pct > 0.15 ? '#f59e0b' : '#ef4444';
   const radius = 95;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - pct);
+
+  const handleDurationChange = (newTotal: number) => {
+    const clamped = Math.max(0, newTotal);
+    setTimerDurationSeconds(clamped);
+  };
 
   return (
     <>
@@ -235,7 +348,7 @@ const VisualTimerModal: React.FC = () => {
             right: 24,
             zIndex: 99990,
             background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))',
-            border: '2px solid #38bdf8',
+            border: `2px solid ${strokeColor}`,
             borderRadius: '24px',
             padding: '8px 16px',
             color: '#fff',
@@ -243,17 +356,18 @@ const VisualTimerModal: React.FC = () => {
             alignItems: 'center',
             gap: 10,
             cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(56, 189, 248, 0.35)',
+            boxShadow: `0 8px 24px ${strokeColor}44`,
             backdropFilter: 'blur(10px)',
+            transition: 'all 0.25s ease',
           }}
           title="Visual Timer is running — tap to open"
         >
-          <i className="fas fa-stopwatch" style={{ color: '#38bdf8', fontSize: '1.1rem' }} />
+          <i className="fas fa-stopwatch" style={{ color: strokeColor, fontSize: '1.1rem' }} />
           <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '1px' }}>
             {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
           </span>
-          <span style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase', fontWeight: 700 }}>
-            Active
+          <span style={{ fontSize: '0.72rem', color: strokeColor, textTransform: 'uppercase', fontWeight: 800 }}>
+            {timerRemainingSeconds === 0 ? "Time's Up!" : 'Active'}
           </span>
         </div>
       )}
@@ -262,51 +376,46 @@ const VisualTimerModal: React.FC = () => {
         <Modal
           open={visualTimerOpen}
           onClose={() => setVisualTimerOpen(false)}
-          title="Visual Timer"
+          title="Timer"
           icon="fas fa-stopwatch"
-          maxWidth={440}
+          maxWidth={380}
         >
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {/* Preset Buttons */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-              {[1, 2, 5, 10, 15, 20, 30].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setTimerPreset(m)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    border: timerTotalSeconds === m * 60 ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.18)',
-                    background: timerTotalSeconds === m * 60 ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-                    color: 'inherit',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {m}m
-                </button>
-              ))}
+            {/* Unified Duration Stepper (-30s, MM:SS, +30s) */}
+            <div style={{ marginBottom: 16 }}>
+              <DurationStepper
+                totalSeconds={timerTotalSeconds}
+                onChange={handleDurationChange}
+                minSeconds={0}
+                stepSeconds={30}
+              />
             </div>
 
-            {/* Circular SVG Ring */}
-            <div style={{ position: 'relative', width: 230, height: 230, margin: '0 auto 20px' }}>
-              <svg width="230" height="230" style={{ transform: 'rotate(-90deg)' }}>
+            {/* Circular SVG Ring & Time Digits */}
+            <div
+              style={{
+                position: 'relative',
+                width: 240,
+                height: 240,
+                margin: '0 auto 20px',
+              }}
+            >
+              <svg width="240" height="240" style={{ transform: 'rotate(-90deg)' }}>
                 <circle
-                  cx="115"
-                  cy="115"
+                  cx="120"
+                  cy="120"
                   r={radius}
                   fill="transparent"
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth="16"
+                  stroke="rgba(255, 255, 255, 0.08)"
+                  strokeWidth="14"
                 />
                 <circle
-                  cx="115"
-                  cy="115"
+                  cx="120"
+                  cy="120"
                   r={radius}
                   fill="transparent"
                   stroke={strokeColor}
-                  strokeWidth="16"
+                  strokeWidth="14"
                   strokeDasharray={circumference}
                   strokeDashoffset={dashOffset}
                   strokeLinecap="round"
@@ -323,17 +432,40 @@ const VisualTimerModal: React.FC = () => {
                   justifyContent: 'center',
                 }}
               >
-                <div style={{ fontSize: '3rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                <div
+                  style={{
+                    fontSize: '3.3rem',
+                    fontWeight: 800,
+                    fontFamily: 'monospace',
+                    letterSpacing: '-0.02em',
+                    color: '#f8fafc',
+                    lineHeight: 1,
+                  }}
+                >
                   {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
                 </div>
-                {timerRemainingSeconds === 0 && (
-                  <div style={{ color: '#4ade80', fontWeight: 800, marginTop: 4 }}>🎉 Time's Up!</div>
+                {timerRemainingSeconds === 0 ? (
+                  <div
+                    style={{
+                      color: '#4ade80',
+                      fontWeight: 900,
+                      fontSize: '1.05rem',
+                      marginTop: 6,
+                      textShadow: '0 2px 10px rgba(74, 222, 128, 0.5)',
+                    }}
+                  >
+                    🎉 TIME&apos;S UP!
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+                    {timerRunning ? 'Counting down...' : 'Ready'}
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Controls */}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {/* Windows Clock Style Icon-Only Controls: Large Play/Pause + Reset */}
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -345,52 +477,49 @@ const VisualTimerModal: React.FC = () => {
                   }
                 }}
                 style={{
-                  padding: '0 24px',
-                  height: 42,
-                  minHeight: 42,
-                  borderRadius: 'var(--btn-radius)',
+                  width: 52,
+                  height: 52,
+                  borderRadius: '50%',
                   border: 'none',
-                  background: timerRunning ? 'var(--color-warning)' : 'var(--color-success)',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: '1rem',
+                  background: timerRunning ? '#f59e0b' : '#0097a7',
+                  color: '#ffffff',
+                  fontSize: '1.25rem',
                   cursor: 'pointer',
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8,
-                  transition: 'all 0.15s ease',
                   boxShadow: timerRunning
-                    ? '0 3px 12px rgba(245, 158, 11, 0.35)'
-                    : '0 3px 12px rgba(16, 185, 129, 0.35)',
+                    ? '0 4px 16px rgba(245, 158, 11, 0.4)'
+                    : '0 4px 16px rgba(0, 151, 167, 0.45)',
+                  transition: 'all 0.15s ease',
                 }}
+                title={timerRunning ? 'Pause timer' : 'Start timer'}
+                aria-label={timerRunning ? 'Pause timer' : 'Start timer'}
               >
-                <i className={timerRunning ? 'fas fa-pause' : 'fas fa-play'} />
-                <span>{timerRunning ? 'Pause' : 'Start'}</span>
+                <i className={timerRunning ? 'fas fa-pause' : 'fas fa-play'} style={{ marginLeft: timerRunning ? 0 : 2 }} />
               </button>
+
               <button
                 type="button"
                 onClick={resetTimer}
                 style={{
-                  padding: '0 20px',
-                  height: 42,
-                  minHeight: 42,
-                  borderRadius: 'var(--btn-radius)',
-                  border: '1px solid var(--color-border-medium)',
-                  background: 'var(--color-bg-surface-elevated)',
-                  color: 'var(--color-text-primary)',
-                  fontWeight: 600,
-                  fontSize: '0.95rem',
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  border: '1px solid rgba(255, 255, 255, 0.16)',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontSize: '1rem',
                   cursor: 'pointer',
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8,
                   transition: 'all 0.15s ease',
                 }}
+                title="Reset to beginning"
+                aria-label="Reset to beginning"
               >
                 <i className="fas fa-rotate-left" />
-                <span>Reset</span>
               </button>
             </div>
           </div>

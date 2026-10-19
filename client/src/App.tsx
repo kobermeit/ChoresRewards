@@ -21,7 +21,7 @@ const MainShell: React.FC<{
   onCloseAdultPin: () => void;
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
-  const { data, loading, activeView, isParent, setProfileSwitcherOpen, setActiveView } = useApp();
+  const { data, loading, isSyncing, activeView, isParent, setProfileSwitcherOpen, setActiveView } = useApp();
 
   if (loading && !data) {
     return (
@@ -132,9 +132,41 @@ const MainShell: React.FC<{
         onAdultPinSuccess={onAdultPinSuccess}
       />
       <Overlays />
+
+      {/* Slack / Discord style seamless fast-sync toast indicator */}
+      {isSyncing && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 16px',
+            borderRadius: 999,
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(59, 130, 246, 0.4)',
+            color: '#93c5fd',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <i className="fas fa-arrows-rotate fa-spin" style={{ color: '#3b82f6', fontSize: '0.8rem' }} />
+          <span>Syncing Family Hub…</span>
+        </div>
+      )}
     </>
   );
 };
+
+import { TimerProvider } from './context/TimerContext';
+import { ActiveTimersMiniDock } from './components/ActiveTimersMiniDock';
 
 export const App: React.FC = () => {
   const [adultPinOpen, setAdultPinOpen] = useState(false);
@@ -147,15 +179,18 @@ export const App: React.FC = () => {
 
   return (
     <AppProvider onRequestAdultPin={handleRequestAdultPin}>
-      <MainShell
-        adultPinOpen={adultPinOpen}
-        onCloseAdultPin={() => setAdultPinOpen(false)}
-        onAdultPinSuccess={() => {
-          const cb = adultSuccessCallbackRef.current;
-          adultSuccessCallbackRef.current = undefined;
-          cb?.();
-        }}
-      />
+      <TimerProvider>
+        <MainShell
+          adultPinOpen={adultPinOpen}
+          onCloseAdultPin={() => setAdultPinOpen(false)}
+          onAdultPinSuccess={() => {
+            const cb = adultSuccessCallbackRef.current;
+            adultSuccessCallbackRef.current = undefined;
+            cb?.();
+          }}
+        />
+        <ActiveTimersMiniDock />
+      </TimerProvider>
     </AppProvider>
   );
 };

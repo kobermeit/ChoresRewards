@@ -79,8 +79,9 @@ export function requireAdult(req: Request, res: Response, next: NextFunction): v
     return;
   }
   if (req.session?.person_id) {
-    const person = db.prepare('SELECT role, is_admin, name FROM person WHERE id = ?').get(req.session.person_id) as any;
-    if (person && (person.role === 'parent' || person.is_admin === 1)) {
+    const masterPin = AppSetting.get('master_pin');
+    const person = db.prepare('SELECT role, is_admin, name, pin FROM person WHERE id = ?').get(req.session.person_id) as any;
+    if (person && (person.role === 'parent' || person.is_admin === 1) && !person.pin && !masterPin) {
       req.session.adult_mode = true;
       req.session.adult_name = person.name;
       next();
@@ -101,8 +102,8 @@ authRouter.get('/api/check_auth', (req: Request, res: Response) => {
 authRouter.get('/api/auth_status', (req: Request, res: Response) => {
   const masterPin = AppSetting.get('master_pin');
   if (req.session?.person_id && !req.session?.adult_mode) {
-    const person = db.prepare('SELECT role, is_admin, name FROM person WHERE id = ?').get(req.session.person_id) as any;
-    if (person && (person.role === 'parent' || person.is_admin === 1)) {
+    const person = db.prepare('SELECT role, is_admin, name, pin FROM person WHERE id = ?').get(req.session.person_id) as any;
+    if (person && (person.role === 'parent' || person.is_admin === 1) && !person.pin && !masterPin) {
       req.session.adult_mode = true;
       req.session.adult_name = person.name;
     }
@@ -348,6 +349,14 @@ authRouter.post('/api/switch_user', (req: Request, res: Response) => {
     if (!checkPinHash(String(pin || ''), person.pin)) {
       res.status(401).json({ success: false, error: 'Incorrect PIN' });
       return;
+    }
+  } else if (isParent) {
+    const masterPin = AppSetting.get('master_pin');
+    if (masterPin) {
+      if (!checkPinHash(String(pin || ''), masterPin)) {
+        res.status(401).json({ success: false, error: 'Parent PIN required' });
+        return;
+      }
     }
   }
 

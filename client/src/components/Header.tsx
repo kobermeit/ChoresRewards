@@ -19,6 +19,7 @@ function weatherInfo(code: number): { icon: string; color: string; desc: string 
 export const Header: React.FC = () => {
   const {
     data,
+    lastFetchedAt,
     theme,
     toggleTheme,
     muted,
@@ -183,8 +184,53 @@ export const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, [data?.chores, adultMode]);
 
+function formatAestDateTime(date: Date | null | undefined): string {
+  if (!date) return 'Not yet fetched';
+  try {
+    const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+    return (
+      new Intl.DateTimeFormat('en-AU', {
+        timeZone: 'Australia/Sydney',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      }).format(d) + ' AEST'
+    );
+  } catch {
+    return date ? String(date) : '--:--';
+  }
+}
+
+function getRelativeAge(from: Date | null, to: Date): string {
+  if (!from) return 'pending';
+  const diffSec = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000));
+  if (diffSec < 5) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) {
+    const remSec = diffSec % 60;
+    return `${diffMin}m ${remSec}s ago`;
+  }
+  const diffHours = Math.floor(diffMin / 60);
+  return `${diffHours}h ${diffMin % 60}m ago`;
+}
+
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
+  const [menuInspectionTime, setMenuInspectionTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    if (menuOpen) {
+      setMenuInspectionTime(new Date());
+      const ticker = setInterval(() => {
+        setMenuInspectionTime(new Date());
+      }, 1000);
+      return () => clearInterval(ticker);
+    }
+  }, [menuOpen]);
 
   const handleLockClick = async () => {
     if (adultMode) {
@@ -416,37 +462,6 @@ export const Header: React.FC = () => {
                 />
               </button>
             </div>
-
-            {/* Active Visual Timer Pill */}
-            {timerRunning && (
-              <button
-                type="button"
-                onClick={() => setVisualTimerOpen(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 14px',
-                  borderRadius: 999,
-                  background: 'rgba(249, 115, 22, 0.16)',
-                  border: '1.5px solid #f97316',
-                  color: '#fb923c',
-                  fontWeight: 800,
-                  fontSize: '0.92rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 0 14px rgba(249, 115, 22, 0.35)',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                title="Visual Timer running — click to open full controls"
-              >
-                <i className="fas fa-hourglass-half" style={{ color: '#f97316' }} />
-                <span>
-                  {String(Math.floor(timerRemainingSeconds / 60)).padStart(2, '0')}:
-                  {String(timerRemainingSeconds % 60).padStart(2, '0')}
-                </span>
-              </button>
-            )}
           </div>
         )}
 
@@ -705,28 +720,34 @@ export const Header: React.FC = () => {
 
                   <div className="header-menu-divider" />
 
-                  <button
-                    type="button"
-                    className="header-menu-item"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      toggleTheme();
-                    }}
-                  >
-                    <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} header-menu-item-icon`} />
-                    <span>Theme: {theme === 'dark' ? 'Light Mode ☀️' : 'Dark Mode 🌙'}</span>
-                  </button>
+
 
                   <button
                     type="button"
                     className="header-menu-item"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
                     onClick={() => {
                       setMenuOpen(false);
                       toggleMute();
                     }}
                   >
-                    <i className={`fas ${muted ? 'fa-volume-high' : 'fa-volume-xmark'} header-menu-item-icon`} />
-                    <span>Sound: {muted ? 'Unmute Audio 🔊' : 'Mute Audio 🔇'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <i className={`fas ${muted ? 'fa-volume-xmark' : 'fa-volume-high'} header-menu-item-icon`} style={{ color: muted ? '#ef4444' : '#10b981' }} />
+                      <span>Sound</span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        background: muted ? 'rgba(239, 68, 68, 0.18)' : 'rgba(16, 185, 129, 0.18)',
+                        color: muted ? '#f87171' : '#4ade80',
+                        border: `1px solid ${muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
+                      }}
+                    >
+                      {muted ? 'MUTED ✕' : 'ON ✓'}
+                    </span>
                   </button>
 
                   <div className="header-menu-divider" />
@@ -782,6 +803,48 @@ export const Header: React.FC = () => {
                     <i className="fas fa-gear header-menu-item-icon" />
                     <span>Settings & Config</span>
                   </button>
+
+                  <div className="header-menu-divider" style={{ margin: '6px 0 0' }} />
+
+                  {/* Diagnostic Data Freshness Footer (AEST) */}
+                  <div
+                    style={{
+                      padding: '8px 14px 10px',
+                      background: 'rgba(0, 0, 0, 0.28)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      lineHeight: 1.35,
+                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--cr-text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.64rem' }}>
+                        Data Freshness
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.69rem',
+                          fontWeight: 700,
+                          color: lastFetchedAt && (menuInspectionTime.getTime() - lastFetchedAt.getTime() > 120000) ? '#f59e0b' : '#34d399',
+                        }}
+                      >
+                        ● {getRelativeAge(lastFetchedAt, menuInspectionTime)}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.72rem', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fas fa-database" style={{ fontSize: '0.65rem', opacity: 0.6 }} />
+                      <span style={{ opacity: 0.75 }}>Last synced:</span>
+                      <span style={{ fontWeight: 600, color: '#f8fafc' }}>{formatAestDateTime(lastFetchedAt)}</span>
+                    </div>
+
+                    <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fas fa-clock" style={{ fontSize: '0.62rem', opacity: 0.5 }} />
+                      <span style={{ opacity: 0.75 }}>Checked:</span>
+                      <span>{formatAestDateTime(menuInspectionTime)}</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

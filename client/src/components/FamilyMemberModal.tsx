@@ -3,7 +3,7 @@ import { Person, UserRole } from '../types';
 import { apiPost, resolveAvatarUrl } from '../api';
 import { useApp } from '../context/AppContext';
 import { Modal } from './common/Modal';
-import { Button, Input, FormGrid, FormField } from './ui';
+import { Button, Input, FormGrid, FormField, NumberStepper } from './ui';
 
 const PRESET_COLORS = [
   '#3b82f6', // Blue
@@ -32,6 +32,8 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
   const [role, setRole] = useState<UserRole>('child');
   const [color, setColor] = useState('#3b82f6');
   const [pin, setPin] = useState('');
+  const [clearPin, setClearPin] = useState(false);
+  const [isPinDirty, setIsPinDirty] = useState(false);
   const [calendarIcalUrl, setCalendarIcalUrl] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -60,6 +62,8 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
       setRole(member.role || (member.is_admin ? 'parent' : 'child'));
       setColor(member.color || '#3b82f6');
       setPin('');
+      setClearPin(false);
+      setIsPinDirty(false);
       setCalendarIcalUrl(member.calendar_ical_url || '');
       if (member.avatar && member.avatar !== 'default_avatar.png') {
         setAvatarPreview(resolveAvatarUrl(member.avatar));
@@ -74,6 +78,8 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
       setRole('child');
       setColor('#3b82f6');
       setPin('');
+      setClearPin(false);
+      setIsPinDirty(false);
       setCalendarIcalUrl('');
       setAvatarPreview(null);
       setSelectedFile(null);
@@ -113,7 +119,9 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
       if (member?.id) {
         payload.id = member.id;
       }
-      if (pin.trim()) {
+      if (clearPin) {
+        payload.clear_pin = true;
+      } else if (isPinDirty && pin.trim()) {
         payload.pin = pin.trim();
       }
 
@@ -275,14 +283,15 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
 
         {/* Dynamic Age */}
         <FormField colSpan={5}>
-          <Input
+          <NumberStepper
             label="Age"
-            type="number"
             value={age}
-            onChange={(e) => setAge(e.target.value)}
-            placeholder={dob ? 'Calculated' : 'e.g. 8'}
+            onChange={(val) => setAge(String(val))}
             min={0}
             max={120}
+            step={1}
+            inputWidth={50}
+            buttonsPosition="right"
             helperText={dob ? '✓ Auto-calculated' : undefined}
           />
         </FormField>
@@ -370,16 +379,89 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
 
         {/* PIN Input (Optional) */}
         <FormField colSpan={12}>
-          <Input
-            label={member?.has_pin ? 'PIN Protection (Current PIN set)' : 'PIN Protection (Optional)'}
-            type="password"
-            inputMode="numeric"
-            maxLength={8}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep)' : 'Optional 4-digit PIN'}
-            helperText="Used when switching to this profile on the shared tablet."
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                {member?.has_pin && !clearPin ? 'PIN Protection (PIN currently active)' : 'PIN Protection (Optional)'}
+              </label>
+              {member?.has_pin && !clearPin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClearPin(true);
+                    setPin('');
+                    setIsPinDirty(false);
+                  }}
+                  title="Remove PIN from this member"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '3px 8px',
+                    fontSize: '0.75rem',
+                    color: '#ef4444',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: 'var(--radius-sm, 6px)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <i className="fas fa-trash-alt" />
+                  <span>Remove PIN</span>
+                </button>
+              )}
+            </div>
+
+            {clearPin ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px dashed rgba(239, 68, 68, 0.4)',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  color: '#fca5a5',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="fas fa-unlock-alt" />
+                  <span>PIN will be cleared/removed on save. Profile will have no lock.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setClearPin(false)}
+                  style={{
+                    padding: '3px 10px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: 4,
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Keep Existing PIN
+                </button>
+              </div>
+            ) : (
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                autoComplete="new-password"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, ''));
+                  setIsPinDirty(true);
+                }}
+                placeholder={member?.has_pin ? 'Enter new PIN (or leave blank to keep current)' : 'Optional 4-digit PIN'}
+                helperText="Used when switching to this profile on the shared tablet."
+              />
+            )}
+          </div>
         </FormField>
 
         {/* Personal Google Calendar (.ics) */}

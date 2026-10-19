@@ -143,10 +143,14 @@ choresRouter.post(
         dueDate = getFamilyToday();
       }
 
+      const durationSeconds = data.duration_seconds !== undefined && data.duration_seconds !== '' && data.duration_seconds !== null
+        ? Math.max(10, parseInt(String(data.duration_seconds), 10) || 0)
+        : null;
+
       const info = db
         .prepare(
-          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
+          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
         )
         .run(
           title,
@@ -160,7 +164,8 @@ choresRouter.post(
           icon,
           imageUrl,
           formFlagIsTrue(data.is_extra) ? 1 : 0,
-          data.extra_id ? String(data.extra_id).slice(0, 32) : null
+          data.extra_id ? String(data.extra_id).slice(0, 32) : null,
+          durationSeconds
         );
 
       logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
@@ -255,10 +260,15 @@ choresRouter.post(
       }
 
       const icon = 'icon' in data ? (data.icon ? String(data.icon).trim().slice(0, 20) : null) : chore.icon;
+      const durationSeconds = 'duration_seconds' in data
+        ? data.duration_seconds !== '' && data.duration_seconds !== null && data.duration_seconds !== undefined
+          ? Math.max(10, parseInt(String(data.duration_seconds), 10) || 0)
+          : null
+        : chore.duration_seconds;
 
       db.prepare(
-        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ? WHERE id = ?`
-      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, choreId);
+        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ? WHERE id = ?`
+      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, durationSeconds, choreId);
 
       logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
       res.json({
@@ -266,6 +276,7 @@ choresRouter.post(
         is_daily: isDaily,
         days_of_week: daysOfWeek || '',
         image_url: imageUrl,
+        duration_seconds: durationSeconds,
       });
     } catch (err: any) {
       res.status(400).json({ success: false, error: err?.message || 'Error editing chore' });

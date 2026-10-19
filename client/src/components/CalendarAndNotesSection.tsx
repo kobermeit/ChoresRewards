@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
 import { SectionHelpTip } from './HelpTooltipAndView';
-import { PageContainer, Button } from './ui';
+import { PageContainer, Button, RichEditor, WipBanner } from './ui';
+import { Modal } from './common/Modal';
 
 const POSTIT_COLORS = ['#fef08a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74', '#c4b5fd', '#6ee7b7', '#fca5a5'];
 
@@ -18,6 +19,8 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
   const [padsCollapsed, setPadsCollapsed] = useState(false);
 
   const [newNoteText, setNewNoteText] = useState<Record<string, string>>({});
+  const [editingNoteModal, setEditingNoteModal] = useState<{ id: string; text: string; colColor: string } | null>(null);
+  const [editingNoteHtml, setEditingNoteHtml] = useState('');
   const [newPadTitle, setNewPadTitle] = useState('');
   const [newPadContent, setNewPadContent] = useState('');
   const [editingPadContent, setEditingPadContent] = useState<Record<string, string>>({});
@@ -40,6 +43,21 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
       await refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to add note', { type: 'error' });
+    }
+  };
+
+  const handleSaveNoteEdit = async () => {
+    if (!editingNoteModal) return;
+    try {
+      await apiPost('update_kanban_note', {
+        id: editingNoteModal.id,
+        text: editingNoteHtml || editingNoteModal.text,
+      });
+      setEditingNoteModal(null);
+      await refresh();
+      showToast('Note updated!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update note', { type: 'error' });
     }
   };
 
@@ -168,6 +186,17 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
 
   const renderFormattedNote = (content: string) => {
     if (!content) return <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Empty note</span>;
+
+    // Check if the content is rich HTML from the WYSIWYG editor
+    if (content.trim().startsWith('<') && (content.includes('</') || content.includes('/>'))) {
+      return (
+        <div
+          className="text-pad-rendered-view cr-rendered-rich-content"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      );
+    }
+
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
     let inList = false;
@@ -313,6 +342,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
         </div>
       }
     >
+      <WipBanner />
 
       <div className="notes-kanban-board" id="notes-kanban-board">
         {columns.map((col) => {
@@ -351,15 +381,39 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
                       checked={Boolean(note.checked)}
                       onChange={() => handleToggleNote(note.id, Boolean(note.checked))}
                     />
-                    <span className="notes-sticky-text">{note.text}</span>
-                    <button
-                      type="button"
-                      className="notes-sticky-del"
-                      title="Delete note"
-                      onClick={() => handleDeleteNote(note.id, false)}
+                    <div
+                      className="notes-sticky-text"
+                      style={{ cursor: 'pointer', flex: 1, minWidth: 0 }}
+                      onClick={() => {
+                        setEditingNoteModal({ id: note.id, text: note.text, colColor: col.color });
+                        setEditingNoteHtml(note.text);
+                      }}
+                      title="Click to edit with rich text"
                     >
-                      <i className="fas fa-times" />
-                    </button>
+                      {renderFormattedNote(note.text)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="notes-sticky-del"
+                        title="Edit note (WYSIWYG)"
+                        style={{ fontSize: '0.78rem', opacity: 0.7 }}
+                        onClick={() => {
+                          setEditingNoteModal({ id: note.id, text: note.text, colColor: col.color });
+                          setEditingNoteHtml(note.text);
+                        }}
+                      >
+                        <i className="fas fa-pencil-alt" />
+                      </button>
+                      <button
+                        type="button"
+                        className="notes-sticky-del"
+                        title="Delete note"
+                        onClick={() => handleDeleteNote(note.id, false)}
+                      >
+                        <i className="fas fa-times" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -378,13 +432,16 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
                     }
                   }}
                 />
-                <button
-                  type="button"
-                  className="notes-add-btn edit-btn"
-                  onClick={() => handleAddNote(col.id)}
-                >
-                  <i className="fas fa-plus" /> Add Note
-                </button>
+                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon="fas fa-plus"
+                    onClick={() => handleAddNote(col.id)}
+                  >
+                    Add Note
+                  </Button>
+                </div>
               </div>
             </div>
           );
@@ -428,9 +485,15 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
           )}
         </div>
         <div className="notes-deleted-actions">
-          <button type="button" className="edit-btn" id="notes-empty-trash-btn" onClick={handleEmptyDeleted}>
-            <i className="fas fa-trash-alt" /> Empty Deleted
-          </button>
+          <Button
+            variant="danger"
+            size="sm"
+            icon="fas fa-trash-alt"
+            id="notes-empty-trash-btn"
+            onClick={handleEmptyDeleted}
+          >
+            Empty Deleted
+          </Button>
         </div>
       </div>
 
@@ -456,71 +519,76 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
 
               return (
                 <div key={pad.id} className="text-pad-card">
-                  <div className="text-pad-card-header">
-                    <input
-                      type="text"
-                      className="text-pad-title-input modern-input"
-                      value={pad.title || ''}
-                      readOnly
-                    />
-                    <span className="text-pad-meta">{(val || '').length.toLocaleString()} chars</span>
-                    <div className="text-pad-actions">
-                      <button
-                        type="button"
-                        className={`edit-btn text-pad-mode-btn${isView ? ' active' : ''}`}
-                        title={isView ? 'Switch to Edit mode' : 'Switch to Formatted View'}
+                  <div className="text-pad-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <input
+                        type="text"
+                        className="text-pad-title-input modern-input"
+                        value={pad.title || ''}
+                        readOnly
+                        style={{ fontWeight: 800, fontSize: '1rem' }}
+                      />
+                    </div>
+                    <span className="text-pad-meta" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                      {(val || '').replace(/<[^>]*>/g, '').length.toLocaleString()} chars
+                    </span>
+                    <div className="text-pad-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Button
+                        variant={isView ? 'secondary' : 'primary'}
+                        size="sm"
+                        icon={isView ? 'fas fa-pencil' : 'fas fa-eye'}
                         onClick={() =>
                           setPadModes((prev) => ({ ...prev, [pad.id]: isView ? 'edit' : 'view' }))
                         }
                       >
-                        <i className={isView ? 'fas fa-pencil' : 'fas fa-eye'} /> {isView ? 'Edit' : 'View'}
-                      </button>
-                      <button
-                        type="button"
-                        className="edit-btn text-pad-copy-btn"
+                        {isView ? 'Edit' : 'View'}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon="fas fa-copy"
                         title="Copy to clipboard"
                         onClick={() => {
-                          navigator.clipboard?.writeText(val || '');
+                          const plain = (val || '').replace(/<[^>]*>/g, '');
+                          navigator.clipboard?.writeText(plain);
                           showToast('Copied to clipboard');
                         }}
-                      >
-                        <i className="fas fa-copy" />
-                      </button>
-                      <button
-                        type="button"
-                        className="notes-col-delete-btn text-pad-del-btn"
+                      />
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        icon="fas fa-trash"
                         title="Delete pad"
                         onClick={() => handleDeleteTextPad(pad.id)}
-                      >
-                        <i className="fas fa-trash" />
-                      </button>
+                      />
                     </div>
                   </div>
 
                   {isView ? (
-                    <div className="text-pad-rendered-view">{renderFormattedNote(val)}</div>
+                    <div className="text-pad-rendered-view" style={{ padding: '14px 16px', minHeight: 140 }}>
+                      {renderFormattedNote(val)}
+                    </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <textarea
-                        className="text-pad-textarea"
-                        rows={14}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '10px 0' }}>
+                      <RichEditor
                         value={val}
-                        onChange={(e) =>
-                          setEditingPadContent((prev) => ({ ...prev, [pad.id]: e.target.value }))
+                        onChange={(html) =>
+                          setEditingPadContent((prev) => ({ ...prev, [pad.id]: html }))
                         }
+                        minHeight="220px"
                       />
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="edit-btn"
-                          style={{ background: '#3b82f6', borderColor: '#2563eb', color: '#fff' }}
+                        <Button
+                          variant="primary"
+                          size="md"
+                          icon="fas fa-check"
                           onClick={async () => {
                             await handleSaveTextPad(pad.id, pad.title);
                             setPadModes((prev) => ({ ...prev, [pad.id]: 'view' }));
                           }}
                         >
-                          <i className="fas fa-check" /> Done & View
-                        </button>
+                          Done &amp; View
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -529,152 +597,74 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ isStandalonePage = f
             })
           )}
         </div>
-        <div className="text-pad-composer">
+        <div className="text-pad-composer" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
           <input
             type="text"
             id="text-pad-new-title"
             className="modern-input"
-            placeholder="Title (optional)..."
+            placeholder="Document Title (optional)..."
             maxLength={80}
             value={newPadTitle}
             onChange={(e) => setNewPadTitle(e.target.value)}
+            style={{ fontWeight: 700 }}
           />
-          <textarea
-            id="text-pad-new-content"
-            className="text-pad-textarea"
-            placeholder="Paste or type your text here..."
-            rows={6}
+          <RichEditor
             value={newPadContent}
-            onChange={(e) => setNewPadContent(e.target.value)}
+            onChange={(html) => setNewPadContent(html)}
+            placeholder="Paste or type your document text with rich formatting..."
+            minHeight="140px"
           />
-          <div className="text-pad-composer-row">
-            <span className="text-pad-char-count" id="text-pad-char-count">
-              {newPadContent.length.toLocaleString()} chars
+          <div className="text-pad-composer-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <span className="text-pad-char-count" id="text-pad-char-count" style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+              {newPadContent.replace(/<[^>]*>/g, '').length.toLocaleString()} chars
             </span>
-            <button type="button" className="save-btn" id="text-pad-add-btn" onClick={handleAddTextPad}>
-              <i className="fas fa-plus" /> Save Pad
-            </button>
+            <Button
+              variant="primary"
+              size="md"
+              icon="fas fa-plus"
+              id="text-pad-add-btn"
+              onClick={handleAddTextPad}
+            >
+              Save Pad
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Edit Sticky Note WYSIWYG Modal */}
+      {editingNoteModal && (
+        <Modal
+          open={Boolean(editingNoteModal)}
+          onClose={() => setEditingNoteModal(null)}
+          title="Edit Sticky Note"
+          icon="fas fa-sticky-note"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <RichEditor
+              value={editingNoteHtml}
+              onChange={(html) => setEditingNoteHtml(html)}
+              placeholder="Type your note content..."
+              minHeight="180px"
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button
+                variant="secondary"
+                onClick={() => setEditingNoteModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                icon="fas fa-check"
+                onClick={handleSaveNoteEdit}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </PageContainer>
   );
 };
 
-export const CalendarSection: React.FC = () => {
-  const { data } = useApp();
-  const [collapsed, setCollapsed] = useState(false);
-  const [calMode, setCalMode] = useState<'grid' | 'list'>('grid');
-
-  if (!data) return null;
-  const gcal = data.google_calendar;
-  if (!gcal?.enabled) return null;
-
-  return (
-    <section
-      className="rewards-section"
-      style={{ marginTop: '1rem' }}
-      id="events-section"
-    >
-      <h2
-        className="section-title"
-        style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}
-      >
-        <i className="fas fa-calendar-alt" style={{ color: '#60a5fa' }} />{' '}
-        <span>Upcoming Family Events</span>
-        <div
-          className="gcal-view-switch"
-          onClick={(e) => e.stopPropagation()}
-          title="Switch calendar view"
-        >
-          <button
-            type="button"
-            className={`gcal-view-switch-btn${calMode === 'grid' ? ' active' : ''}`}
-            onClick={() => setCalMode('grid')}
-            title="Time grid view"
-          >
-            <i className="fas fa-stream" />
-          </button>
-          <button
-            type="button"
-            className={`gcal-view-switch-btn${calMode === 'list' ? ' active' : ''}`}
-            onClick={() => setCalMode('list')}
-            title="List view"
-          >
-            <i className="fas fa-list" />
-          </button>
-        </div>
-      </h2>
-
-      {gcal.error ? (
-        <div className="empty-state" style={{ padding: '1rem' }}>
-          <i
-            className="fas fa-exclamation-triangle"
-            style={{ fontSize: '2em', color: '#f59e0b', marginBottom: '0.75rem' }}
-          />
-          <p style={{ margin: '0 0 6px' }}>Calendar unavailable</p>
-          <p className="subtitle" style={{ margin: 0 }}>
-            {gcal.error}
-          </p>
-        </div>
-      ) : (gcal.events || []).length === 0 ? (
-        <div className="empty-state" style={{ padding: '1rem' }}>
-          <i
-            className="fas fa-calendar-check"
-            style={{ fontSize: '2em', color: '#64748b', marginBottom: '0.75rem' }}
-          />
-          <p style={{ margin: '0 0 6px' }}>No upcoming events found</p>
-          <p className="subtitle" style={{ margin: 0 }}>
-            Try increasing "Days ahead" in Settings.
-          </p>
-        </div>
-      ) : (
-        <div className="google-week-calendar">
-          <div className="gcal-week-grid">
-            {(gcal.week_columns || []).map((day: any) => {
-              const allEvents = [...(day.all_day_events || []), ...(day.timed_events || [])];
-              return (
-                <div key={day.date_iso} className="gcal-day-column">
-                  <div className="gcal-day-header">
-                    <div className="gcal-day-name">{day.day_name}</div>
-                    <div className="gcal-day-date">{day.date_label}</div>
-                  </div>
-                  <div className="gcal-day-events">
-                    {allEvents.length === 0 ? (
-                      <div className="gcal-no-events">No events</div>
-                    ) : (
-                      allEvents.map((ev: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="gcal-event-card"
-                          style={
-                            {
-                              '--gcal-event-color': ev.color || '#3b82f6',
-                              '--gcal-event-color-tint': 'rgba(59,130,246,0.18)',
-                            } as React.CSSProperties
-                          }
-                        >
-                          {ev.time_label && <div className="gcal-event-time">{ev.time_label}</div>}
-                          <div className="gcal-event-title">{ev.summary || ev.title}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-};
-
-export const CalendarAndNotesSection: React.FC = () => {
-  return (
-    <>
-      <NotesSection />
-      <CalendarSection />
-    </>
-  );
-};

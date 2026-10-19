@@ -4,6 +4,8 @@ import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
 import { FamilyMemberModal } from '../components/FamilyMemberModal';
+import { playSoundCategory, speakAnnouncement, SoundCategory } from '../services/soundService';
+import { fireCelebrationFireworks } from '../services/celebrationService';
 
 export interface ToastItem {
   id: string;
@@ -39,7 +41,9 @@ export type ActiveView =
 interface AppContextValue {
   data: BootstrapData | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  isSyncing: boolean;
+  lastFetchedAt: Date | null;
+  refresh: (showOverlay?: boolean) => Promise<void>;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   muted: boolean;
@@ -47,7 +51,8 @@ interface AppContextValue {
   adultMode: boolean;
   setAdultMode: (val: boolean) => void;
   openAdultPinModal: (onSuccess?: () => void) => void;
-  playSound: (customUrl?: string) => void;
+  playSound: (categoryOrUrl?: SoundCategory | string) => void;
+  speak: (text: string) => void;
   showToast: (message: string, options?: { type?: ToastItem['type']; undoAction?: () => void }) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   activeUser: Person | null;
@@ -79,8 +84,9 @@ interface AppContextValue {
   pauseTimer: () => void;
   resetTimer: () => void;
   setTimerPreset: (minutes: number) => void;
+  setTimerDurationSeconds: (seconds: number) => void;
   editingChoreModalItem: Chore | null | undefined;
-  openEditChoreModal: (chore?: Chore | null) => void;
+  openEditChoreModal: (chore?: Chore | null, initialPersonId?: number) => void;
   closeEditChoreModal: () => void;
 }
 
@@ -137,9 +143,7 @@ export const AppProvider: React.FC<{
 }> = ({ children, onRequestAdultPin }) => {
   const [data, setData] = useState<BootstrapData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('cr-theme') as 'dark' | 'light') || 'dark';
-  });
+  const [theme] = useState<'dark' | 'light'>('dark');
   const [muted, setMuted] = useState<boolean>(() => {
     return localStorage.getItem('globalMute') === 'true';
   });
@@ -219,8 +223,14 @@ export const AppProvider: React.FC<{
   // Global Add/Edit Chore Modal State
   const [editingChoreModalItem, setEditingChoreModalItem] = useState<Chore | null | undefined>(undefined);
 
-  const openEditChoreModal = useCallback((chore?: Chore | null) => {
-    setEditingChoreModalItem(chore === undefined ? null : chore);
+  const openEditChoreModal = useCallback((chore?: Chore | null, initialPersonId?: number) => {
+    if (chore !== undefined && chore !== null) {
+      setEditingChoreModalItem(chore);
+    } else if (initialPersonId != null) {
+      setEditingChoreModalItem({ assigned_to_id: initialPersonId } as Chore);
+    } else {
+      setEditingChoreModalItem(null);
+    }
   }, []);
 
   const closeEditChoreModal = useCallback(() => {
@@ -236,22 +246,37 @@ export const AppProvider: React.FC<{
   }, []);
 
   const resetTimer = useCallback(() => {
-    setTimerRunning(false);
+    // If running, continue counting down from the beginning; if paused/stopped, stay stopped
     setTimerRemainingSeconds(timerTotalSeconds);
   }, [timerTotalSeconds]);
 
   const setTimerPreset = useCallback((minutes: number) => {
-    const s = Math.max(10, minutes * 60);
-    setTimerRunning(false);
+    const s = Math.max(10, Math.round(minutes * 60));
     setTimerTotalSeconds(s);
     setTimerRemainingSeconds(s);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const setTimerDurationSeconds = useCallback((seconds: number) => {
+    const s = Math.max(10, Math.round(seconds));
+    setTimerTotalSeconds(s);
+    setTimerRemainingSeconds(s);
+  }, []);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  const lastFetchedAtRef = useRef<Date | null>(null);
+  const lastActiveTimestampRef = useRef<number>(Date.now());
+  const activeDateRef = useRef<string>(new Date().toISOString().slice(0, 10));
+
+  const refresh = useCallback(async (showOverlay = false) => {
+    if (showOverlay) setIsSyncing(true);
     try {
       const res = await apiGet<BootstrapData>('bootstrap');
       if (res && res.success) {
         setData(res);
+        const fetchDate = new Date();
+        setLastFetchedAt(fetchDate);
+        lastFetchedAtRef.current = fetchDate;
         if (res.auth?.active_user) {
           setActiveUser(res.auth.active_user);
           if (res.auth.active_user.role === 'parent') {
@@ -260,11 +285,15 @@ export const AppProvider: React.FC<{
         } else if (res.auth?.adult_mode) {
           setAdultMode(true);
         }
+        activeDateRef.current = new Date().toISOString().slice(0, 10);
       }
     } catch (err) {
       console.error('Failed to load bootstrap data:', err);
     } finally {
       setLoading(false);
+      if (showOverlay) {
+        setTimeout(() => setIsSyncing(false), 400);
+      }
     }
   }, [setAdultMode]);
 
@@ -286,42 +315,106 @@ export const AppProvider: React.FC<{
       })
       .catch(() => {});
 
-    // 20-second background poll + page focus check for seamless multi-device live updates without interfering with users
+    // Multi-device poll every 20 seconds when visible
     const interval = setInterval(() => {
       if (!document.hidden) {
         refresh();
       }
     }, 20 * 1000);
-    const onVisChange = () => {
+
+    // Midnight rollover & stale-focus watcher (like Slack / Discord)
+    const checkMidnightAndStaleness = () => {
+      const now = Date.now();
+      const currentDateStr = new Date().toISOString().slice(0, 10);
+      const isDateRollover = currentDateStr !== activeDateRef.current;
+      const isStale = now - lastActiveTimestampRef.current > 15 * 60 * 1000; // 15+ minutes idle
+
+      lastActiveTimestampRef.current = now;
+
       if (!document.hidden) {
-        refresh();
+        if (isDateRollover || isStale) {
+          // Trigger smooth full-sync overlay
+          refresh(true);
+        } else {
+          refresh(false);
+        }
       }
     };
-    document.addEventListener('visibilitychange', onVisChange);
+
+    // Hardware sleep/wake watchdog: checks wall-clock delta to detect OS sleep instantly (0ms upon wake)
+    let lastTick = Date.now();
+    const watchdogInterval = setInterval(() => {
+      const now = Date.now();
+      const delta = now - lastTick;
+      lastTick = now;
+
+      // If more than 5 seconds elapsed during a 1-second interval, device/tab was suspended/sleeping
+      if (delta > 5000) {
+        console.log(`[ChoresRewards] Device wake detected (suspended for ~${Math.round(delta / 1000)}s). Refreshing...`);
+        const currentDateStr = new Date().toISOString().slice(0, 10);
+        const isDateRollover = currentDateStr !== activeDateRef.current;
+        const isVeryStale = delta > 60 * 60 * 1000; // 1hr+ suspended
+        refresh(isDateRollover || isVeryStale);
+        showToast('✨ Family Hub refreshed');
+      }
+    }, 1000);
+
+    // Wake touch handler: user touches the screen after being idle
+    const handleUserWakeTouch = () => {
+      const now = Date.now();
+      if (lastFetchedAtRef.current && now - lastFetchedAtRef.current.getTime() > 5 * 60 * 1000) {
+        refresh(false);
+      }
+    };
+
+    // Check on visibility change, page show, and focus
+    document.addEventListener('visibilitychange', checkMidnightAndStaleness);
+    window.addEventListener('focus', checkMidnightAndStaleness);
+    window.addEventListener('pageshow', checkMidnightAndStaleness);
+    window.addEventListener('pointerdown', handleUserWakeTouch, { passive: true });
+
+    // 1-minute ticker to auto-detect midnight even if left untouched on screen
+    const midnightInterval = setInterval(() => {
+      const currentDateStr = new Date().toISOString().slice(0, 10);
+      if (currentDateStr !== activeDateRef.current) {
+        refresh(true);
+      }
+    }, 60 * 1000);
+
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisChange);
+      clearInterval(watchdogInterval);
+      clearInterval(midnightInterval);
+      document.removeEventListener('visibilitychange', checkMidnightAndStaleness);
+      window.removeEventListener('focus', checkMidnightAndStaleness);
+      window.removeEventListener('pageshow', checkMidnightAndStaleness);
+      window.removeEventListener('pointerdown', handleUserWakeTouch);
     };
   }, [refresh]);
 
-  // Sync activeUser from data when loaded
+  // Sync activeUser & adultMode strictly from server session (data.auth)
   useEffect(() => {
-    if (!activeUser && data?.family && data.family.length > 0) {
-      if (data.auth?.active_user) {
-        setActiveUser(data.auth.active_user);
-      } else {
-        const defaultUser = data.family.find((p) => p.role === 'family') || data.family[0];
-        setActiveUser(defaultUser);
-      }
+    if (data?.auth?.active_user) {
+      setActiveUser(data.auth.active_user);
+    } else if (!activeUser && data?.family && data.family.length > 0) {
+      const defaultUser = data.family.find((p) => p.role === 'family') || data.family[0];
+      setActiveUser(defaultUser);
     }
-  }, [data, activeUser]);
+    if (data?.auth) {
+      setAdultModeState(Boolean(data.auth.adult_mode));
+    }
+  }, [data]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('cr-theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('cr-theme', 'dark');
+  }, []);
 
-  const isParent = activeUser?.role === 'parent' || activeUser?.is_admin === true || adultMode;
+  // Strict server authority: isParent requires server adult_mode (or an open system without PINs)
+  const isParent = Boolean(
+    data?.auth?.adult_mode ||
+    (!data?.master_pin_set && !data?.family?.some((p) => p.has_pin) && (activeUser?.role === 'parent' || activeUser?.is_admin))
+  );
   const isChild = activeUser?.role === 'child';
   const isFamily = activeUser?.role === 'family' || (!isParent && !isChild);
 
@@ -368,7 +461,7 @@ export const AppProvider: React.FC<{
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    // Theme switching disabled; dark mode forced as default
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -380,20 +473,21 @@ export const AppProvider: React.FC<{
   }, []);
 
   const playSound = useCallback(
-    (customUrl?: string) => {
+    (categoryOrUrl?: SoundCategory | string) => {
       if (muted) return;
-      try {
-        let src = customUrl;
-        if (!src && soundsListRef.current.length > 0) {
-          const idx = Math.floor(Math.random() * soundsListRef.current.length);
-          src = soundsListRef.current[idx];
-        }
-        if (!src) src = resolveAssetUrl('sounds/ding.mp3');
-        const audio = new Audio(src);
-        audio.play().catch(() => {});
-      } catch {
-        // audio playback blocked or unavailable
+      if (categoryOrUrl && (categoryOrUrl.startsWith('/') || categoryOrUrl.startsWith('http') || categoryOrUrl.includes('.'))) {
+        playSoundCategory('chore_done', { customUrl: categoryOrUrl });
+      } else {
+        playSoundCategory(categoryOrUrl as SoundCategory || 'chore_done');
       }
+    },
+    [muted]
+  );
+
+  const speak = useCallback(
+    (text: string) => {
+      if (muted) return;
+      speakAnnouncement(text);
     },
     [muted]
   );
@@ -423,14 +517,18 @@ export const AppProvider: React.FC<{
         if (prev <= 1) {
           setTimerRunning(false);
           playSound();
+          try {
+            fireCelebrationFireworks();
+          } catch {}
           showToast('⏰ Visual Timer Finished!', { type: 'success' });
-          return 0;
+          // Automatically reset to original total seconds so it doesn't stay stuck at 0:00
+          return timerTotalSeconds;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerInterval);
-  }, [timerRunning, playSound, showToast]);
+  }, [timerRunning, timerTotalSeconds, playSound, showToast]);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const slug = SECTION_TO_SLUG[sectionId] || sectionId;
@@ -520,6 +618,8 @@ export const AppProvider: React.FC<{
       value={{
         data,
         loading,
+        isSyncing,
+        lastFetchedAt,
         refresh,
         theme,
         toggleTheme,
@@ -529,6 +629,7 @@ export const AppProvider: React.FC<{
         setAdultMode,
         openAdultPinModal: onRequestAdultPin,
         playSound,
+        speak,
         showToast,
         confirm,
         activeUser,
@@ -560,6 +661,7 @@ export const AppProvider: React.FC<{
         pauseTimer,
         resetTimer,
         setTimerPreset,
+        setTimerDurationSeconds,
         editingChoreModalItem,
         openEditChoreModal,
         closeEditChoreModal,

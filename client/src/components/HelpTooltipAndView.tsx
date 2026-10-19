@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { WipBanner } from './ui';
 
 export const SectionHelpTip: React.FC<{ text: string }> = ({ text }) => {
   const [open, setOpen] = useState(false);
@@ -159,6 +160,7 @@ export const HelpView: React.FC = () => {
           ← Back to Dashboard
         </button>
       </div>
+      <WipBanner />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18 }}>
         {sections.map((sec) => (

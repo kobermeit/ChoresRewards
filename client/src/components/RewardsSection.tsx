@@ -4,9 +4,9 @@ import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { Reward, FamilyMember } from '../types';
 import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { FallbackImage } from './common/FallbackImage';
 import { FormErrorAlert } from './FormErrorAlert';
-import { Button, Input, Select, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, UserAvatar } from './ui';
+import { FallbackImage } from './common/FallbackImage';
+import { Button, IconButton, PillButton, Input, Select, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, UserAvatar, NumberStepper } from './ui';
 
 const STOCK_REWARD_IMAGES = [
   { url: './static/images/rewards/reward_takeout.svg', label: 'Take Out Dinner' },
@@ -340,41 +340,28 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
               padding: '2px 0',
             }}
           >
-            <button
-              type="button"
+            <PillButton
+              variant={selectedPerson === null ? 'primary' : 'secondary'}
               onClick={() => setSelectedPersonId(null)}
+              icon="fas fa-users"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '6px 16px',
-                borderRadius: 999,
                 border: selectedPerson === null ? '2px solid #60a5fa' : '1px solid rgba(148,163,184,0.28)',
-                background: selectedPerson === null ? 'rgba(59,130,246,0.22)' : 'rgba(15,23,42,0.45)',
-                color: selectedPerson === null ? '#93c5fd' : 'var(--cr-text-primary)',
                 fontWeight: 800,
                 fontSize: '0.88rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
               }}
             >
-              <i className="fas fa-users" /> All Family
-            </button>
+              All Family
+            </PillButton>
 
             {family.map((person) => {
               const isSelected = selectedPerson?.id === person.id;
               const pts = (person.points || 0) + (person.bonus_points || 0);
               return (
-                <button
+                <PillButton
                   key={person.id}
-                  type="button"
                   onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
                     padding: '5px 14px 5px 6px',
-                    borderRadius: 999,
                     border: isSelected
                       ? `2px solid ${person.color || '#60a5fa'}`
                       : '1px solid rgba(148,163,184,0.28)',
@@ -384,8 +371,6 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                     color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
                     fontWeight: 800,
                     fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
                     boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
                   }}
                 >
@@ -401,14 +386,14 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                       fontSize: '0.78rem',
                       opacity: 0.85,
                       padding: '1px 6px',
-                      borderRadius: 999,
+                      borderRadius: 'var(--radius-pill)',
                       background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.12)',
                       color: isSelected ? '#ffffff' : 'var(--cr-text-secondary)',
                     }}
                   >
                     {pts} pts
                   </span>
-                </button>
+                </PillButton>
               );
             })}
           </div>
@@ -424,9 +409,9 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
               {selectedPerson ? `No rewards created for ${selectedPerson.name} or Everyone yet.` : 'Create some amazing rewards to motivate everyone!'}
             </p>
             {isParent && (
-              <button type="button" className="btn-primary" onClick={openAddModal}>
-                <i className="fas fa-plus" /> Add First Reward
-              </button>
+              <Button variant="primary" icon="fas fa-plus" onClick={openAddModal}>
+                Add First Reward
+              </Button>
             )}
           </div>
         )}
@@ -663,9 +648,10 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
 
                   {/* Actions row: Redeem button + Edit / Delete icons side-by-side */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
-                    <button
-                      type="button"
-                      className="btn-redeem-modern"
+                    <Button
+                      variant={targetPerson && !canRedeem ? 'secondary' : 'success'}
+                      size="sm"
+                      icon="fas fa-check"
                       onClick={() => handleRedeemReward(reward)}
                       disabled={targetPerson ? !canRedeem : false}
                       style={{
@@ -678,29 +664,27 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                           : `Redeem "${reward.title}"`
                       }
                     >
-                      <i className="fas fa-check" /> Redeem
-                    </button>
+                      Redeem
+                    </Button>
 
                     {isParent && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <button
-                          type="button"
-                          className="reward-icon-btn"
-                          onClick={() => openEditModal(reward)}
-                          title="Edit reward"
+                        <IconButton
+                          size="sm"
+                          variant="ghost"
+                          icon="fas fa-pencil-alt"
                           aria-label="Edit reward"
-                        >
-                          <i className="fas fa-pencil-alt" />
-                        </button>
-                        <button
-                          type="button"
-                          className="reward-icon-btn delete"
-                          onClick={() => handleDeleteReward(reward)}
-                          title="Delete reward"
+                          title="Edit reward"
+                          onClick={() => openEditModal(reward)}
+                        />
+                        <IconButton
+                          size="sm"
+                          variant="danger"
+                          icon="fas fa-trash-alt"
                           aria-label="Delete reward"
-                        >
-                          <i className="fas fa-trash-alt" />
-                        </button>
+                          title="Delete reward"
+                          onClick={() => handleDeleteReward(reward)}
+                        />
                       </div>
                     )}
                   </div>
@@ -756,20 +740,8 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
             />
           </FormField>
 
-          {/* Points & Assignee Row */}
-          <FormField colSpan={6}>
-            <Input
-              label={isCash ? 'Cost ($)' : 'Points Required'}
-              type="number"
-              min={isCash ? '0.01' : '1'}
-              step={isCash ? '0.01' : '1'}
-              value={formPoints}
-              onChange={(e) => setFormPoints(e.target.value)}
-              required
-            />
-          </FormField>
-
-          <FormField colSpan={6}>
+          {/* Assignee Selection */}
+          <FormField colSpan={12}>
             <Select
               label="Assign To"
               value={formAssignedTo}
@@ -782,6 +754,23 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                 </option>
               ))}
             </Select>
+          </FormField>
+
+          {/* Points / Cost Stepper */}
+          <FormField colSpan={12}>
+            <NumberStepper
+              label={isCash ? 'Cost ($)' : 'Points Required'}
+              required
+              value={formPoints}
+              onChange={(val) => setFormPoints(String(val))}
+              min={isCash ? 0.5 : 1}
+              step={isCash ? 0.5 : 1}
+              prefix={isCash ? <strong>$</strong> : <i className="fas fa-star" style={{ color: '#fbbf24' }} />}
+              presets={isCash ? [1, 2, 5, 10, 20] : [5, 10, 20, 50, 100]}
+              buttonsPosition="right"
+              inputWidth={80}
+              helperText={isCash ? 'Pocket money required to redeem this reward' : 'Points required to redeem this reward'}
+            />
           </FormField>
 
           {/* Recurring Toggle */}
@@ -1300,16 +1289,14 @@ export const RedeemedRewardsSection: React.FC<RedeemedRewardsSectionProps> = ({ 
                   </span>
 
                   {isParent && (
-                    <button
-                      type="button"
-                      className="reward-icon-btn delete"
+                    <IconButton
+                      size="sm"
+                      variant="danger"
+                      icon="fas fa-trash-alt"
                       onClick={() => handleDeleteReward(reward)}
                       title="Delete from history"
                       aria-label="Delete reward"
-                      style={{ height: 36, width: 36, minWidth: 36, borderRadius: 'var(--btn-radius)' }}
-                    >
-                      <i className="fas fa-trash-alt" />
-                    </button>
+                    />
                   )}
                 </div>
               </div>

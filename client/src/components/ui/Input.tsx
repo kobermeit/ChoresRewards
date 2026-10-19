@@ -104,3 +104,61 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 
 Select.displayName = 'Select';
+
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string | null;
+  helperText?: string;
+}
+
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ label, error, helperText, className = '', id, style, ...props }, ref) => {
+    const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+        {label && (
+          <label
+            htmlFor={textareaId}
+            style={{
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            {label}
+          </label>
+        )}
+        <textarea
+          ref={ref}
+          id={textareaId}
+          className={`cr-input ${className}`.trim()}
+          style={{
+            borderColor: error ? 'var(--color-danger-border)' : undefined,
+            minHeight: 80,
+            resize: 'vertical',
+            fontFamily: 'inherit',
+            lineHeight: 1.5,
+            ...style,
+          }}
+          {...props}
+        />
+        {error && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border)', fontWeight: 600 }}>
+            {error}
+          </span>
+        )}
+        {!error && helperText && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+            {helperText}
+          </span>
+        )}
+      </div>
+    );
+  }
+);
+
+Textarea.displayName = 'Textarea';

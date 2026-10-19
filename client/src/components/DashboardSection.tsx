@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { DashboardStickyNote } from '../types';
-import { PageContainer, Button, Input, UserAvatar } from './ui';
+import { PageContainer, Button, IconButton, Input, UserAvatar, RichEditor } from './ui';
+import { Modal } from './common/Modal';
 
 const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
@@ -34,6 +35,10 @@ export const DashboardSection: React.FC = () => {
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteText, setNewNoteText] = useState('');
   const [newNoteColor, setNewNoteColor] = useState(STICKY_COLORS[0]);
+  const [editingStickyModal, setEditingStickyModal] = useState<DashboardStickyNote | null>(null);
+  const [editingStickyText, setEditingStickyText] = useState('');
+  const [editingStickyTitle, setEditingStickyTitle] = useState('');
+  const [editingStickyColor, setEditingStickyColor] = useState(STICKY_COLORS[0]);
 
   useEffect(() => {
     apiGet<{ success: boolean; media: Array<{ filename: string; url: string; type: string }> }>('screensaver/config')
@@ -170,6 +175,23 @@ export const DashboardSection: React.FC = () => {
     }
   };
 
+  const handleUpdateStickyNote = async () => {
+    if (!editingStickyModal) return;
+    try {
+      await apiPost('update_dashboard_note', {
+        id: editingStickyModal.id,
+        title: editingStickyTitle.trim(),
+        text: editingStickyText,
+        color: editingStickyColor,
+      });
+      setEditingStickyModal(null);
+      await refresh();
+      showToast('Sticky note updated!');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update sticky note', { type: 'error' });
+    }
+  };
+
   const handleDeleteStickyNote = async (id: string) => {
     try {
       await apiPost('delete_dashboard_note', { id });
@@ -268,7 +290,7 @@ export const DashboardSection: React.FC = () => {
             <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>Chores &rarr;</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0 }}>
             {data.family.map((person) => {
               const pChores = data.chores.filter((c) => c.assigned_to === person.name && !c.deleted);
               const incomplete = pChores.filter((c) => !c.completed);
@@ -287,6 +309,8 @@ export const DashboardSection: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
+                    flex: '1 1 0',
+                    minHeight: 0,
                   }}
                   title={`View ${person.name}'s chores`}
                   onClick={(e) => {
@@ -343,11 +367,11 @@ export const DashboardSection: React.FC = () => {
         {/* 2. Visual Timer Tile */}
         <div
           className="dashboard-card dashboard-card-timer"
-          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'space-between' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="fas fa-hourglass-half" style={{ color: '#f97316' }} />
+              <i className="fas fa-hourglass-half" style={{ color: '#38bdf8' }} />
               <span>Visual Timer</span>
             </h3>
             {timerRunning && (
@@ -355,8 +379,8 @@ export const DashboardSection: React.FC = () => {
                 style={{
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  color: '#22c55e',
-                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: '#10b981',
+                  background: 'rgba(16, 185, 129, 0.15)',
                   padding: '2px 8px',
                   borderRadius: 999,
                   display: 'inline-flex',
@@ -364,7 +388,7 @@ export const DashboardSection: React.FC = () => {
                   gap: 4,
                 }}
               >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', animation: 'pulse 1.5s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', animation: 'pulse 1.5s infinite' }} />
                 Ticking
               </span>
             )}
@@ -377,7 +401,8 @@ export const DashboardSection: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: '12px 0 6px',
+              padding: '6px 0',
+              flex: 1,
             }}
           >
             <div
@@ -402,24 +427,59 @@ export const DashboardSection: React.FC = () => {
                 {timerDigits}
               </div>
             </div>
+          </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              {timerRunning ? (
-                <Button size="sm" variant="secondary" onClick={pauseTimer}>
-                  <i className="fas fa-pause" /> Pause
-                </Button>
-              ) : (
-                <Button size="sm" variant="primary" onClick={startTimer}>
-                  <i className="fas fa-play" /> Start
-                </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={resetTimer}>
-                <i className="fas fa-rotate-left" /> Reset
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setVisualTimerOpen(true)}>
-                <i className="fas fa-expand" /> Full
-              </Button>
-            </div>
+          {/* Action bar pinned cleanly to bottom */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              marginTop: 'auto',
+              paddingTop: 8,
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            {timerRunning ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="fas fa-pause"
+                onClick={pauseTimer}
+                title="Pause"
+                aria-label="Pause"
+                style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
+              />
+            ) : (
+              <Button
+                size="sm"
+                variant="primary"
+                icon="fas fa-play"
+                onClick={startTimer}
+                title="Start"
+                aria-label="Start"
+                style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
+              />
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              icon="fas fa-rotate-left"
+              onClick={resetTimer}
+              title="Reset"
+              aria-label="Reset"
+              style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="fas fa-expand"
+              onClick={() => setVisualTimerOpen(true)}
+              title="Open full timer"
+              aria-label="Open full timer"
+              style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
+            />
           </div>
         </div>
 
@@ -546,13 +606,14 @@ export const DashboardSection: React.FC = () => {
         {/* 5. Shopping List Preview Card */}
         <div
           className="dashboard-card"
-          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}
+          onClick={() => setActiveView('shopping')}
+          title="Click to view full shopping list"
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3
               className="dashboard-card-title"
-              style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-              onClick={() => setActiveView('shopping')}
+              style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}
             >
               <i className="fas fa-cart-shopping" style={{ color: '#38bdf8' }} />
               <span>Shopping List</span>
@@ -570,8 +631,7 @@ export const DashboardSection: React.FC = () => {
               </span>
             </h3>
             <span
-              style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, cursor: 'pointer' }}
-              onClick={() => setActiveView('shopping')}
+              style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}
             >
               Full List &rarr;
             </span>
@@ -593,15 +653,11 @@ export const DashboardSection: React.FC = () => {
                     padding: '6px 10px',
                     borderRadius: 8,
                     background: 'rgba(255, 255, 255, 0.04)',
+                    gap: 8,
                   }}
                 >
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={false}
-                      onChange={() => handleToggleShopItem(item)}
-                      style={{ cursor: 'pointer', width: 16, height: 16, accentColor: '#38bdf8' }}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <i className="fas fa-circle-dot" style={{ fontSize: '0.65rem', color: '#38bdf8', opacity: 0.8 }} />
                     <span
                       style={{
                         fontSize: '0.88rem',
@@ -615,29 +671,55 @@ export const DashboardSection: React.FC = () => {
                       {item.name}
                     </span>
                     {item.qty && (
-                      <span style={{ fontSize: '0.76rem', color: '#94a3b8', fontWeight: 500 }}>
-                        ({item.qty})
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: '#38bdf8',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
+                          padding: '1px 6px',
+                          borderRadius: 6,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {item.qty}
                       </span>
                     )}
-                  </label>
+                  </div>
                   <span
                     style={{
                       fontSize: '0.72rem',
                       fontWeight: 700,
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
+                      color: 'rgba(255, 255, 255, 0.55)',
+                      textTransform: 'capitalize',
+                      letterSpacing: '0.02em',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                     }}
                   >
-                    {item.store}
+                    {(() => {
+                      const storeMatch = (data.shopping?.stores || []).find(
+                        (s) => s.id.toLowerCase() === (item.store || '').toLowerCase()
+                      );
+                      if (storeMatch?.name) return storeMatch.name;
+                      // Clean up generated slugs like "fruit-an-vege-4537" -> "Fruit An Vege"
+                      return (item.store || 'General')
+                        .replace(/-\d+$/, '')
+                        .replace(/-/g, ' ')
+                        .replace(/\b\w/g, (c) => c.toUpperCase());
+                    })()}
                   </span>
                 </div>
               ))
             )}
             {uncheckedShopping.length > 8 && (
               <div
-                style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600, textAlign: 'center', cursor: 'pointer', marginTop: 4 }}
-                onClick={() => setActiveView('shopping')}
+                style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600, textAlign: 'center', marginTop: 4 }}
               >
                 +{uncheckedShopping.length - 8} more items on shopping list
               </div>
@@ -718,12 +800,13 @@ export const DashboardSection: React.FC = () => {
             <i className="fas fa-star" style={{ color: '#fbbf24' }} />
             <span>Play Games</span>
           </h3>
-          <div className="play-launch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          <div className="play-launch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, maxWidth: 280, margin: '0 auto', width: '100%' }}>
             <button
               type="button"
               className="play-launch play-launch-maths"
               id="play-open-maths"
               aria-label="Play maths"
+              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
               onClick={() => openPlayGame('maths')}
             >
               <span className="play-launch-mark" aria-hidden="true">×</span>
@@ -734,6 +817,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-colours"
               id="play-open-colours"
               aria-label="Play colours"
+              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
               onClick={() => openPlayGame('colours')}
             >
               <span className="play-launch-swatches" aria-hidden="true">
@@ -749,6 +833,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-patterns"
               id="play-open-patterns"
               aria-label="Play patterns"
+              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
               onClick={() => openPlayGame('patterns')}
             >
               <span className="play-launch-mark play-launch-mark-sm" aria-hidden="true">2 4 6</span>
@@ -759,6 +844,7 @@ export const DashboardSection: React.FC = () => {
               className="play-launch play-launch-memory"
               id="play-open-memory"
               aria-label="Play memory"
+              style={{ aspectRatio: '1 / 1', minHeight: 90 }}
               onClick={() => openPlayGame('memory')}
             >
               <span className="play-launch-cards" aria-hidden="true">
@@ -792,26 +878,28 @@ export const DashboardSection: React.FC = () => {
                 />
                 {screensaverMedia.length > 1 && (
                   <>
-                    <button
-                      type="button"
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon="fas fa-chevron-left"
                       className="dash-photo-nav dash-photo-nav-prev"
+                      aria-label="Previous photo"
                       onClick={(e) => {
                         e.stopPropagation();
                         setPhotoIdx((prev) => (prev - 1 + screensaverMedia.length) % screensaverMedia.length);
                       }}
-                    >
-                      <i className="fas fa-chevron-left" />
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      icon="fas fa-chevron-right"
                       className="dash-photo-nav dash-photo-nav-next"
+                      aria-label="Next photo"
                       onClick={(e) => {
                         e.stopPropagation();
                         setPhotoIdx((prev) => (prev + 1) % screensaverMedia.length);
                       }}
-                    >
-                      <i className="fas fa-chevron-right" />
-                    </button>
+                    />
                   </>
                 )}
               </>
@@ -848,61 +936,84 @@ export const DashboardSection: React.FC = () => {
               onSubmit={handleAddStickyNote}
               style={{
                 display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                padding: 12,
-                borderRadius: 10,
+                flexDirection: 'column',
+                gap: 10,
+                padding: 14,
+                borderRadius: 12,
                 background: 'rgba(0,0,0,0.25)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <div style={{ width: 160 }}>
-                <Input
-                  inputSize="sm"
-                  type="text"
-                  placeholder="Title (optional)"
-                  value={newNoteTitle}
-                  onChange={(e) => setNewNoteTitle(e.target.value)}
-                />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <Input
+                    inputSize="sm"
+                    type="text"
+                    placeholder="Title (optional)"
+                    value={newNoteTitle}
+                    onChange={(e) => setNewNoteTitle(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {STICKY_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewNoteColor(c)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: c,
+                        border: newNoteColor === c ? '2.5px solid #fff' : '1px solid rgba(0,0,0,0.3)',
+                        cursor: 'pointer',
+                        transition: 'transform 0.12s ease',
+                        transform: newNoteColor === c ? 'scale(1.15)' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <Input
-                  inputSize="sm"
-                  type="text"
-                  placeholder="Write a sticky note..."
+
+              <div>
+                <textarea
+                  className="modern-input"
+                  placeholder="Write a sticky note... (supports multiple lines)"
+                  rows={3}
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
                   required
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.5,
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {STICKY_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setNewNoteColor(c)}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: c,
-                      border: newNoteColor === c ? '2px solid #fff' : '1px solid rgba(0,0,0,0.3)',
-                      cursor: 'pointer',
-                    }}
-                  />
-                ))}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setAddingNote(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" size="sm" icon="fas fa-check">
+                  Post Note
+                </Button>
               </div>
-              <Button type="submit" variant="primary" size="sm">
-                Post
-              </Button>
             </form>
           )}
 
           <div
             className="dash-notes-grid"
             id="dash-notes-grid"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}
           >
             {stickyNotes.length === 0 ? (
               <p className="dash-empty-hint">No notes yet — tap &lsquo;Add Note&rsquo; to pin one here.</p>
@@ -913,36 +1024,149 @@ export const DashboardSection: React.FC = () => {
                   style={{
                     background: n.color || '#fef08a',
                     color: '#1e293b',
-                    padding: 14,
-                    borderRadius: 10,
+                    padding: '12px 14px',
+                    borderRadius: 12,
                     position: 'relative',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: 110,
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteStickyNote(n.id)}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>
+                      {n.title || ''}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        icon="fas fa-pencil-alt"
+                        style={{ color: '#475569', width: 24, height: 24 }}
+                        onClick={() => {
+                          setEditingStickyModal(n);
+                          setEditingStickyTitle(n.title || '');
+                          setEditingStickyText(n.text || '');
+                          setEditingStickyColor(n.color || STICKY_COLORS[0]);
+                        }}
+                        aria-label="Edit note with rich text"
+                        title="Edit note with rich text"
+                      />
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        icon="fas fa-times"
+                        style={{ color: '#475569', width: 24, height: 24 }}
+                        onClick={() => handleDeleteStickyNote(n.id)}
+                        aria-label="Delete note"
+                        title="Delete note"
+                      />
+                    </div>
+                  </div>
+
+                  <div
                     style={{
-                      position: 'absolute',
-                      top: 6,
-                      right: 8,
-                      background: 'none',
-                      border: 'none',
-                      color: '#475569',
+                      fontSize: '0.88rem',
+                      lineHeight: 1.5,
+                      color: '#1e293b',
                       cursor: 'pointer',
-                      fontSize: '0.9rem',
+                      flex: 1,
                     }}
+                    onClick={() => {
+                      setEditingStickyModal(n);
+                      setEditingStickyTitle(n.title || '');
+                      setEditingStickyText(n.text || '');
+                      setEditingStickyColor(n.color || STICKY_COLORS[0]);
+                    }}
+                    title="Click to edit with WYSIWYG editor"
                   >
-                    ✕
-                  </button>
-                  {n.title && <div style={{ fontWeight: 800, marginBottom: 4 }}>{n.title}</div>}
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{n.text}</div>
+                    {n.text?.trim().startsWith('<') ? (
+                      <div dangerouslySetInnerHTML={{ __html: n.text }} />
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{n.text}</div>
+                    )}
+                  </div>
                 </div>
               ))
             )}
           </div>
         </div>
       </div>
+
+      {/* Edit Sticky Note WYSIWYG Modal on Today Screen */}
+      {editingStickyModal && (
+        <Modal
+          open={Boolean(editingStickyModal)}
+          onClose={() => setEditingStickyModal(null)}
+          title="Edit Sticky Note"
+          icon="fas fa-note-sticky"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  label="Title (optional)"
+                  value={editingStickyTitle}
+                  onChange={(e) => setEditingStickyTitle(e.target.value)}
+                  placeholder="Note title..."
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+                  Color
+                </label>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {STICKY_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setEditingStickyColor(c)}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        background: c,
+                        border: editingStickyColor === c ? '2.5px solid #fff' : '1px solid rgba(0,0,0,0.3)',
+                        cursor: 'pointer',
+                        transform: editingStickyColor === c ? 'scale(1.15)' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+                Content (Rich Text)
+              </label>
+              <RichEditor
+                value={editingStickyText}
+                onChange={(html) => setEditingStickyText(html)}
+                placeholder="Type your sticky note content..."
+                minHeight="180px"
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <Button
+                variant="secondary"
+                onClick={() => setEditingStickyModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                icon="fas fa-check"
+                onClick={handleUpdateStickyNote}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </PageContainer>
   );
 };

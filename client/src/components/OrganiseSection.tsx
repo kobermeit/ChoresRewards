@@ -4,7 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
-import { PageContainer, Button, Badge } from './ui';
+import { PageContainer, Button, Badge, WipBanner } from './ui';
 
 export interface OrganiseSectionProps {
   isStandalonePage?: boolean;
@@ -265,6 +265,7 @@ export const OrganiseSection: React.FC<OrganiseSectionProps> = ({ isStandalonePa
           </div>
         }
       >
+        <WipBanner />
         <div id="organise-items-container">
             {/* Vehicles Grid */}
             {(filterTab === 'all' || filterTab === 'cars') && cars.length > 0 && (

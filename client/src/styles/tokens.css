@@ -30,7 +30,9 @@
   --color-primary: #0284c7;
   --color-primary-hover: #0369a1;
   --color-primary-active: #075985;
+  --color-primary-subtle: rgba(2, 132, 199, 0.18);
   --color-primary-light: rgba(2, 132, 199, 0.15);
+  --color-primary-highlight: #38bdf8;
   --color-primary-border: #38bdf8;
   --color-primary-text: #ffffff;
 
@@ -241,6 +243,38 @@
 
 .cr-btn-success:hover {
   background: var(--color-success-hover);
+}
+
+/* Specialized Button Shapes */
+.cr-btn-icon-only {
+  padding: 0;
+  width: var(--btn-height-md);
+  height: var(--btn-height-md);
+  flex-shrink: 0;
+}
+
+.cr-btn-icon-only.cr-btn-sm {
+  width: var(--btn-height-sm);
+  height: var(--btn-height-sm);
+}
+
+.cr-btn-icon-only.cr-btn-lg {
+  width: var(--btn-height-lg);
+  height: var(--btn-height-lg);
+}
+
+.cr-btn-pill {
+  border-radius: var(--radius-pill);
+}
+
+.cr-btn-rounded-full {
+  border-radius: 9999px;
+}
+
+.cr-btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
 }
 
 /* Cards & Containers */

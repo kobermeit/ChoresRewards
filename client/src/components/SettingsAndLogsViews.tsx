@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { SetupWizard } from './SetupWizard';
-import { FormErrorAlert } from './FormErrorAlert';
-import { Button, Input, Select, Card, Badge, FormGrid, FormField } from './ui';
+import { Button, Input, Select, Card, Badge, FormGrid, FormField, WipBanner } from './ui';
 
 // ============================================================================
 // 1. SETTINGS VIEW
@@ -436,14 +435,15 @@ export const SettingsView: React.FC = () => {
                       padding: '9px 12px',
                       borderRadius: 10,
                       border: 'none',
-                      background: isActive ? 'var(--color-primary-subtle, rgba(59, 130, 246, 0.16))' : 'transparent',
-                      color: isActive ? 'var(--color-primary-light, #93c5fd)' : 'var(--cr-text-primary)',
+                      background: isActive ? 'var(--color-primary-subtle, rgba(2, 132, 199, 0.18))' : 'transparent',
+                      color: isActive ? '#ffffff' : 'var(--color-text-secondary)',
                       fontWeight: isActive ? 700 : 500,
                       fontSize: '0.86rem',
                       cursor: 'pointer',
                       textAlign: 'left',
                       transition: 'all 0.15s ease',
                       outline: 'none',
+                      borderLeft: isActive ? '3px solid var(--color-primary-highlight, #38bdf8)' : '3px solid transparent',
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
@@ -458,10 +458,10 @@ export const SettingsView: React.FC = () => {
                         style={{
                           width: 16,
                           textAlign: 'center',
-                          color: isActive ? 'var(--color-primary, #3b82f6)' : 'var(--cr-text-secondary)',
+                          color: isActive ? 'var(--color-primary-highlight, #38bdf8)' : 'var(--color-text-muted)',
                         }}
                       />
-                      <span>{item.label}</span>
+                      <span style={{ color: isActive ? '#ffffff' : 'inherit' }}>{item.label}</span>
                     </div>
                     {item.badge && (
                       <span
@@ -492,6 +492,7 @@ export const SettingsView: React.FC = () => {
 
         {/* Right Content Column */}
         <div style={{ minWidth: 0 }}>
+          <WipBanner />
 
       {/* SETUP WIZARD TAB */}
       {tab === 'setup' && (
@@ -508,7 +509,7 @@ export const SettingsView: React.FC = () => {
         <form onSubmit={handleSaveGeneral} className="card" style={{ padding: 24, borderRadius: 18, maxWidth: 680 }}>
           <h3 style={{ marginTop: 0 }}>🌐 General, Theme & Security Settings</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Dark Mode Toggle */}
+            {/* Dark Mode Information */}
             <div
               style={{
                 display: 'flex',
@@ -522,42 +523,26 @@ export const SettingsView: React.FC = () => {
             >
               <div>
                 <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>
-                  <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'}`} style={{ marginRight: 8, color: '#fbbf24' }} />
-                  Dark Mode
+                  <i className="fas fa-moon" style={{ marginRight: 8, color: '#fbbf24' }} />
+                  Display Theme: Dark Mode
                 </div>
                 <div style={{ fontSize: '0.78rem', opacity: 0.75 }}>
-                  Currently {theme === 'dark' ? 'Enabled (Dark)' : 'Disabled (Light)'}
+                  Dark mode is permanently active as the default high-contrast theme for family tablets.
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={toggleTheme}
+              <span
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 16px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  padding: '4px 10px',
                   borderRadius: 999,
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  background: theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.12)',
-                  color: theme === 'dark' ? '#93c5fd' : 'inherit',
-                  fontWeight: 700,
-                  fontSize: '0.86rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  color: '#93c5fd',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
                 }}
               >
-                <span>{theme === 'dark' ? 'ON' : 'OFF'}</span>
-                <span
-                  style={{
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: theme === 'dark' ? '#3b82f6' : '#94a3b8',
-                    display: 'inline-block',
-                  }}
-                />
-              </button>
+                Default
+              </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
               <div>
@@ -1691,6 +1676,7 @@ export const ActivityLogView: React.FC = () => {
           Back to Dashboard
         </Button>
       </div>
+      <WipBanner />
 
       <div className="card" style={{ padding: 20, borderRadius: 16 }}>
         <div style={{ marginBottom: 14, maxWidth: 300 }}>
@@ -1763,6 +1749,7 @@ export const ChoreHistoryView: React.FC = () => {
           Back to Dashboard
         </Button>
       </div>
+      <WipBanner />
 
       {historyData && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>

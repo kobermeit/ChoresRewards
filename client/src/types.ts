@@ -57,6 +57,7 @@ export interface Chore {
   image_url?: string | null;
   is_extra: boolean;
   extra_id: string | null;
+  duration_seconds?: number | null;
   is_overdue?: boolean;
 }
 

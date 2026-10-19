@@ -2340,7 +2340,6 @@ body {
 }
 .column:hover {
     box-shadow: 0 6px 24px rgba(0,0,0,0.22);
-    transform: translateY(-2px);
 }
 .column-header .name .edit-name-icon {
     font-size: 0.55em;
@@ -4191,23 +4190,29 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   display: flex !important;
   gap: 10px;
   width: 100%;
-  height: calc(100vh - 225px);
-  min-height: 480px;
+  min-height: 240px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
   box-sizing: border-box;
+}
+.meal-week-display-2weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
 }
 .meal-day-card {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-width: 170px;
-  flex: 1 0 170px;
+  height: auto;
+  min-height: 200px;
+  min-width: 140px;
+  flex: 1 1 0;
   background: var(--cr-subtle-panel);
   border: 1px solid var(--cr-subtle-panel-border);
   border-radius: var(--card-radius, 14px);
-  padding: 12px 10px;
+  padding: 8px 8px;
   box-sizing: border-box;
 }
 .meal-day-card-today {
@@ -4265,6 +4270,33 @@ body.side-nav-body-collapsed { padding-left: 8px; }
 .meal-kanban-card-del:hover {
   color: #f87171;
   background: rgba(248, 113, 113, 0.15);
+}
+.meal-kanban-delete-corner {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(30, 41, 59, 0.92);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  opacity: 0.85;
+  transition: all 0.15s ease;
+  z-index: 5;
+}
+.meal-kanban-delete-corner:hover {
+  opacity: 1;
+  transform: scale(1.15);
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
 }
 .meal-kanban-add-btn {
   background: rgba(255, 255, 255, 0.04);
@@ -4653,39 +4685,87 @@ body.side-nav-body-collapsed { padding-left: 8px; }
 
 /* Store Badge Colors: Blue default, Green done (NEVER red!) */
 
-/* Meal Planner Kanban Card Height (Halved to ~44px) */
+/* Meal Planner Kanban Card (Spacious, touch-friendly, with image thumbnail & tags) */
 .meal-kanban-cards {
-  gap: 6px !important;
-  min-height: 38px !important;
-  margin-bottom: 6px !important;
+  gap: 8px !important;
+  min-height: 48px !important;
+  margin-bottom: 8px !important;
 }
 .meal-kanban-card {
-  height: 42px !important;
-  min-height: 42px !important;
-  max-height: 42px !important;
-  padding: 4px 8px !important;
+  min-height: 58px !important;
+  padding: 8px 10px !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 6px !important;
-  border-radius: 8px !important;
+  gap: 8px !important;
+  border-radius: var(--card-radius, 12px) !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
+  background: var(--color-bg-card, rgba(30, 41, 59, 0.7)) !important;
+  border: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.08)) !important;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast) !important;
+}
+.meal-kanban-card:hover {
+  background: rgba(51, 65, 85, 0.85) !important;
+  border-color: rgba(96, 165, 250, 0.5) !important;
+  transform: translateY(-2px) !important;
 }
 .meal-kanban-card-title {
-  font-size: 0.82rem !important;
-  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
   margin: 0 !important;
-  line-height: 1.15 !important;
-  white-space: nowrap !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
+.meal-kanban-suggestion-card {
+  border: 1.5px dashed rgba(96, 165, 250, 0.45) !important;
+  background: rgba(30, 41, 59, 0.35) !important;
+  cursor: pointer !important;
+  transition: all var(--transition-fast) !important;
+}
+.meal-kanban-suggestion-card:hover {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(96, 165, 250, 0.8) !important;
+  transform: translateY(-2px) !important;
+}
 .meal-kanban-add-btn {
-  padding: 6px 10px !important;
-  font-size: 0.78rem !important;
-  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 0.82rem !important;
+  border-radius: var(--btn-radius, 10px) !important;
+}
+
+.meal-kanban-delete-corner {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.95);
+  color: #ffffff;
+  border: 1.5px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.15s ease;
+  z-index: 5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  padding: 0;
+  line-height: 1;
+}
+
+.meal-kanban-delete-corner:hover {
+  opacity: 1;
+  background: #dc2626;
+  transform: scale(1.15);
 }
 
 /* Compact Person Header & Sleek Chore Cards in Columns */

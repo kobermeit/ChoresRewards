@@ -6,6 +6,7 @@
 ## Local Server & Process Lifecycle
 - **Keep server running while actively collaborating**: Do NOT kill the local server while pair programming / actively working with the user unless the user explicitly indicates they are stepping away or concluding the session.
 - **Sleep & Power Management**: When the user states they are finishing, leaving, or stepping away, clean up and terminate background server processes so the host PC can sleep.
+- **Sleep Sequence Order**: When asked to put the PC to sleep, ALWAYS send your final complete summary / status message to the user FIRST so they can read what was done. Only after the final response has been delivered should the OS sleep command be executed (e.g. giving a slight delay or executing as the final action after messaging), never cutting off or suspending mid-turn before the user sees the summary.
 
 ## Versioning Protocol
 - **Only increment version on deploy/push**: Do NOT bump versions multiple times during local development. Only increment when preparing to deploy/push to git, and use a single bump (e.g., `1.2.0` -> `1.2.1` or `1.3.0` depending on release scope).

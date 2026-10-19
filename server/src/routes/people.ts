@@ -111,7 +111,7 @@ peopleRouter.post('/delete_person', (req: Request, res: Response) => {
 
 peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
   try {
-    const { id, name, dob, age, color, role, pin, calendar_ical_url } = req.body || {};
+    const { id, name, dob, age, color, role, pin, clear_pin, calendar_ical_url } = req.body || {};
     const trimmedName = String(name || '').trim();
     if (!trimmedName) {
       res.status(400).json({ success: false, error: 'Name is required' });
@@ -131,13 +131,11 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
         return;
       }
       let pinHash = existing.pin;
-      if (pin !== undefined) {
+      if (clear_pin === true || clear_pin === 'true' || pin === null) {
+        pinHash = null;
+      } else if (pin !== undefined && String(pin).trim() !== '') {
         const rawPin = String(pin).trim();
-        if (rawPin === '') {
-          pinHash = null;
-        } else {
-          pinHash = hashPin(rawPin);
-        }
+        pinHash = hashPin(rawPin);
       }
       const finalDob = cleanDob !== undefined ? cleanDob : existing.dob;
       const finalAge = calculateAge(finalDob, cleanAge !== null ? cleanAge : existing.age);

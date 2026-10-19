@@ -71,6 +71,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         image_url: c.image_url || null,
         is_extra: Boolean(c.is_extra),
         extra_id: c.extra_id || null,
+        duration_seconds: c.duration_seconds !== null && c.duration_seconds !== undefined ? Number(c.duration_seconds) : null,
         is_overdue: overdue,
       };
     });
@@ -225,8 +226,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       master_pin_set: masterPinSet,
       auth: {
         authenticated: !masterPinSet ? true : Boolean(req.session?.authenticated),
-        adult_mode: Boolean(req.session?.adult_mode || activeUser?.role === 'parent'),
-        adult_name: req.session?.adult_name || (activeUser?.role === 'parent' ? activeUser.name : null),
+        adult_mode: Boolean(req.session?.adult_mode),
+        adult_name: req.session?.adult_name || null,
         person_id: activeUser?.id || null,
         person_name: activeUser?.name || null,
         active_user: activeUser,

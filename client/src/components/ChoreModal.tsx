@@ -4,7 +4,7 @@ import { Chore, Person } from '../types';
 import { apiPost, resolveAssetUrl } from '../api';
 import { Modal } from './common/Modal';
 import { UserAvatar } from './ui/UserAvatar';
-import { Button, Input } from './ui';
+import { Button, Input, NumberStepper, DurationStepper } from './ui';
 import { FormErrorAlert } from './FormErrorAlert';
 
 const DEFAULT_CHORE_SUGGESTIONS = [
@@ -25,6 +25,25 @@ const DEFAULT_CHORE_SUGGESTIONS = [
   'Water the plants',
   'Wipe down kitchen bench',
   'Put away groceries',
+];
+
+export const STOCK_CHORE_IMAGES = [
+  { url: '/static/images/chores/chore_lunchbox.svg', label: 'Lunchbox on Bench' },
+  { url: '/static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
+  { url: '/static/images/chores/chore_bed.svg', label: 'Make Bed' },
+  { url: '/static/images/chores/chore_tidy_room.svg', label: 'Tidy Room' },
+  { url: '/static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
+  { url: '/static/images/chores/chore_feed_pets.svg', label: 'Feed Pets' },
+  { url: '/static/images/chores/chore_walk_dog.svg', label: 'Walk the Dog' },
+  { url: '/static/images/chores/chore_homework.svg', label: 'Do Homework' },
+  { url: '/static/images/chores/chore_teeth.svg', label: 'Brush Teeth' },
+  { url: '/static/images/chores/chore_laundry.svg', label: 'Fold Laundry' },
+  { url: '/static/images/chores/chore_vacuum.svg', label: 'Vacuum & Sweep' },
+  { url: '/static/images/chores/chore_table.svg', label: 'Set Table' },
+  { url: '/static/images/chores/chore_plants.svg', label: 'Water Plants' },
+  { url: '/static/images/chores/chore_wipe_bench.svg', label: 'Wipe Bench' },
+  { url: '/static/images/chores/chore_backpack.svg', label: 'Pack School Bag' },
+  { url: '/static/images/chores/chore_shoes.svg', label: 'Put Away Shoes' },
 ];
 
 const DAYS_OF_WEEK = [
@@ -58,12 +77,15 @@ export const ChoreModal: React.FC = () => {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [hasDueDate, setHasDueDate] = useState(false);
   const [dueDatetime, setDueDatetime] = useState('');
+  const [isTimeBased, setIsTimeBased] = useState(false);
+  const [durationSeconds, setDurationSeconds] = useState(600);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [stockPickerOpen, setStockPickerOpen] = useState(false);
 
   // Search combobox dropdown state
   const [comboboxOpen, setComboboxOpen] = useState(false);
@@ -110,7 +132,7 @@ export const ChoreModal: React.FC = () => {
       return;
     }
 
-    if (chore) {
+    if (chore && chore.id) {
       setTitle(chore.title || '');
       setAssignedTo(chore.assigned_to || (family[0]?.name ?? ''));
       setPoints(String(chore.points ?? 1));
@@ -133,6 +155,14 @@ export const ChoreModal: React.FC = () => {
         setDueDatetime('');
       }
 
+      if (chore.duration_seconds && chore.duration_seconds > 0) {
+        setIsTimeBased(true);
+        setDurationSeconds(chore.duration_seconds);
+      } else {
+        setIsTimeBased(false);
+        setDurationSeconds(600);
+      }
+
       setImageUrl(chore.image_url || null);
       setImagePreview(chore.image_url ? resolveAssetUrl(chore.image_url) : null);
       setImageFile(null);
@@ -140,17 +170,23 @@ export const ChoreModal: React.FC = () => {
     } else {
       // New chore defaults
       setTitle('');
-      // Assign to current active user if child/member, else first family member
+      // Assign to specified person (if opened from lane), active user if child/member, else first family member
+      const matchedAssignee =
+        chore?.assigned_to ||
+        (chore?.assigned_to_id ? family.find((p) => p.id === chore.assigned_to_id)?.name : null);
       const defaultAssignee =
-        activeUser && activeUser.role !== 'family'
+        matchedAssignee ||
+        (activeUser && activeUser.role !== 'family'
           ? activeUser.name
-          : family[0]?.name || '';
+          : family[0]?.name || '');
       setAssignedTo(defaultAssignee);
       setPoints('1');
       setIsRepeating(false);
       setSelectedDays([]);
       setHasDueDate(false);
       setDueDatetime('');
+      setIsTimeBased(false);
+      setDurationSeconds(600);
       setImageUrl(null);
       setImagePreview(null);
       setImageFile(null);
@@ -241,6 +277,12 @@ export const ChoreModal: React.FC = () => {
         formData.append('due_datetime', dueDatetime);
       } else {
         formData.append('due_datetime', '');
+      }
+
+      if (isTimeBased) {
+        formData.append('duration_seconds', String(Math.max(10, durationSeconds)));
+      } else {
+        formData.append('duration_seconds', '0');
       }
 
       if (imageFile) {
@@ -525,60 +567,21 @@ export const ChoreModal: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. Points Reward Input with Star Prefix */}
+        {/* 3. Points Reward Input with NumberStepper */}
         <div>
-          <label
-            style={{
-              display: 'block',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              color: 'var(--color-text-primary, #f8fafc)',
-              marginBottom: 6,
-            }}
-          >
-            {isCash ? 'Pocket Money Reward ($)' : 'Points Reward'} <span style={{ color: '#ef4444' }}>*</span>
-          </label>
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              width: '100%',
-              maxWidth: '220px',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                left: 12,
-                pointerEvents: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: isCash ? '#4ade80' : memberColor,
-                fontSize: '1rem',
-              }}
-            >
-              {isCash ? <strong>$</strong> : <i className="fas fa-star" />}
-            </div>
-            <input
-              type="number"
-              className="modern-input"
-              value={points}
-              onChange={(e) => setPoints(e.target.value)}
-              min="0"
-              step={isCash ? '0.01' : '0.5'}
-              required
-              style={{
-                paddingLeft: '34px',
-                height: '42px',
-                fontSize: '1.05rem',
-                fontWeight: 700,
-                color: '#fff',
-                width: '100%',
-              }}
-            />
-          </div>
+          <NumberStepper
+            label={isCash ? 'Pocket Money Reward ($)' : 'Points Reward'}
+            required
+            value={points}
+            onChange={(val) => setPoints(String(val))}
+            min={0}
+            step={isCash ? 0.5 : 1}
+            prefix={isCash ? <strong>$</strong> : <i className="fas fa-star" style={{ color: '#fbbf24' }} />}
+            presets={isCash ? [0.5, 1, 2, 5] : [1, 2, 5, 10]}
+            buttonsPosition="right"
+            inputWidth={80}
+            helperText={isCash ? 'Pocket money awarded when chore is completed' : 'Points earned when chore is completed'}
+          />
         </div>
 
         {/* 4. Chore Photo / Image Upload (Feature Request) */}
@@ -681,21 +684,82 @@ export const ChoreModal: React.FC = () => {
                 >
                   {imagePreview ? 'Change Photo' : 'Upload Photo'}
                 </Button>
+                <Button
+                  type="button"
+                  variant={stockPickerOpen ? 'primary' : 'outline'}
+                  size="sm"
+                  icon="fas fa-shapes"
+                  onClick={() => setStockPickerOpen((prev) => !prev)}
+                >
+                  Choose Illustration
+                </Button>
                 {imagePreview && (
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
                     icon="fas fa-trash"
-                    onClick={handleClearImage}
+                    onClick={() => {
+                      handleClearImage();
+                      setStockPickerOpen(false);
+                    }}
                   >
                     Remove
                   </Button>
                 )}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
-                Custom photo displayed on the chore card instead of the default icon
+                Choose a stock illustration or upload a custom photo for this chore
               </div>
+
+              {stockPickerOpen && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))',
+                    gap: 8,
+                    padding: 10,
+                    borderRadius: 12,
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    marginTop: 10,
+                    maxHeight: 190,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {STOCK_CHORE_IMAGES.map((item) => (
+                    <div
+                      key={item.url}
+                      onClick={() => {
+                        setImageUrl(item.url);
+                        setImagePreview(item.url);
+                        setImageFile(null);
+                        setRemoveImage(false);
+                        setStockPickerOpen(false);
+                      }}
+                      style={{
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        padding: 6,
+                        borderRadius: 8,
+                        border: imageUrl === item.url ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                        background: imageUrl === item.url ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.03)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={item.label}
+                    >
+                      <img
+                        src={item.url}
+                        alt={item.label}
+                        style={{ width: 36, height: 36, margin: '0 auto 4px', display: 'block', borderRadius: 6 }}
+                      />
+                      <span style={{ fontSize: '0.68rem', display: 'block', lineHeight: 1.2, color: '#f1f5f9', fontWeight: 600 }}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -968,6 +1032,98 @@ export const ChoreModal: React.FC = () => {
                 value={dueDatetime}
                 onChange={(e) => setDueDatetime(e.target.value)}
                 style={{ width: '100%', height: 42, fontSize: '0.9rem' }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 7. Time-Based Chore Timer (Feature Request) */}
+        <div
+          style={{
+            borderRadius: '14px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '14px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {/* Clickable Header Row */}
+          <div
+            onClick={() => setIsTimeBased((prev) => !prev)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '8px',
+                  background: isTimeBased ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                  color: isTimeBased ? '#10b981' : '#94a3b8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem',
+                }}
+              >
+                <i className="fas fa-stopwatch" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#f8fafc' }}>
+                  Time-Based Chore (Countdown Timer)
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Flips chore card into an interactive countdown timer (e.g. 2m brush teeth, 10m dinner)
+                </div>
+              </div>
+            </div>
+
+            {/* Clean toggle switch */}
+            <div
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                background: isTimeBased ? '#10b981' : 'rgba(255, 255, 255, 0.2)',
+                position: 'relative',
+                transition: 'background 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  position: 'absolute',
+                  top: 2,
+                  left: isTimeBased ? 22 : 2,
+                  transition: 'left 0.2s ease',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Duration Selector with DurationStepper */}
+          {isTimeBased && (
+            <div style={{ paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <DurationStepper
+                label="Timer Duration (Minutes : Seconds)"
+                totalSeconds={durationSeconds}
+                onChange={(sec) => setDurationSeconds(sec)}
+                minSeconds={30}
+                stepSeconds={30}
+                helperText="Countdown timer duration when this chore is started."
               />
             </div>
           )}
