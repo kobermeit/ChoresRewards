@@ -4,7 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut, resolveAssetUrl } from '../api';
 import { OrganiseItem, VehicleService } from '../types';
 import { SectionHelpTip } from './HelpTooltipAndView';
 import { Modal } from './common/Modal';
-import { PageContainer, Button, Badge, WipBanner } from './ui';
+import { PageContainer, Button, Badge, WipBanner, Select } from './ui';
 
 export interface OrganiseSectionProps {
   isStandalonePage?: boolean;
@@ -516,19 +516,19 @@ export const OrganiseSection: React.FC<OrganiseSectionProps> = ({ isStandalonePa
         }
       >
         <form onSubmit={handleCreateItem} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <select
-            className="modern-select"
+          <Select
             value={addCategory}
             onChange={(e) => setAddCategory(e.target.value)}
-          >
-            <option value="car">🚗 Vehicle</option>
-            <option value="rego">🪪 Registration (Rego)</option>
-            <option value="insurance">🛡️ Insurance</option>
-            <option value="electricity">⚡ Electricity / Gas</option>
-            <option value="internet">🌐 Internet / Phone</option>
-            <option value="rates">🏡 Council Rates / Water</option>
-            <option value="subscription">📺 Subscription</option>
-          </select>
+            options={[
+              { value: 'car', label: '🚗 Vehicle' },
+              { value: 'rego', label: '🪪 Registration (Rego)' },
+              { value: 'insurance', label: '🛡️ Insurance' },
+              { value: 'electricity', label: '⚡ Electricity / Gas' },
+              { value: 'internet', label: '🌐 Internet / Phone' },
+              { value: 'rates', label: '🏡 Council Rates / Water' },
+              { value: 'subscription', label: '📺 Subscription' },
+            ]}
+          />
 
           <input
             type="text"

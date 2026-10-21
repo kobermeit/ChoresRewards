@@ -57,6 +57,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       return {
         id: c.id,
         title: c.title,
+        description: c.description || null,
         assigned_to_id: c.assigned_to_id,
         assigned_to: c.assigned_to,
         points: roundPoints(c.points),

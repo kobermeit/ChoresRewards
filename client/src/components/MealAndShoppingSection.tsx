@@ -710,6 +710,152 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         .slice(0, 10)
     : catalogPool.slice(0, 8);
 
+  useEffect(() => {
+    if (!shoppingStore && stores.length > 0) {
+      setShoppingStore(stores[0].id);
+    }
+  }, [stores, shoppingStore]);
+
+  // Unique alphabetical list of all items for each store, with the most recent quantity
+  const storeItemsMap = useMemo(() => {
+    const map: Record<string, Array<{ name: string; qty: string }>> = {};
+
+    const getItemName = (item: any): string => {
+      if (!item) return '';
+      if (typeof item === 'string') return item.trim();
+      const raw = item.name ?? item.item_name ?? item.title ?? '';
+      return typeof raw === 'string' ? raw.trim() : '';
+    };
+
+    const getItemQty = (item: any): string => {
+      if (!item) return '';
+      const q = item.qty ?? item.quantity ?? '';
+      return q !== null && q !== undefined ? String(q).trim() : '';
+    };
+
+    stores.forEach((store) => {
+      const storeIdLower = store.id.toLowerCase();
+      const storeNameLower = store.name.toLowerCase();
+      const matchesStore = (s?: string) => {
+        if (!s) return false;
+        const sl = s.toLowerCase();
+        return sl === storeIdLower || sl === storeNameLower;
+      };
+
+      const itemsByName = new Map<string, { name: string; qty: string }>();
+
+      // 1. Intelligence catalog items
+      (intel.catalog || []).forEach((c) => {
+        if (matchesStore(c.default_store)) {
+          const name = getItemName(c);
+          if (name) {
+            itemsByName.set(name.toLowerCase(), { name, qty: '' });
+          }
+        }
+      });
+
+      // 2. Ingredients from meal library
+      Object.values(ingredientsMap || {}).forEach((ings) => {
+        (ings || []).forEach((ing) => {
+          if (matchesStore(ing.store)) {
+            const name = getItemName(ing);
+            if (name) {
+              const existing = itemsByName.get(name.toLowerCase());
+              const qty = getItemQty(ing);
+              itemsByName.set(name.toLowerCase(), {
+                name: existing?.name || name,
+                qty: qty || existing?.qty || '',
+              });
+            }
+          }
+        });
+      });
+
+      // 3. Current active/general items
+      (shop?.general || []).forEach((g) => {
+        if (matchesStore(g.store)) {
+          const name = getItemName(g);
+          if (name) {
+            const existing = itemsByName.get(name.toLowerCase());
+            const qty = getItemQty(g);
+            itemsByName.set(name.toLowerCase(), {
+              name: existing?.name || name,
+              qty: qty || existing?.qty || '',
+            });
+          }
+        }
+      });
+
+      // 4. Recently purchased items (recent purchases take precedence for quantity)
+      (intel.recently_purchased || []).forEach((p) => {
+        if (matchesStore(p.store)) {
+          const name = getItemName(p);
+          if (name) {
+            const existing = itemsByName.get(name.toLowerCase());
+            const qty = getItemQty(p);
+            itemsByName.set(name.toLowerCase(), {
+              name: existing?.name || name,
+              qty: qty || existing?.qty || '',
+            });
+          }
+        }
+      });
+
+      // 5. Archived items (latest checkout records)
+      (shop?.archived || []).forEach((a) => {
+        if (matchesStore(a.store)) {
+          const name = getItemName(a);
+          if (name) {
+            const existing = itemsByName.get(name.toLowerCase());
+            const qty = getItemQty(a);
+            itemsByName.set(name.toLowerCase(), {
+              name: existing?.name || name,
+              qty: qty || existing?.qty || '',
+            });
+          }
+        }
+      });
+
+      // If store has very few items (e.g. newly added store), seed with general catalog staples
+      if (itemsByName.size < 5) {
+        (intel.catalog || []).forEach((c) => {
+          const name = getItemName(c);
+          if (name && !itemsByName.has(name.toLowerCase())) {
+            itemsByName.set(name.toLowerCase(), { name, qty: '' });
+          }
+        });
+      }
+
+      // Sort alphabetically by name
+      const sorted = Array.from(itemsByName.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      );
+
+      map[store.id] = sorted;
+    });
+
+    return map;
+  }, [stores, intel, ingredientsMap, shop?.general, shop?.archived]);
+
+  const handleQuickAddStoreItem = async (storeId: string, itemName: string) => {
+    if (!itemName) return;
+    const storeItems = storeItemsMap[storeId] || [];
+    const item = storeItems.find((i) => i.name === itemName);
+    const qty = item?.qty || '';
+    try {
+      await apiPost('add_general_shopping_item', {
+        name: itemName,
+        qty: qty,
+        store: storeId,
+      });
+      const storeName = stores.find((s) => s.id === storeId)?.name || storeId;
+      showToast(`Added "${itemName}"${qty ? ` (${qty})` : ''} to ${storeName}`);
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to add item', { type: 'error' });
+    }
+  };
+
   const handleSyncNotion = async () => {
     setNotionSyncing(true);
     try {
@@ -960,12 +1106,14 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
     setShoppingSearch('');
     setShoppingComboboxOpen(false);
     try {
+      const storeToUse = shoppingStore || preferredStore || stores[0]?.id || 'aldi';
       await apiPost('add_general_shopping_item', {
         name: trimmed,
         qty: '',
-        store: shoppingStore || preferredStore || stores[0]?.id || 'aldi',
+        store: storeToUse,
       });
-      showToast(`Added "${trimmed}" to list`);
+      const storeName = stores.find((s) => s.id === storeToUse)?.name || storeToUse;
+      showToast(`Added "${trimmed}" to ${storeName}`);
       await refresh();
     } catch (err: any) {
       showToast(err?.message || 'Failed to add item', { type: 'error' });
@@ -1303,6 +1451,8 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
          =================================================================== */}
       {(subView === 'all' || subView === 'shopping') && (
         <PageContainer
+          className="shopping-page-container"
+          style={{ paddingBottom: 16, marginBottom: 0 }}
           title="Shopping List"
           icon="fas fa-cart-shopping"
           iconClass="section-icon-shopping"
@@ -1327,9 +1477,9 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                 icon="fas fa-star"
                 className="shopping-toolbar-btn shopping-toolbar-btn-frequent"
                 onClick={() => setFrequentlyModalOpen(true)}
-                title="Add frequently purchased staples"
+                title="Add popular staples"
               >
-                Frequently Added ({intel.frequently_added?.length || 0})
+                <span className="shopping-btn-label">Popular ({intel.frequently_added?.length || 0})</span>
               </Button>
               <Button
                 variant="secondary"
@@ -1337,9 +1487,9 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                 icon="fas fa-lightbulb"
                 className="shopping-toolbar-btn shopping-toolbar-btn-suggested"
                 onClick={() => setSuggestedModalOpen(true)}
-                title="Items predicted to restock based on purchase frequency"
+                title="Suggested restock based on purchase frequency"
               >
-                Suggested Restock ({intel.suggested?.length || 0})
+                <span className="shopping-btn-label">Suggested ({intel.suggested?.length || 0})</span>
               </Button>
               <Button
                 variant="secondary"
@@ -1349,7 +1499,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                 onClick={() => setRecentlyPurchasedOpen(true)}
                 title="View purchased history"
               >
-                History
+                <span className="shopping-btn-label">History</span>
               </Button>
               <IconButton
                 shape="circle"
@@ -1437,7 +1587,8 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                 ...stores.map((s) => ({ value: s.id, label: s.name })),
                 { value: '__add_new_store__', label: '+ Add store…' },
               ]}
-              style={{ minWidth: 140 }}
+              className="shopping-store-select shopping-dynamic-store-select"
+              containerStyle={{ flex: '0 0 auto', width: 160, minWidth: 140, margin: 0 }}
             />
             <Button
               variant="primary"
@@ -1524,6 +1675,27 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
                   >
                     {uncheckedCount > 0 ? `${uncheckedCount} to get` : '✓ All done'}
                   </span>
+                </div>
+
+                {/* In-lane Quick Add Dropdown (Unique alphabetical items with most recent qty) */}
+                <div className="shopping-lane-quick-add">
+                  <Select
+                    value=""
+                    placeholder="+ Add item…"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        handleQuickAddStoreItem(store.id, val);
+                      }
+                    }}
+                    aria-label={`Add item to ${store.name}`}
+                    options={(storeItemsMap[store.id] || []).map((item) => ({
+                      value: item.name,
+                      label: `${item.name}${item.qty ? ` (${item.qty})` : ''}`,
+                    }))}
+                    className="shopping-lane-select"
+                    containerStyle={{ width: '100%', margin: 0 }}
+                  />
                 </div>
 
                 <div className="shopping-store-items">

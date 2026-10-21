@@ -4,6 +4,7 @@ import { resolveAssetUrl } from '../../api';
 export interface ItemCardProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
+  description?: React.ReactNode;
   imageUrl?: string | null;
   icon?: React.ReactNode;
   fallbackIcon?: string;
@@ -24,6 +25,7 @@ export interface ItemCardProps {
 export const ItemCard: React.FC<ItemCardProps> = ({
   title,
   subtitle,
+  description,
   imageUrl,
   icon,
   fallbackIcon = 'fa-star',
@@ -194,10 +196,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       <div
         className="cr-item-card-body"
         style={{
-          padding: '12px 14px 14px',
+          padding: '15px 15px 15px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: 13,
           flex: 1,
           justifyContent: 'space-between',
         }}
@@ -234,6 +236,27 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               </div>
             )}
           </div>
+
+          {description && (
+            <div
+              className="cr-item-card-description"
+              style={{
+                fontSize: '0.82rem',
+                color: 'var(--color-text-secondary, #94a3b8)',
+                lineHeight: 1.35,
+                marginTop: 2,
+                marginBottom: 6,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title={typeof description === 'string' ? description : undefined}
+            >
+              {description}
+            </div>
+          )}
 
           {subtitle && (
             <div className="cr-item-card-subtitle" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>

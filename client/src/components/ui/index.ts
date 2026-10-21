@@ -14,3 +14,4 @@ export * from './DurationStepper';
 export * from './QuantityPickerModal';
 export * from './WheelPickerOverlay';
 export * from './EmptyState';
+export * from './Overlay';

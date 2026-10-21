@@ -43,6 +43,7 @@ export interface Person {
 export interface Chore {
   id: number;
   title: string;
+  description?: string | null;
   assigned_to_id: number | null;
   assigned_to: string;
   points: number;

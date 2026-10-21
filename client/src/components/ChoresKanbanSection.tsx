@@ -895,7 +895,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
 
                   if (visibleChores.length > 0) {
                     return (
-                      <ResponsiveGrid minColWidth="240px" gap="14px">
+                      <ResponsiveGrid minColWidth="240px" gap="18px">
                         {visibleChores.map((chore) => {
                           const isDone = Boolean(chore.completed);
                           const isOverdue = !isDone && (overdueIds.has(chore.id) || Boolean(chore.is_overdue));
@@ -1080,10 +1080,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               key={chore.id}
                               title={chore.title}
                               subtitle={subtitleNode}
+                              description={chore.description}
                               imageUrl={chore.image_url}
                               icon={detectChoreIcon(chore.title, chore.icon)}
                               accentColor={person.color}
-                              heroHeight={110}
+                              heroHeight={140}
                               pointsBadge={pointsPill}
                               statusBadges={statusBadges}
                               primaryAction={primaryAction}
@@ -1351,7 +1352,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
 
                   if (visibleChores.length > 0) {
                     return (
-                      <div className="chores-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div className="chores-list" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
                         {visibleChores.map((chore) => {
                           const isDone = Boolean(chore.completed);
                           const isOverdue = !isDone && (overdueIds.has(chore.id) || Boolean(chore.is_overdue));
@@ -1522,10 +1523,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               key={chore.id}
                               title={chore.title}
                               subtitle={subtitleNode}
+                              description={chore.description}
                               imageUrl={chore.image_url}
                               icon={detectChoreIcon(chore.title, chore.icon)}
                               accentColor={person.color}
-                              heroHeight={95}
+                              heroHeight={140}
                               pointsBadge={pointsPill}
                               statusBadges={statusBadges}
                               primaryAction={primaryAction}

@@ -219,9 +219,10 @@ export const PhotoPickerModal: React.FC<PhotoPickerModalProps> = ({
       {/* Tab 1: Default Stock Illustrations */}
       {activeTab === 'default' && (
         <div
+          className="photo-picker-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
             gap: 12,
             maxHeight: 460,
             overflowY: 'auto',
@@ -237,61 +238,96 @@ export const PhotoPickerModal: React.FC<PhotoPickerModalProps> = ({
                   onSelect(item.url, item.label);
                   onClose();
                 }}
+                className={`photo-picker-tile ${isSelected ? 'photo-picker-tile-selected' : ''}`}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: 8,
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '16 / 11',
                   borderRadius: 12,
-                  background: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                  border: isSelected ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                  overflow: 'hidden',
+                  background: '#0f172a',
+                  border: isSelected ? '2.5px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.12)',
+                  boxShadow: isSelected
+                    ? '0 0 14px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5)'
+                    : '0 3px 10px rgba(0, 0, 0, 0.25)',
                   cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'transform 0.12s ease, border-color 0.12s ease',
+                  transition: 'transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                  e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
                 }}
               >
+                {/* Edge-to-Edge Image (Like Meal Library) */}
+                <img
+                  src={resolveAssetUrl(item.url)}
+                  alt={item.label}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  loading="lazy"
+                />
+
+                {/* Bottom Shadow Gradient & Text Overlay */}
                 <div
                   style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    background: '#0f172a',
-                    marginBottom: 6,
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    padding: '24px 8px 7px',
+                    background:
+                      'linear-gradient(to top, rgba(10, 15, 29, 0.95) 0%, rgba(10, 15, 29, 0.6) 60%, transparent 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    textAlign: 'center',
+                    pointerEvents: 'none',
                   }}
                 >
-                  <img
-                    src={resolveAssetUrl(item.url)}
-                    alt={item.label}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    loading="lazy"
-                  />
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: isSelected ? '#93c5fd' : '#f8fafc',
+                      lineHeight: 1.2,
+                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.9)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                    }}
+                  >
+                    {item.label}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    fontSize: '0.74rem',
-                    color: isSelected ? '#93c5fd' : '#cbd5e1',
-                    fontWeight: isSelected ? 700 : 500,
-                    lineHeight: 1.2,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {item.label}
-                </span>
+
+                {/* Selected Checkmark Badge */}
+                {isSelected && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 7,
+                      right: 7,
+                      background: '#3b82f6',
+                      color: '#ffffff',
+                      borderRadius: '50%',
+                      width: 22,
+                      height: 22,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.72rem',
+                      fontWeight: 900,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.6)',
+                      border: '1.5px solid rgba(255, 255, 255, 0.8)',
+                    }}
+                  >
+                    <i className="fas fa-check" />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -323,9 +359,10 @@ export const PhotoPickerModal: React.FC<PhotoPickerModalProps> = ({
             </EmptyState>
           ) : (
             <div
+              className="photo-picker-grid"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
                 gap: 12,
                 maxHeight: 460,
                 overflowY: 'auto',
@@ -341,59 +378,94 @@ export const PhotoPickerModal: React.FC<PhotoPickerModalProps> = ({
                       onSelect(img.url, img.filename);
                       onClose();
                     }}
+                    className={`photo-picker-tile ${isSelected ? 'photo-picker-tile-selected' : ''}`}
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      padding: 8,
+                      position: 'relative',
+                      width: '100%',
+                      aspectRatio: '16 / 11',
                       borderRadius: 12,
-                      background: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                      border: isSelected ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                      overflow: 'hidden',
+                      background: '#0f172a',
+                      border: isSelected ? '2.5px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.12)',
+                      boxShadow: isSelected
+                        ? '0 0 14px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5)'
+                        : '0 3px 10px rgba(0, 0, 0, 0.25)',
                       cursor: 'pointer',
-                      textAlign: 'center',
-                      transition: 'transform 0.12s ease',
+                      transition: 'transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                      if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                      if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
                     }}
                   >
+                    <img
+                      src={resolveAssetUrl(img.url)}
+                      alt={img.filename}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      loading="lazy"
+                    />
+
                     <div
                       style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        background: '#0f172a',
-                        marginBottom: 6,
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        padding: '24px 8px 7px',
+                        background:
+                          'linear-gradient(to top, rgba(10, 15, 29, 0.95) 0%, rgba(10, 15, 29, 0.6) 60%, transparent 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        textAlign: 'center',
+                        pointerEvents: 'none',
                       }}
                     >
-                      <img
-                        src={resolveAssetUrl(img.url)}
-                        alt={img.filename}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        loading="lazy"
-                      />
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: isSelected ? '#93c5fd' : '#f8fafc',
+                          lineHeight: 1.2,
+                          textShadow: '0 1px 3px rgba(0, 0, 0, 0.9)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '100%',
+                        }}
+                        title={img.filename}
+                      >
+                        {img.filename.replace(/^\d+_[a-z0-9]+_/, '')}
+                      </span>
                     </div>
-                    <span
-                      style={{
-                        fontSize: '0.72rem',
-                        color: isSelected ? '#93c5fd' : '#cbd5e1',
-                        lineHeight: 1.2,
-                        maxWidth: 90,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={img.filename}
-                    >
-                      {img.filename.replace(/^\d+_[a-z0-9]+_/, '')}
-                    </span>
+
+                    {isSelected && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 7,
+                          right: 7,
+                          background: '#3b82f6',
+                          color: '#ffffff',
+                          borderRadius: '50%',
+                          width: 22,
+                          height: 22,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.72rem',
+                          fontWeight: 900,
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.6)',
+                          border: '1.5px solid rgba(255, 255, 255, 0.8)',
+                        }}
+                      >
+                        <i className="fas fa-check" />
+                      </div>
+                    )}
                   </div>
                 );
               })}

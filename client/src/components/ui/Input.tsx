@@ -55,17 +55,27 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
 Input.displayName = 'Input';
 
+export interface SelectOption {
+  value: string | number;
+  label: string;
+  disabled?: boolean;
+}
+
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string | null;
+  options?: SelectOption[];
+  containerStyle?: React.CSSProperties;
+  placeholder?: string;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, children, className = '', id, style, ...props }, ref) => {
+  ({ label, error, options, placeholder, children, className = '', id, style, containerStyle, value, ...props }, ref) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const isUnselected = value === '' || value === undefined || value === null;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...containerStyle }}>
         {label && (
           <label
             htmlFor={selectId}
@@ -84,14 +94,27 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           id={selectId}
-          className={`cr-select ${className}`.trim()}
+          value={value}
+          className={`cr-select ${isUnselected ? 'cr-select-placeholder' : ''} ${className}`.trim()}
           style={{
             borderColor: error ? 'var(--color-danger-border)' : undefined,
+            color: isUnselected ? 'var(--color-text-muted, #94a3b8)' : undefined,
             ...style,
           }}
           {...props}
         >
-          {children}
+          {placeholder && (
+            <option value="" disabled hidden>
+              {placeholder}
+            </option>
+          )}
+          {options
+            ? options.map((opt) => (
+                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                  {opt.label}
+                </option>
+              ))
+            : children}
         </select>
         {error && (
           <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border)', fontWeight: 600 }}>

@@ -30,6 +30,9 @@ const DEFAULT_CHORE_SUGGESTIONS = [
 
 export const STOCK_CHORE_IMAGES = [
   { url: './static/images/chores/chore_clean_bedroom.jpg', label: 'Clean Bedroom' },
+  { url: './static/images/chores/chore_make_bed.jpg', label: 'Make Bed' },
+  { url: './static/images/chores/chore_ghibli_sweep.jpg', label: 'Ghibli Porch Sweep' },
+  { url: './static/images/chores/chore_minecraft_tidy.jpg', label: 'Minecraft Cabin Tidy' },
   { url: './static/images/chores/chore_feed_pets.jpg', label: 'Feed Pets' },
   { url: './static/images/chores/chore_reading_time.jpg', label: 'Reading Time' },
   { url: './static/images/chores/chore_music_practice.jpg', label: 'Music Practice' },
@@ -43,7 +46,6 @@ export const STOCK_CHORE_IMAGES = [
   { url: './static/images/chores/chore_quiet_time.jpg', label: 'Quiet Time & Mindfulness' },
   { url: './static/images/chores/chore_bike_ride.jpg', label: 'Outdoor Bike / Scooter Ride' },
   { url: './static/images/chores/chore_walk_dog.svg', label: 'Walk the Dog' },
-  { url: './static/images/chores/chore_bed.svg', label: 'Make Bed' },
   { url: './static/images/chores/chore_dishes.svg', label: 'Dishes & Sink' },
   { url: './static/images/chores/chore_trash.svg', label: 'Take Out Bins' },
   { url: './static/images/chores/chore_laundry.svg', label: 'Fold Laundry' },
@@ -81,6 +83,7 @@ export const ChoreModal: React.FC = () => {
   const chore = editingChoreModalItem || null;
 
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [points, setPoints] = useState('1');
   const [isRepeating, setIsRepeating] = useState(false);
@@ -144,6 +147,7 @@ export const ChoreModal: React.FC = () => {
 
     if (chore && chore.id) {
       setTitle(chore.title || '');
+      setDescription(chore.description || '');
       setAssignedTo(chore.assigned_to || (family[0]?.name ?? ''));
       setPoints(String(chore.points ?? 1));
       setIsRepeating(Boolean(chore.is_daily));
@@ -180,6 +184,7 @@ export const ChoreModal: React.FC = () => {
     } else {
       // New chore defaults
       setTitle('');
+      setDescription('');
       // Assign to specified person (if opened from lane), active user if child/member, else first family member
       const matchedAssignee =
         chore?.assigned_to ||
@@ -308,6 +313,7 @@ export const ChoreModal: React.FC = () => {
         formData.append('chore_id', String(chore.id));
       }
       formData.append('title', trimmedTitle);
+      formData.append('description', description.trim());
       formData.append('assigned_to', assignedTo);
       formData.append('points', String(numPoints));
       formData.append('is_daily', isRepeating ? 'true' : 'false');
@@ -520,6 +526,38 @@ export const ChoreModal: React.FC = () => {
                 )}
             </div>
           )}
+        </div>
+
+        {/* Chore Description */}
+        <div>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              color: 'var(--color-text-primary, #f8fafc)',
+              marginBottom: 6,
+            }}
+          >
+            Description <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94a3b8' }}>(optional)</span>
+          </label>
+          <textarea
+            className="modern-input"
+            placeholder="Add details, instructions, or checklist steps..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            style={{
+              width: '100%',
+              fontSize: '0.88rem',
+              lineHeight: 1.4,
+              resize: 'vertical',
+              minHeight: '72px',
+              fontFamily: 'inherit',
+              padding: '10px 12px',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
 
         {/* 2. Assign To (with UserAvatar & colored rings) */}

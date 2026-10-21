@@ -68,7 +68,8 @@ export function initDatabase() {
       image_url VARCHAR(255),
       is_extra BOOLEAN DEFAULT 0,
       extra_id VARCHAR(32),
-      duration_seconds INTEGER DEFAULT NULL
+      duration_seconds INTEGER DEFAULT NULL,
+      description TEXT
     );
 
     CREATE TABLE IF NOT EXISTS reward (
@@ -191,6 +192,7 @@ export function initDatabase() {
   ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
   ensureColumn('chore', 'extra_id', 'VARCHAR(32)');
   ensureColumn('chore', 'duration_seconds', 'INTEGER');
+  ensureColumn('chore', 'description', 'TEXT');
   ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');
 
   const orgNewCols: Array<[string, string]> = [

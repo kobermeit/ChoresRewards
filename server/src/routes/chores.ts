@@ -69,6 +69,7 @@ choresRouter.get('/get_chores', (_req: Request, res: Response) => {
   const chores = rows.map((c) => ({
     id: c.id,
     title: c.title,
+    description: c.description || null,
     assigned_to_id: c.assigned_to_id,
     assigned_to: c.assigned_to,
     points: c.points,
@@ -150,11 +151,12 @@ choresRouter.post(
         ? parseInt(String(data.duration_seconds), 10)
         : 0;
       const durationSeconds = parsedDuration > 0 ? Math.max(10, parsedDuration) : null;
+      const description = data.description !== undefined && data.description !== null ? String(data.description).trim() : null;
 
       const info = db
         .prepare(
-          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           title,
@@ -169,7 +171,8 @@ choresRouter.post(
           imageUrl,
           formFlagIsTrue(data.is_extra) ? 1 : 0,
           data.extra_id ? String(data.extra_id).slice(0, 32) : null,
-          durationSeconds
+          durationSeconds,
+          description
         );
 
       logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
@@ -277,9 +280,11 @@ choresRouter.post(
         durationSeconds = chore.duration_seconds && chore.duration_seconds > 0 ? chore.duration_seconds : null;
       }
 
+      const description = 'description' in data ? (data.description ? String(data.description).trim() : null) : (chore.description || null);
+
       db.prepare(
-        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ? WHERE id = ?`
-      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, durationSeconds, choreId);
+        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ?, description = ? WHERE id = ?`
+      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, durationSeconds, description, choreId);
 
       logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
       res.json({
