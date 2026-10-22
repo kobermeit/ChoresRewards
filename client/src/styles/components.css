@@ -3624,7 +3624,6 @@ body.dash-layout-dragging {
    ══════════════════════════════════════════════════════════════════ */
 .dashboard-card-timer {
     cursor: default;
-    padding: 10px 12px;
 }
 
 .dashboard-card-timer:hover {

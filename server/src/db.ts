@@ -35,6 +35,32 @@ export function initDatabase() {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS seasons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key VARCHAR(40) NOT NULL UNIQUE,
+      name VARCHAR(60) NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      start_md VARCHAR(5) NOT NULL,
+      end_md VARCHAR(5) NOT NULL,
+      emoji VARCHAR(16) NOT NULL DEFAULT '',
+      accent VARCHAR(16) NOT NULL DEFAULT '',
+      sound_key VARCHAR(40)
+    );
+
+    CREATE TABLE IF NOT EXISTS seasonal_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key VARCHAR(40) NOT NULL UNIQUE,
+      name VARCHAR(60) NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      rule_type VARCHAR(16) NOT NULL DEFAULT 'fixed',
+      month_day VARCHAR(5),
+      days_before INTEGER NOT NULL DEFAULT 3,
+      days_after INTEGER NOT NULL DEFAULT 3,
+      emoji VARCHAR(16) NOT NULL DEFAULT '',
+      accent VARCHAR(16) NOT NULL DEFAULT '',
+      sound_key VARCHAR(40)
+    );
+
     CREATE TABLE IF NOT EXISTS person (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name VARCHAR(50) NOT NULL,
@@ -472,6 +498,46 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[startup] Error seeding migrated household data:', err);
+  }
+
+  seedSeasonalData();
+}
+
+/**
+ * Default seasons are stored for the Southern Hemisphere (Australia). When the household
+ * hemisphere setting is 'north', the season service shifts these dates by six months.
+ * Events use a +/- day window so each theme lasts roughly a week around the date.
+ */
+function seedSeasonalData() {
+  try {
+    const insSeason = db.prepare(
+      `INSERT OR IGNORE INTO seasons (key, name, start_md, end_md, emoji, accent, sound_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    insSeason.run('summer', 'Summer', '12-01', '02-29', '☀️', '#f59e0b', null);
+    insSeason.run('autumn', 'Autumn', '03-01', '05-31', '🍂', '#ea580c', null);
+    insSeason.run('winter', 'Winter', '06-01', '08-31', '❄️', '#38bdf8', null);
+    insSeason.run('spring', 'Spring', '09-01', '11-30', '🌸', '#ec4899', null);
+
+    const insEvent = db.prepare(
+      `INSERT OR IGNORE INTO seasonal_events (key, name, rule_type, month_day, days_before, days_after, emoji, accent, sound_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    insEvent.run('new_year', "New Year's", 'fixed', '01-01', 3, 3, '🎆', '#a855f7', 'fanfare');
+    insEvent.run('easter', 'Easter', 'easter', null, 3, 3, '🐣', '#a3e635', 'chimes');
+    insEvent.run('halloween', 'Halloween', 'fixed', '10-31', 4, 2, '🎃', '#f97316', 'spooky');
+    insEvent.run('christmas', 'Christmas', 'fixed', '12-25', 4, 2, '🎄', '#22c55e', 'christmas');
+
+    const defaults: Record<string, string> = {
+      seasonal_themes_enabled: 'true',
+      hemisphere: 'south',
+      sound_theme: 'auto',
+    };
+    for (const [k, v] of Object.entries(defaults)) {
+      if (AppSetting.get(k) === null) AppSetting.set(k, v);
+    }
+  } catch (err) {
+    console.error('[startup] Error seeding seasonal data:', err);
   }
 }
 

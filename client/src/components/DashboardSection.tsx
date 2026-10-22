@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { DashboardStickyNote } from '../types';
-import { PageContainer, Button, IconButton, Input, UserAvatar, RichEditor } from './ui';
+import { PageContainer, Button, IconButton, Input, UserAvatar, RichEditor, TimerRing } from './ui';
 import { Modal } from './common/Modal';
 
 const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
@@ -208,16 +208,6 @@ export const DashboardSection: React.FC = () => {
   const timerPct = timerTotalSeconds > 0 ? timerRemainingSeconds / timerTotalSeconds : 0;
   const timerPieColor = timerPct > 0.5 ? '#22c55e' : timerPct > 0.2 ? '#f59e0b' : '#ef4444';
 
-  const describeArc = (x: number, y: number, radius: number, fraction: number) => {
-    if (fraction <= 0) return '';
-    if (fraction >= 0.999) return `M ${x} ${y} m -${radius}, 0 a ${radius},${radius} 0 1,0 ${radius * 2},0 a ${radius},${radius} 0 1,0 -${radius * 2},0`;
-    const angle = fraction * 2 * Math.PI;
-    const endX = x + radius * Math.sin(angle);
-    const endY = y - radius * Math.cos(angle);
-    const largeArcFlag = fraction > 0.5 ? 1 : 0;
-    return `M ${x} ${y} L ${x} ${y - radius} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`;
-  };
-
   const filterActionButtons = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Button
@@ -394,40 +384,15 @@ export const DashboardSection: React.FC = () => {
             )}
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '6px 0',
-              flex: 1,
-            }}
-          >
-            <div
-              style={{ cursor: 'pointer', textAlign: 'center' }}
-              onClick={() => setVisualTimerOpen(true)}
-              title="Click to open full timer modal"
-            >
-              <svg className="visual-timer-mini-svg" viewBox="0 0 220 220" aria-hidden="true" style={{ width: 96, height: 96 }}>
-                <circle className="visual-timer-disc" cx="110" cy="110" r="100" />
-                <path
-                  className="visual-timer-pie"
-                  fill={timerPieColor}
-                  d={describeArc(110, 110, 100, timerPct)}
-                />
-                <circle className="visual-timer-hub" cx="110" cy="110" r="10" />
-              </svg>
-
-              <div
-                className="visual-timer-mini-digits"
-                style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4 }}
-              >
-                {timerDigits}
-              </div>
-            </div>
-          </div>
+          {/* Ring fills all available card space (same TimerRing as the chore card back) */}
+          <TimerRing
+            fraction={timerPct}
+            color={timerPieColor}
+            label={timerDigits}
+            caption={timerRunning ? 'Active' : timerRemainingSeconds === 0 ? 'Time Up!' : 'Ready'}
+            onClick={() => setVisualTimerOpen(true)}
+            title="Click to open full timer modal"
+          />
 
           {/* Action bar pinned cleanly to bottom */}
           <div

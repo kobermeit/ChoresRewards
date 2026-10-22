@@ -14,6 +14,7 @@ import { householdRouter } from './routes/household';
 import { organiseRouter } from './routes/organise';
 import { settingsRouter } from './routes/settings';
 import { mediaRouter } from './routes/media';
+import { seasonalRouter } from './routes/seasonal';
 
 initDatabase();
 
@@ -63,6 +64,7 @@ const routers = [
   organiseRouter,
   settingsRouter,
   mediaRouter,
+  seasonalRouter,
 ];
 
 for (const router of routers) {

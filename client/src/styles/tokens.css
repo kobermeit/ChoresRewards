@@ -775,3 +775,17 @@ button.btn-cancel {
 
 
 
+
+/* Flip card faces always fill the (grid-stretched) wrapper so front and back share one size */
+.cr-flip-card-front > .cr-item-card,
+.cr-flip-card-back > .cr-item-card {
+  height: 100%;
+}
+
+
+/* Cards never shrink inside flex lanes; they keep their natural content height */
+.cr-flip-card-wrapper,
+.cr-item-card {
+  flex-shrink: 0;
+}
+

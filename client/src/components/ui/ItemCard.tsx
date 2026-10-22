@@ -1,5 +1,6 @@
 import React from 'react';
 import { resolveAssetUrl } from '../../api';
+import { CardShell } from './CardShell';
 
 export interface ItemCardProps {
   title: React.ReactNode;
@@ -45,37 +46,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const circleSize = Math.max(56, Math.min(84, Math.round(heroHeight * 0.68)));
   const emojiSize = heroHeight <= 100 ? '2.5rem' : '3.3rem';
 
-  const memberBorder = accentColor ? `${accentColor}38` : 'rgba(255, 255, 255, 0.12)';
-  const memberTopBorder = accentColor ? `${accentColor}cc` : 'rgba(255, 255, 255, 0.22)';
-
   return (
-    <div
-      className={`cr-item-card ${isCompleted ? 'cr-item-card-completed' : ''} ${className}`.trim()}
-      style={{
-        background: 'linear-gradient(150deg, #24344d 0%, #152238 100%)',
-        border: isOverdue
-          ? '1.5px solid rgba(239, 68, 68, 0.85)'
-          : isCompleted
-            ? '1.5px solid rgba(16, 185, 129, 0.55)'
-            : `1.5px solid ${memberBorder}`,
-        borderTop: isOverdue
-          ? '2.5px solid #ef4444'
-          : isCompleted
-            ? '2.5px solid #10b981'
-            : `2.5px solid ${memberTopBorder}`,
-        borderRadius: 'var(--card-radius, 16px)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: accentColor
-          ? `0 6px 20px rgba(0, 0, 0, 0.4), 0 0 16px ${accentColor}18`
-          : '0 6px 20px rgba(0, 0, 0, 0.35)',
-        boxSizing: 'border-box',
-        width: '100%',
-        position: 'relative',
-        transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
-        ...style,
-      }}
+    <CardShell
+      className={className}
+      accentColor={accentColor}
+      tone={isOverdue ? 'overdue' : isCompleted ? 'completed' : 'default'}
+      style={style}
       onClick={onClick}
     >
       {/* Edge-to-Edge Hero Banner */}
@@ -289,7 +265,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </CardShell>
   );
 };
 
