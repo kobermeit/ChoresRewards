@@ -1,7 +1,36 @@
 import { useCallback, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { useGetPrefsQuery, useGetSeasonalQuery, useUpdatePrefsMutation, SoundTheme } from '../store/api';
-import { UiState, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode } from '../store/uiSlice';
+import { UiState, setActiveView, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode } from '../store/uiSlice';
+import { ActiveView } from '../types';
+
+/** Decoupled, high-performance Redux tab navigation (prevents whole-app re-renders on tab switch). */
+export function useNavigation() {
+  const dispatch = useAppDispatch();
+  const activeView = useAppSelector((s) => s.ui.activeView);
+  const navigate = useCallback(
+    (v: ActiveView) => {
+      dispatch(setActiveView(v));
+      const slug =
+        v === 'dashboard'
+          ? ''
+          : v === 'activity_log'
+            ? 'activity-log'
+            : v === 'chore_history'
+              ? 'chore-history'
+              : v;
+      const hash = slug ? `#/${slug}` : '#/';
+      if (typeof window !== 'undefined' && window.location.hash !== hash) {
+        window.history.pushState(null, '', hash);
+      }
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    },
+    [dispatch]
+  );
+  return { activeView, navigate };
+}
 
 /** Household preferences stored in the DB (mute, chore suggestions). */
 export function useHouseholdPrefs() {
@@ -22,6 +51,7 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
   const setter = useCallback(
     (v: UiState[K]) => {
       const actions: { [P in keyof UiState]: (v: any) => any } = {
+        activeView: setActiveView,
         sideNavCollapsed: setSideNavCollapsed,
         headerMinimized: setHeaderMinimized,
         hideCompletedChores: setHideCompletedChores,

@@ -12,6 +12,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   iconPosition?: 'left' | 'right';
   isLoading?: boolean;
   fullWidth?: boolean;
+  collapseOnMobile?: boolean; // When true, hides label text on small mobile screens (<640px) keeping only the icon
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -24,6 +25,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       iconPosition = 'left',
       isLoading = false,
       fullWidth = false,
+      collapseOnMobile = false,
       children,
       className = '',
       style,
@@ -35,6 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const variantClass = `cr-btn-${variant}`;
     const sizeClass = `cr-btn-${size}`;
     const isIconOnly = !children && Boolean(icon);
+    const collapseClass = collapseOnMobile && icon && children ? 'cr-btn-collapse-mobile' : '';
     const shapeClass = isIconOnly
       ? shape === 'circle'
         ? 'cr-btn-icon-only cr-btn-rounded-full'
@@ -48,7 +51,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         type="button"
-        className={`cr-btn ${variantClass} ${sizeClass} ${shapeClass} ${className}`.trim()}
+        className={`cr-btn ${variantClass} ${sizeClass} ${shapeClass} ${collapseClass} ${className}`.trim()}
         style={{ ...widthStyle, ...style }}
         disabled={disabled || isLoading}
         aria-busy={isLoading}

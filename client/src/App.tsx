@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { useNavigation } from './hooks/useSettings';
 import { Header } from './components/Header';
 import { SideNav } from './components/SideNav';
 import { SetupWizard } from './components/SetupWizard';
@@ -8,12 +9,15 @@ import { DashboardSection } from './components/DashboardSection';
 import { ChoresKanbanSection } from './components/ChoresKanbanSection';
 import { RewardsSection, RedeemedRewardsSection } from './components/RewardsSection';
 import { MealAndShoppingSection } from './components/MealAndShoppingSection';
-import { NotesSection } from './components/CalendarAndNotesSection';
-import { CalendarView } from './components/CalendarView';
+import { NotesSection } from './features/notes/NotesSection';
+import { CalendarView } from './features/calendar/CalendarView';
 import { OrganiseSection } from './components/OrganiseSection';
 import { SettingsView, ActivityLogView, ChoreHistoryView } from './components/SettingsAndLogsViews';
 import { HelpView } from './components/HelpTooltipAndView';
 import { Overlays } from './components/Overlays';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { MobileDrawer } from './components/MobileDrawer';
+import { OfflineSyncManager } from './components/OfflineSyncManager';
 import { Container, Button } from './components/ui';
 
 const MainShell: React.FC<{
@@ -21,7 +25,8 @@ const MainShell: React.FC<{
   onCloseAdultPin: () => void;
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
-  const { data, loading, isSyncing, activeView, isParent, setProfileSwitcherOpen, setActiveView } = useApp();
+  const { data, loading, isSyncing, isParent, setProfileSwitcherOpen } = useApp();
+  const { activeView, navigate: setActiveView } = useNavigation();
 
   const [visitedViews, setVisitedViews] = useState<Record<string, boolean>>(() => ({
     [activeView || 'dashboard']: true,
@@ -198,6 +203,11 @@ const MainShell: React.FC<{
         onAdultPinSuccess={onAdultPinSuccess}
       />
       <Overlays />
+
+      {/* Mobile Navigation & Offline Sync System */}
+      <MobileBottomNav />
+      <MobileDrawer />
+      <OfflineSyncManager />
 
       {/* Slack / Discord style seamless fast-sync toast indicator */}
       {isSyncing && (

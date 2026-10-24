@@ -6,7 +6,7 @@ import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
 import { FamilyMemberModal } from '../components/FamilyMemberModal';
 import { playSoundCategory, speakAnnouncement, SoundCategory } from '../services/soundService';
 import { fireCelebrationFireworks } from '../services/celebrationService';
-import { useHouseholdPrefs, useUiPref, useSoundTheme } from '../hooks/useSettings';
+import { useHouseholdPrefs, useUiPref, useSoundTheme, useNavigation } from '../hooks/useSettings';
 
 export interface ToastItem {
   id: string;
@@ -120,24 +120,6 @@ export const SECTION_TO_SLUG: Record<string, string> = {
   'organise-section': 'organise',
 };
 
-function getInitialView(): ActiveView {
-  const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-  if (hash === 'calendar') return 'calendar';
-  if (hash === 'chores') return 'chores';
-  if (hash === 'rewards') return 'rewards';
-  if (hash === 'redeemed') return 'redeemed';
-  if (hash === 'meals' || hash === 'meal-planner') return 'meals';
-  if (hash === 'shopping' || hash === 'shopping-list') return 'shopping';
-  if (hash === 'library' || hash === 'meal-library') return 'library';
-  if (hash === 'notes') return 'notes';
-  if (hash === 'organise') return 'organise';
-  if (hash === 'settings') return 'settings';
-  if (hash === 'activity-log' || hash === 'activity_log') return 'activity_log';
-  if (hash === 'chore-history' || hash === 'chore_history') return 'chore_history';
-  if (hash === 'help') return 'help';
-  return 'dashboard';
-}
-
 export const AppProvider: React.FC<{
   children: React.ReactNode;
   onRequestAdultPin: (cb?: () => void) => void;
@@ -191,24 +173,7 @@ export const AppProvider: React.FC<{
   }, [confirmConfig]);
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [activeView, setActiveViewState] = useState<ActiveView>(getInitialView);
-
-  const setActiveView = useCallback((v: ActiveView) => {
-    setActiveViewState(v);
-    const slug =
-      v === 'dashboard'
-        ? ''
-        : v === 'activity_log'
-          ? 'activity-log'
-          : v === 'chore_history'
-            ? 'chore-history'
-            : v;
-    const hash = slug ? `#/${slug}` : '#/';
-    if (window.location.hash !== hash) {
-      window.history.pushState(null, '', hash);
-    }
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
+  const { activeView, navigate: setActiveView } = useNavigation();
   const [selectedChorePersonId, setSelectedChorePersonId] = useState<number | null>(null);
   const [screensaverOpen, setScreensaverOpen] = useState(false);
   const [visualTimerOpen, setVisualTimerOpen] = useState(false);
@@ -579,24 +544,24 @@ export const AppProvider: React.FC<{
   useEffect(() => {
     const handlePopState = () => {
       const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-      if (rawHash === 'calendar') setActiveViewState('calendar');
-      else if (rawHash === 'chores') setActiveViewState('chores');
-      else if (rawHash === 'rewards') setActiveViewState('rewards');
-      else if (rawHash === 'redeemed') setActiveViewState('redeemed');
-      else if (rawHash === 'meals' || rawHash === 'meal-planner') setActiveViewState('meals');
-      else if (rawHash === 'shopping' || rawHash === 'shopping-list') setActiveViewState('shopping');
-      else if (rawHash === 'library' || rawHash === 'meal-library') setActiveViewState('library');
-      else if (rawHash === 'notes') setActiveViewState('notes');
-      else if (rawHash === 'organise') setActiveViewState('organise');
-      else if (rawHash === 'settings') setActiveViewState('settings');
-      else if (rawHash === 'help') setActiveViewState('help');
-      else if (rawHash === 'activity-log' || rawHash === 'activity_log') setActiveViewState('activity_log');
-      else if (rawHash === 'chore-history' || rawHash === 'chore_history') setActiveViewState('chore_history');
-      else setActiveViewState('dashboard');
+      if (rawHash === 'calendar') setActiveView('calendar');
+      else if (rawHash === 'chores') setActiveView('chores');
+      else if (rawHash === 'rewards') setActiveView('rewards');
+      else if (rawHash === 'redeemed') setActiveView('redeemed');
+      else if (rawHash === 'meals' || rawHash === 'meal-planner') setActiveView('meals');
+      else if (rawHash === 'shopping' || rawHash === 'shopping-list') setActiveView('shopping');
+      else if (rawHash === 'library' || rawHash === 'meal-library') setActiveView('library');
+      else if (rawHash === 'notes') setActiveView('notes');
+      else if (rawHash === 'organise') setActiveView('organise');
+      else if (rawHash === 'settings') setActiveView('settings');
+      else if (rawHash === 'help') setActiveView('help');
+      else if (rawHash === 'activity-log' || rawHash === 'activity_log') setActiveView('activity_log');
+      else if (rawHash === 'chore-history' || rawHash === 'chore_history') setActiveView('chore_history');
+      else setActiveView('dashboard');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [setActiveView]);
 
   // Initial deep link scroll on boot
   useEffect(() => {

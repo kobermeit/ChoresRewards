@@ -259,7 +259,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         images: getMealImages(),
         social: getMealSocial(),
       },
-      recipes,
+      recipes: Object.values(recipes),
+      recipe_map: recipes,
       shopping: {
         ...shopping,
         stores: getShoppingStores(),

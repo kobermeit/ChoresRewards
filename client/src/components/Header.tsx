@@ -1,22 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
-import { Overlay } from './ui';
 import { useSeason, useUiPref } from '../hooks/useSettings';
-
-function weatherInfo(code: number): { icon: string; color: string; desc: string } {
-  if (code === 0) return { icon: 'fa-sun', color: '#fbbf24', desc: 'Clear Sky' };
-  if (code <= 2) return { icon: 'fa-cloud-sun', color: '#fbbf24', desc: 'Partly Cloudy' };
-  if (code === 3) return { icon: 'fa-cloud', color: '#94a3b8', desc: 'Overcast' };
-  if (code <= 48) return { icon: 'fa-smog', color: '#94a3b8', desc: 'Foggy' };
-  if (code <= 55) return { icon: 'fa-cloud-rain', color: '#93c5fd', desc: 'Drizzle' };
-  if (code <= 67) return { icon: 'fa-cloud-rain', color: '#60a5fa', desc: 'Rain' };
-  if (code <= 77) return { icon: 'fa-snowflake', color: '#bae6fd', desc: 'Snow' };
-  if (code <= 82) return { icon: 'fa-cloud-showers-heavy', color: '#3b82f6', desc: 'Showers' };
-  if (code <= 86) return { icon: 'fa-snowflake', color: '#bae6fd', desc: 'Snow Showers' };
-  if (code <= 99) return { icon: 'fa-bolt', color: '#fbbf24', desc: 'Thunderstorm' };
-  return { icon: 'fa-cloud', color: '#94a3b8', desc: 'Unknown' };
-}
+import { useAppDispatch } from '../store';
+import { toggleMobileDrawer } from '../store/uiSlice';
+import { ClockWidget } from '../features/header/ClockWidget';
+import { WeatherWidget } from '../features/header/WeatherWidget';
 
 export const Header: React.FC = () => {
   const {
@@ -43,29 +32,11 @@ export const Header: React.FC = () => {
     timerRemainingSeconds,
   } = useApp();
 
-  const [clockTime, setClockTime] = useState('--:--');
-  const [clockDate, setClockDate] = useState('Loading…');
   const [headerMinimized] = useUiPref('headerMinimized');
+  const dispatch = useAppDispatch();
   const seasonInfo = useSeason();
   const isThemed = seasonInfo.enabled && Boolean(seasonInfo.theme);
   const seasonAccent = seasonInfo.accent || '#3b82f6';
-
-  // Weather state
-  const [weatherCurrent, setWeatherCurrent] = useState<{
-    temp: number;
-    icon: string;
-    color: string;
-    desc: string;
-    hilo: string;
-  }>({
-    temp: 0,
-    icon: 'fa-sun',
-    color: '#fbbf24',
-    desc: 'Locating…',
-    hilo: 'H:--° L:--°',
-  });
-  const [weatherDaily, setWeatherDaily] = useState<any>(null);
-  const [weatherExpanded, setWeatherExpanded] = useState(false);
 
   // Notifications & Quick Add dropdowns
   const [notifOpen, setNotifOpen] = useState(false);
@@ -81,113 +52,6 @@ export const Header: React.FC = () => {
     alert_count: 0,
     overdue_count: 0,
   });
-
-  // Live clock
-  useEffect(() => {
-    const tz =
-      data?.timezone && data.timezone !== 'UTC'
-        ? data.timezone
-        : Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    const updateClock = () => {
-      const now = new Date();
-      try {
-        setClockTime(
-          new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-          }).format(now)
-        );
-        setClockDate(
-          new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          }).format(now)
-        );
-      } catch {
-        setClockTime(now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
-        setClockDate(now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }));
-      }
-    };
-    updateClock();
-    const timer = setInterval(updateClock, 10000);
-    return () => clearInterval(timer);
-  }, [data?.timezone]);
-
-  // Open-Meteo Weather
-  useEffect(() => {
-    let mounted = true;
-    const tz =
-      data?.timezone && data.timezone !== 'UTC'
-        ? data.timezone
-        : Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const city = (tz.split('/').pop() || 'Adelaide').replace(/_/g, ' ');
-
-    async function loadWeather() {
-      try {
-        const geoRes = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`
-        );
-        if (!geoRes.ok) return;
-        const geoData = await geoRes.json();
-        if (!geoData.results?.length) return;
-        const { latitude, longitude } = geoData.results[0];
-
-        const wRes = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min&forecast_days=7&temperature_unit=celsius&timezone=${encodeURIComponent(tz)}`
-        );
-        if (!wRes.ok) return;
-        const wData = await wRes.json();
-        if (!mounted) return;
-        const info = weatherInfo(wData.current.weathercode);
-        const max0 = Math.round(wData.daily?.temperature_2m_max?.[0] ?? 0);
-        const min0 = Math.round(wData.daily?.temperature_2m_min?.[0] ?? 0);
-        setWeatherCurrent({
-          temp: Math.round(wData.current.temperature_2m),
-          icon: info.icon,
-          color: info.color,
-          desc: info.desc,
-          hilo: `H:${max0}° L:${min0}°`,
-        });
-        setWeatherDaily(wData.daily);
-      } catch {
-        // Fallback offline forecast so the 7-day forecast overlay always works
-        if (mounted) {
-          const days = [];
-          const now = new Date();
-          for (let i = 0; i < 7; i++) {
-            const d = new Date(now);
-            d.setDate(now.getDate() + i);
-            days.push(d.toISOString().slice(0, 10));
-          }
-          setWeatherDaily({
-            time: days,
-            weathercode: [0, 1, 2, 0, 3, 1, 0],
-            temperature_2m_max: [24, 25, 23, 22, 21, 23, 25],
-            temperature_2m_min: [14, 15, 14, 13, 12, 13, 14],
-          });
-          setWeatherCurrent({
-            temp: 22,
-            icon: 'fa-sun',
-            color: '#fbbf24',
-            desc: 'Sunny',
-            hilo: 'H:24° L:14°',
-          });
-        }
-      }
-    }
-
-    loadWeather();
-    const interval = setInterval(loadWeather, 30 * 60 * 1000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [data?.timezone]);
 
   // Notifications polling
   useEffect(() => {
@@ -329,35 +193,50 @@ function getRelativeAge(from: Date | null, to: Date): string {
           transition: 'padding 0.2s ease, background 0.3s ease, border-color 0.3s ease',
         }}
       >
-        {/* Left Zone: Mascot & Title */}
+        {/* Left Zone: Hamburger (Mobile) & Mascot & Title */}
         <div
           className="header-zone-left"
-          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flex: '1 1 0', minWidth: 'max-content' }}
-          onClick={() => setActiveView('dashboard')}
+          style={{ display: 'flex', alignItems: 'center', flex: '1 1 0', minWidth: 'max-content' }}
         >
-          <img
-            src="./static/images/mascot-transp.png"
-            alt="Chores Reward Icon"
-            style={{
-              height: headerMinimized ? 36 : 48,
-              width: headerMinimized ? 36 : 48,
-              marginRight: 8,
-              transition: 'height 0.2s, width 0.2s',
+          <button
+            type="button"
+            className="header-mobile-hamburger"
+            onClick={(e) => {
+              e.stopPropagation();
+              dispatch(toggleMobileDrawer());
             }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h2
+            aria-label="Open Navigation Menu"
+            title="Open Menu"
+          >
+            <i className="fas fa-bars" />
+          </button>
+          <div
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            onClick={() => setActiveView('dashboard')}
+          >
+            <img
+              src="./static/images/mascot-transp.png"
+              alt="Chores Reward Icon"
               style={{
-                color: 'var(--cr-text-primary)',
-                margin: 0,
-                fontSize: headerMinimized ? '1.05rem' : '1.22rem',
-                textTransform: 'none',
-                letterSpacing: 0,
-                whiteSpace: 'nowrap',
+                height: headerMinimized ? 36 : 48,
+                width: headerMinimized ? 36 : 48,
+                marginRight: 8,
+                transition: 'height 0.2s, width 0.2s',
               }}
-            >
-              Chores and Rewards
-            </h2>
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h2
+                style={{
+                  color: 'var(--cr-text-primary)',
+                  margin: 0,
+                  fontSize: headerMinimized ? '1.05rem' : '1.22rem',
+                  textTransform: 'none',
+                  letterSpacing: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Chores and Rewards
+              </h2>
             {data?.app_version && (
               <span
                 style={{
@@ -398,6 +277,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
               </span>
             )}
           </div>
+          </div>
         </div>
 
         {/* Center Zone: Clock & Weather Widgets */}
@@ -412,104 +292,8 @@ function getRelativeAge(from: Date | null, to: Date): string {
               flex: '2 1 auto',
             }}
           >
-            {/* Clock Widget */}
-            <div
-              id="clock-widget"
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 8,
-                color: 'var(--cr-text-primary)',
-                flexShrink: 0,
-                lineHeight: 1.05,
-                padding: '0 4px',
-              }}
-            >
-              <div
-                id="clock-time"
-                style={{
-                  fontSize: headerMinimized ? '1.35em' : '1.75em',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {clockTime}
-              </div>
-              {!headerMinimized && (
-                <div
-                  id="clock-date"
-                  style={{ fontSize: '0.9em', opacity: 0.75, whiteSpace: 'nowrap', fontWeight: 600 }}
-                >
-                  {clockDate}
-                </div>
-              )}
-            </div>
-
-            {/* Weather Widget */}
-            <div
-              id="weather-widget"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: 'var(--cr-text-primary)',
-                flexShrink: 0,
-                padding: '0 4px',
-              }}
-            >
-              <i
-                id="weather-icon"
-                className={`fas ${weatherCurrent.icon}`}
-                style={{ fontSize: '1.85em', color: weatherCurrent.color, flexShrink: 0 }}
-              />
-              <div style={{ lineHeight: 1.15 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span id="weather-temp" style={{ fontSize: '1.45em', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                    {weatherCurrent.temp}°
-                  </span>
-                  <span
-                    id="weather-hilo"
-                    style={{ fontSize: '0.82em', opacity: 0.8, fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    {weatherCurrent.hilo}
-                  </span>
-                </div>
-                <div
-                  id="weather-desc"
-                  style={{ fontSize: '0.8em', opacity: 0.8, whiteSpace: 'nowrap', fontWeight: 600 }}
-                >
-                  {weatherCurrent.desc}
-                </div>
-              </div>
-              <button
-                type="button"
-                id="weather-expand-btn"
-                onClick={() => setWeatherExpanded((prev) => !prev)}
-                title="Show 7-day forecast"
-                aria-expanded={weatherExpanded}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--cr-text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: '0.85em',
-                  padding: '2px 4px',
-                  margin: 0,
-                  lineHeight: 1,
-                  opacity: 0.7,
-                }}
-              >
-                <i
-                  className="fas fa-chevron-down"
-                  id="weather-expand-icon"
-                  style={{
-                    transition: 'transform 0.25s',
-                    transform: weatherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                  }}
-                />
-              </button>
-            </div>
+            <ClockWidget timezone={data?.timezone} headerMinimized={headerMinimized} />
+            <WeatherWidget timezone={data?.timezone} isThemed={isThemed} seasonAccent={seasonAccent} />
           </div>
         )}
 
@@ -900,97 +684,6 @@ function getRelativeAge(from: Date | null, to: Date): string {
         )}
 
       </div>
-
-      {/* Weather Dimmed Backdrop & Floating Forecast Panel */}
-      <Overlay
-        open={Boolean(weatherExpanded && weatherDaily)}
-        onClose={() => setWeatherExpanded(false)}
-        backdropBlur
-        lockScroll
-        className="weather-backdrop-overlay"
-        style={{ alignItems: 'flex-start', paddingTop: '75px' }}
-      >
-        <div
-          id="weather-forecast-panel"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: 'min(940px, calc(100vw - 32px))',
-            background: isThemed
-              ? `linear-gradient(135deg, ${seasonAccent}22 0%, var(--cr-header-bg-2) 100%)`
-              : 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
-            borderRadius: '16px',
-            border: isThemed
-              ? `1px solid ${seasonAccent}55`
-              : '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: isThemed
-              ? `0 20px 45px -8px rgba(0, 0, 0, 0.75), 0 0 25px ${seasonAccent}33`
-              : '0 20px 45px -8px rgba(0, 0, 0, 0.75), 0 0 25px rgba(59, 130, 246, 0.25)',
-            overflow: 'hidden',
-          }}
-        >
-          {isThemed && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 22px 0',
-                fontSize: '0.86rem',
-                fontWeight: 700,
-                color: seasonAccent,
-                borderBottom: `1px solid ${seasonAccent}25`,
-                paddingBottom: 8,
-                margin: '0 4px',
-              }}
-            >
-              <span>{seasonInfo.emoji} {seasonInfo.theme?.name} Forecast</span>
-              <span style={{ fontSize: '0.78rem', opacity: 0.85, fontWeight: 600 }}>
-                {seasonInfo.greetingSuffix}
-              </span>
-            </div>
-          )}
-          <div
-            id="weather-forecast-days"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
-              gap: 12,
-              padding: '16px 22px',
-            }}
-          >
-            {(weatherDaily?.time || []).map((dateStr: string, idx: number) => {
-              const d = new Date(`${dateStr}T00:00:00`);
-              const dayLabel = idx === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' });
-              const info = weatherInfo(weatherDaily.weathercode?.[idx] ?? 0);
-              const max = Math.round(weatherDaily.temperature_2m_max?.[idx] ?? 0);
-              const min = Math.round(weatherDaily.temperature_2m_min?.[idx] ?? 0);
-              return (
-                <div
-                  key={dateStr}
-                  style={{
-                    textAlign: 'center',
-                    padding: '10px 8px',
-                    borderRadius: 12,
-                    background: idx === 0 ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.06)',
-                    border: idx === 0 ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(255,255,255,0.06)',
-                  }}
-                >
-                  <div style={{ color: 'var(--cr-text-primary)', fontSize: '0.9em', fontWeight: 700, marginBottom: 6 }}>
-                    {dayLabel}
-                  </div>
-                  <i className={`fas ${info.icon}`} style={{ fontSize: '1.8em', color: info.color }} />
-                  <div style={{ color: 'var(--cr-text-primary)', fontSize: '1em', fontWeight: 700, marginTop: 6 }}>
-                    {max}° <span style={{ opacity: 0.65, fontWeight: 500 }}>{min}°</span>
-                  </div>
-                  <div style={{ color: 'var(--cr-text-secondary)', fontSize: '0.75em', marginTop: 4 }}>
-                    {info.desc}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Overlay>
     </header>
   );
 };

@@ -84,7 +84,10 @@ export async function apiGet<T = any>(endpoint: string): Promise<T> {
   return handleResponse<T>(res);
 }
 
-export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T> {
+import { store } from './store';
+import { enqueueOfflineMutation } from './store/uiSlice';
+
+export async function apiPostDirect<T = any>(endpoint: string, body?: any): Promise<T> {
   const isFormData = body instanceof FormData;
   const res = await fetch(resolveApiUrl(endpoint), {
     method: 'POST',
@@ -95,6 +98,43 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
     body: isFormData ? body : JSON.stringify(body ?? {}),
   });
   return handleResponse<T>(res);
+}
+
+export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T> {
+  const isFormData = body instanceof FormData;
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+
+  // If explicitly offline and mutation is not auth/pin or FormData, queue immediately
+  if (!isOnline && !isFormData && !endpoint.includes('pin') && !endpoint.includes('auth')) {
+    try {
+      store.dispatch(enqueueOfflineMutation({ endpoint, body }));
+    } catch {
+      // ignore
+    }
+    return { success: true, offline: true } as T;
+  }
+
+  try {
+    return await apiPostDirect<T>(endpoint, body);
+  } catch (err: any) {
+    if (!isFormData && !endpoint.includes('pin') && !endpoint.includes('auth')) {
+      const isNetworkFail =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        err?.name === 'TypeError' ||
+        String(err?.message || '').toLowerCase().includes('failed to fetch') ||
+        String(err?.message || '').toLowerCase().includes('network');
+
+      if (isNetworkFail) {
+        try {
+          store.dispatch(enqueueOfflineMutation({ endpoint, body }));
+        } catch {
+          // ignore
+        }
+        return { success: true, offline: true } as T;
+      }
+    }
+    throw err;
+  }
 }
 
 export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> {

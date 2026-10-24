@@ -9,9 +9,10 @@
   - Seasons & Holidays: Anonymous Gregorian Easter calculation & hemisphere date adjustments (`server/src/services/seasons.ts`).
 - **Frontend**: React 18 + TypeScript + Vite (`client/`).
   - State & Persistence: Redux Toolkit + RTK Query (`client/src/store/api.ts`) + `redux-persist` (`whitelist: ['ui']`).
-  - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in SQLite via `/api/prefs`.
+  - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`, `activeView`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in SQLite via `/api/prefs`.
   - Audio Engine: Zero-latency procedural Web Audio synthesis (`soundService.ts`) with theme support (Zelda Fantasy, Christmas Bells, Spooky, Zen Chimes, Fanfare) + bundled fallback audio clips.
   - Visuals & Celebrations: Canvas-confetti + custom celebration fireworks.
+  - **Code Map Maintenance**: Always consult and keep [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md) updated whenever components, features, or routes are added or refactored.
 - **Deployment Targets**: Runs standalone on port `8099` AND inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`).
 
 ---
@@ -42,17 +43,24 @@
 ## Directory Layout & Key Modules
 ```
 choresrewards/
+├── CODEMAP.md                        # Master index & rapid feature lookup for vibe coding & agents
 ├── client/src/
-│   ├── components/
+│   ├── features/                     # Small, pure domain components (< 200 LOC per file)
+│   │   ├── chores/                   # Kanban hub, ChoreCard, celebration modal, kanban columns
+│   │   ├── meals/                    # Meal planner, recipe cards, view/edit modals
+│   │   ├── shopping/                 # Shopping list, store lanes, history & quick add modals
+│   │   ├── rewards/                  # Reward cards, claim modal, edit modal, redeemed pool
+│   │   ├── dashboard/                # Memoized dashboard widgets & family progress summary
+│   │   ├── calendar/                 # Month grid, upcoming schedule view, event modal
+│   │   ├── notes/                    # Rich text sticky notes, Reddit-style note feed, view/edit modal
+│   │   ├── settings/                 # 12 focused settings tabs (General, Family, Chores, Seasonal, etc.)
+│   │   ├── overlays/                 # Screensaver ambient clock, visual timer modal, kids play games
+│   │   └── header/                   # Weather widget, clock widget, forecast modal
+│   ├── components/                   # Top-level coordinators, legacy shims, design primitives
 │   │   ├── ui/                       # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, Badge, FlipCard
-│   │   ├── ChoresKanbanSection.tsx   # Chores hub: Responsive grid, kanban columns, flip timer cards, parent manage toggle
 │   │   ├── ChoreTimerCardBack.tsx    # Timed chore reverse face using CardShell & dynamic TimerRing
-│   │   ├── MealAndShoppingSection.tsx# Meal planner (1/2 week views) & smart shopping list
-│   │   ├── DashboardSection.tsx      # Family summary, quick actions, visual timer card, activity feed
-│   │   ├── SettingsAndLogsViews.tsx  # System settings tabs (General, Family, Chores, Seasonal, Sounds, etc.)
-│   │   ├── SeasonalSettingsView.tsx  # Holiday events, hemisphere selection, sound theme selector & preview
 │   │   ├── Header.tsx & SideNav.tsx  # App bar with seasonal badge, clock, weather, view switcher
-│   │   └── Overlays.tsx              # Full-screen modals (VisualTimerModal, ProfileSwitcher, PIN modal)
+│   │   └── Overlays.tsx              # Full-screen overlay coordinator
 │   ├── context/
 │   │   ├── AppContext.tsx            # Household session, role gating, toast manager, playSound dispatcher
 │   │   └── TimerContext.tsx          # High-precision chore countdown interval engine synced to Redux
@@ -60,6 +68,7 @@ choresrewards/
 │   │   ├── index.ts                  # Redux store with redux-persist & RTK Query middleware
 │   │   ├── api.ts                    # RTK Query endpoints for seasonal themes & household prefs
 │   │   └── uiSlice.ts                # Per-device UI preferences (navigation, clean view, active timers)
+│   ├── types/                        # Domain-specific TypeScript interfaces (*.types.ts)
 │   ├── hooks/useSettings.ts          # Typed hooks: useHouseholdPrefs, useUiPref, useSeason, useSoundTheme
 │   └── services/soundService.ts      # Web Audio procedural synthesizers & audio clip dispatcher
 └── server/src/
@@ -133,6 +142,14 @@ choresrewards/
 - **UI Primitives Requirement**: Use `<Button>`, `<Input>`, `<Select>`, `<Card>`, and `<Badge>` from `@/components/ui`. Never add raw unstyled `<button>` or `<input>` tags for UI actions.
 - **Forbid Arbitrary Inline Styles**: Inline styles for design attributes (colors, corner radius, borders, shadows) are forbidden unless required for dynamic data-driven values (e.g. person accent colors). Use CSS variables (`var(--btn-radius)`, `var(--card-radius)`, `var(--modal-radius)`) instead.
 - **Single-Line Reskinning Guarantee**: The design system must maintain single-variable theme overrides in `tokens.css` so buttons, modals, and card styles can be reskinned in 1 line.
+
+## Component Modularization & Performance Standards
+- **Single Component Per File**: Each file should represent a single component or cohesive unit, aiming for < 150–250 lines. Large monolithic files (1,000+ lines) are forbidden.
+- **JSX-First Components**: Components should primarily contain JSX rendering and layout. Complex business logic, date calculations, and API orchestration belong in custom hooks, utils, or RTK slices.
+- **Dedicated Domain Types**: Never declare large inline TypeScript interfaces inside component files. Place domain interfaces in `client/src/types/<domain>.types.ts` and re-export via `client/src/types.ts`.
+- **Pure Rendering & Memoization**: Use `React.memo` on list cards, kanban lanes, and dashboard widgets to eliminate cascading re-renders when parent states update. Use `useMemo` for derived data filters/groupings and `useCallback` for event handlers passed down to child components.
+- **Decoupled Local UI State**: Keep navigation (`activeView`), panel toggles, and view options in Redux `uiSlice.ts` to avoid re-rendering unrelated pages.
+- **Always Update Code Map**: Whenever files or features are added or rearranged, update [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md).
 
 ## Production Resource & Ingress Path Safety (CRITICAL)
 - **Home Assistant Ingress Path Routing**: In production, Home Assistant serves the application behind a dynamic path prefix (e.g. `/api/hassio_ingress/<token>/`).

@@ -650,7 +650,11 @@ export function getShoppingData() {
     general: Array.isArray(raw?.general) ? raw.general : [],
     quantities: raw?.quantities && typeof raw.quantities === 'object' ? raw.quantities : {},
     hidden: raw?.hidden && typeof raw.hidden === 'object' ? raw.hidden : {},
-    active: Array.isArray(raw?.active) ? raw.active : [],
+    active: Array.isArray(raw?.active)
+      ? raw.active
+      : raw?.active && typeof raw.active === 'object'
+      ? Object.keys(raw.active)
+      : [],
     meal_order: Array.isArray(raw?.meal_order) ? raw.meal_order : [],
     archived: Array.isArray(raw?.archived) ? raw.archived : [],
   };
@@ -1584,6 +1588,33 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
 
 householdRouter.post('/api/shopping/archive_checked', handleArchiveCheckedShopping);
 householdRouter.post('/api/clear_shopping_checked', handleArchiveCheckedShopping);
+
+householdRouter.post('/api/shopping/catalog/delete', (req: Request, res: Response) => {
+  const rawIds = Array.isArray(req.body?.ids)
+    ? req.body.ids
+    : req.body?.id !== undefined
+    ? [req.body.id]
+    : [];
+
+  const ids = rawIds
+    .map((x: any) => Number(x))
+    .filter((n: number) => !isNaN(n) && n > 0);
+
+  if (ids.length === 0) {
+    res.status(400).json({ success: false, error: 'No item IDs provided' });
+    return;
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(`DELETE FROM shopping_purchase_log WHERE catalog_id IN (${placeholders})`).run(...ids);
+  const result = db.prepare(`DELETE FROM shopping_catalog WHERE id IN (${placeholders})`).run(...ids);
+
+  logActivity('shopping_catalog_deleted', `Deleted ${result.changes} items from shopping catalog`);
+  const shopping = getShoppingData();
+  const intelligence = getShoppingIntelligence(shopping.general || []);
+
+  res.json({ success: true, deleted: result.changes, catalog: intelligence.catalog, intelligence });
+});
 
 householdRouter.post('/api/save_shopping_stores', (req: Request, res: Response) => {
   const rawStores = Array.isArray(req.body?.stores) ? req.body.stores : [];

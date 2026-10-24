@@ -2,20 +2,6 @@ import React from 'react';
 import { SectionHelpTip } from '../HelpTooltipAndView';
 import { useSeason } from '../../hooks/useSettings';
 
-function getSeasonalIcon(key?: string): string {
-  switch (key) {
-    case 'spring': return 'fas fa-seedling';
-    case 'summer': return 'fas fa-sun';
-    case 'autumn': return 'fas fa-leaf';
-    case 'winter': return 'fas fa-snowflake';
-    case 'halloween': return 'fas fa-ghost';
-    case 'christmas': return 'fas fa-gift';
-    case 'easter': return 'fas fa-egg';
-    case 'new_year': return 'fas fa-star';
-    default: return 'fas fa-wand-magic-sparkles';
-  }
-}
-
 export interface PageContainerProps {
   id?: string;
   title: string;
@@ -54,10 +40,6 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   const seasonInfo = useSeason();
   const isThemed = seasonInfo.enabled && Boolean(seasonInfo.theme);
   const seasonAccent = seasonInfo.accent || '#3b82f6';
-  const seasonalKey = seasonInfo.event?.key || seasonInfo.season?.key;
-  const seasonalIcon = isThemed ? getSeasonalIcon(seasonalKey) : null;
-  const effectiveIcon = seasonalIcon || icon;
-  const effectiveIconClass = isThemed ? '' : iconClass;
 
   if (boxed) {
     return (
@@ -83,24 +65,6 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           ...style,
         }}
       >
-        {isThemed && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 18,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: '4.2rem',
-              opacity: 0.1,
-              pointerEvents: 'none',
-              userSelect: 'none',
-              lineHeight: 1,
-            }}
-            aria-hidden="true"
-          >
-            {seasonInfo.emoji}
-          </div>
-        )}
         <div
           className="page-header-row"
           style={{
@@ -127,9 +91,9 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 gap: 10,
               }}
             >
-              {effectiveIcon && (
+              {icon && (
                 <i
-                  className={`${effectiveIcon} ${effectiveIconClass}`.trim()}
+                  className={`${icon} ${iconClass}`.trim()}
                   style={isThemed ? { color: seasonAccent } : undefined}
                 />
               )}
@@ -190,25 +154,6 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           overflow: 'hidden',
         }}
       >
-        {isThemed && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 18,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: '4.2rem',
-              opacity: 0.1,
-              pointerEvents: 'none',
-              userSelect: 'none',
-              lineHeight: 1,
-            }}
-            aria-hidden="true"
-          >
-            {seasonInfo.emoji}
-          </div>
-        )}
-
         {/* Tier 1: Title, Icon & Top-Right Actions */}
         <div
           className="page-header-row"
@@ -223,7 +168,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {effectiveIcon && (
+            {icon && (
               <div
                 className="page-header-icon-box"
                 style={{
@@ -243,7 +188,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 }}
               >
                 <i
-                  className={`${effectiveIcon} ${effectiveIconClass}`.trim()}
+                  className={`${icon} ${iconClass}`.trim()}
                   style={isThemed ? { color: seasonAccent } : undefined}
                 />
               </div>

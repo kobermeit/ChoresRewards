@@ -21,7 +21,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   onFlipBack,
   onComplete,
 }) => {
-  const { getChoreTimer, startChoreTimer, pauseChoreTimer, resumeChoreTimer } = useTimer();
+  const { getChoreTimer, startChoreTimer, pauseChoreTimer, resumeChoreTimer, stopChoreTimer } = useTimer();
   const { isParent, activeUser } = useApp();
 
   const isCompletedForAnother = Boolean(isParent && activeUser && person && person.id !== activeUser.id);
@@ -109,7 +109,10 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
             icon="fas fa-check"
             fullWidth
             className="btn-complete-chore"
-            onClick={onComplete}
+            onClick={() => {
+              stopChoreTimer(chore.id);
+              onComplete();
+            }}
           >
             {isCompletedForAnother ? `Done for ${person?.name}` : 'Done'}
           </Button>

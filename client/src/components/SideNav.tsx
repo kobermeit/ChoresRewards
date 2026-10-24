@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { useUiPref } from '../hooks/useSettings';
+import { useUiPref, useNavigation } from '../hooks/useSettings';
 
 export const SideNav: React.FC = () => {
-  const { isParent, isChild, activeView, setActiveView } = useApp();
+  const { isParent, isChild } = useApp();
+  const { activeView, navigate: setActiveView } = useNavigation();
   const [collapsed, setCollapsed] = useUiPref('sideNavCollapsed');
 
   useEffect(() => {

@@ -442,6 +442,43 @@
   to { opacity: 1; }
 }
 
+@keyframes dropdownFadeDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes crDrawerFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes crDrawerSlideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@media (max-width: 640px) {
+  .cr-btn.cr-btn-collapse-mobile {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .cr-btn.cr-btn-collapse-mobile .cr-btn-content {
+    display: none !important;
+  }
+  .cr-btn.cr-btn-collapse-mobile .cr-btn-icon {
+    margin: 0 !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+  .offline-status-pill {
+    bottom: 20px !important;
+  }
+}
+
 .cr-modal-dialog {
   position: relative !important;
   width: 100% !important;

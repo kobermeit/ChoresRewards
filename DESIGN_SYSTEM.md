@@ -98,11 +98,15 @@ import { Button, Input, Select, Card, Badge } from './ui';
 1. **No Raw HTML Buttons/Inputs for Actions**:
    - ❌ Do NOT write `<button className="btn-primary" style={{ padding: 10, borderRadius: 8 }}>...</button>`.
    - ✅ Always write `<Button variant="primary">...</Button>`.
-2. **Forbid Design-Property Inline Styles**:
-   - ❌ Do NOT use inline styles for colors, radii, borders, or shadows (e.g., `style={{ borderRadius: 16, background: '#3b82f6' }}`).
-   - ✅ Use semantic tokens (`style={{ borderRadius: 'var(--card-radius)' }}`) or UI primitives.
-   - *Exception*: Dynamic, data-driven values (e.g. member accent colors `borderLeft: 4px solid ${member.color}`, or drag-and-drop grid coordinates) are permitted inline.
-3. **DRY Modal Standards**:
+2. **Forbid Design-Property Inline Styles (STRICT)**:
+   - ❌ Do NOT use inline styles for colors, radii, borders, padding, or shadows (e.g., `style={{ borderRadius: 16, background: '#3b82f6', padding: '12px 16px' }}`).
+   - ✅ Use semantic tokens (`style={{ borderRadius: 'var(--card-radius)' }}`), design system primitives (`Button`, `Card`, `Badge`, `Input`, `Select`), or CSS classes from `components.css`.
+   - *Exception*: Dynamic, data-driven values (e.g. member accent colors `borderLeft: 4px solid ${member.color}`, or dynamic coordinates/percents) are permitted inline.
+3. **Single Component Per File (< 200 LOC)**:
+   - Components should represent a single logical element (e.g., `ChoreCard`, `RewardCard`, `MealDayColumn`).
+   - Extract subcomponents, modals, and lane views into dedicated subcomponent files under `features/<feature>/components/`.
+   - Keep components focused on JSX. Business calculations and network calls belong in custom hooks or RTK slices.
+4. **DRY Modal Standards**:
    - Modals should never declare custom container wrappers with ad-hoc `borderRadius: '24px'`. They must use `var(--modal-radius)`.
 4. **Preserve Legacy Token Compatibility**:
    - Legacy CSS classes like `.btn-primary`, `.btn-secondary`, `.btn-cancel`, and `.modern-input` are mapped to design tokens in `tokens.css` so that legacy templates or unrefactored utility views remain visually harmonious.

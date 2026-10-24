@@ -1,0 +1,358 @@
+import React from 'react';
+import { Reward, Person } from '../../../types';
+import { resolveAssetUrl, resolveAvatarUrl } from '../../../api';
+import { Button, IconButton } from '../../../components/ui';
+
+function getRewardIconClass(title: string): string {
+  const lower = (title || '').toLowerCase();
+  if (lower.includes('screen') || lower.includes('ipad') || lower.includes('game') || lower.includes('tv') || lower.includes('switch') || lower.includes('roblox') || lower.includes('minecraft')) return 'fa-gamepad';
+  if (lower.includes('ice cream') || lower.includes('treat') || lower.includes('dessert') || lower.includes('candy') || lower.includes('snack') || lower.includes('chocolate')) return 'fa-ice-cream';
+  if (lower.includes('park') || lower.includes('playground') || lower.includes('outing') || lower.includes('zoo') || lower.includes('beach') || lower.includes('movie')) return 'fa-tree';
+  if (lower.includes('toy') || lower.includes('lego') || lower.includes('card') || lower.includes('pokemon')) return 'fa-gift';
+  if (lower.includes('sleepover') || lower.includes('late') || lower.includes('bedtime')) return 'fa-moon';
+  if (lower.includes('book') || lower.includes('comic') || lower.includes('read')) return 'fa-book-open';
+  if (lower.includes('pizza') || lower.includes('burger') || lower.includes('dinner') || lower.includes('takeaway') || lower.includes('mcdonald')) return 'fa-pizza-slice';
+  if (lower.includes('money') || lower.includes('cash') || lower.includes('dollar') || lower.includes('$')) return 'fa-coins';
+  return 'fa-star';
+}
+
+const FallbackImage: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  style?: React.CSSProperties;
+  fallbackIcon: string;
+}> = ({ src, alt, className, style, fallbackIcon }) => {
+  const [hasError, setHasError] = React.useState(false);
+  if (hasError) {
+    return (
+      <div
+        className={className}
+        style={{
+          ...style,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          color: 'rgba(255,255,255,0.4)',
+        }}
+      >
+        <i className={`fas ${fallbackIcon}`} style={{ fontSize: '3rem', opacity: 0.6 }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
+export interface RewardCardProps {
+  reward: Reward;
+  family: Person[];
+  selectedPerson: Person | null;
+  isCash: boolean;
+  isParent: boolean;
+  onRedeem: (r: Reward) => void;
+  onEdit: (r: Reward) => void;
+  onDelete: (r: Reward) => void;
+}
+
+export const RewardCard: React.FC<RewardCardProps> = React.memo(({
+  reward,
+  family,
+  selectedPerson,
+  isCash,
+  isParent,
+  onRedeem,
+  onEdit,
+  onDelete,
+}) => {
+  const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
+  const assignedPerson = !isEveryone ? family.find((p) => p.name === reward.assigned_to) : null;
+
+  const targetPerson = assignedPerson || selectedPerson;
+  const currentPts = targetPerson ? (targetPerson.points || 0) + (targetPerson.bonus_points || 0) : 0;
+  const reqPts = Number(reward.points_required || 1);
+  const rawPercent = reqPts > 0 ? (currentPts / reqPts) * 100 : 0;
+  const achievedPercent = Math.min(100, Math.round(rawPercent * 10) / 10);
+  const canRedeem = targetPerson ? currentPts >= reqPts : true;
+
+  return (
+    <div
+      className="reward-card-modern"
+      style={{
+        background: 'linear-gradient(145deg, #1e293b, #111827)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: 18,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+      }}
+    >
+      {/* Hero Visual Banner */}
+      <div
+        style={{
+          height: 140,
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'radial-gradient(circle at 50% 35%, rgba(59, 130, 246, 0.22) 0%, #0f172a 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {reward.image_url ? (
+          <FallbackImage
+            src={resolveAssetUrl(reward.image_url)}
+            alt={reward.title}
+            className="reward-hero-img"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            fallbackIcon={getRewardIconClass(reward.title)}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+              color: 'rgba(255,255,255,0.4)',
+            }}
+          >
+            <i className={`fas ${getRewardIconClass(reward.title)}`} style={{ fontSize: '3rem', opacity: 0.6 }} />
+          </div>
+        )}
+
+        {/* Gradient shadow overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Points Currency Floating Pill */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            background: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            border: `1.5px solid ${isCash ? '#4ade80' : '#fbbf24'}`,
+            color: isCash ? '#4ade80' : '#fbbf24',
+            padding: '4px 10px',
+            borderRadius: 10,
+            fontWeight: 900,
+            fontSize: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          }}
+          title="Required Currency"
+        >
+          {isCash ? (
+            <>
+              <i className="fas fa-money-bill-wave" />
+              <span>${reqPts.toFixed(2)}</span>
+            </>
+          ) : (
+            <>
+              <span>⭐</span>
+              <span>{reqPts} pts</span>
+            </>
+          )}
+        </div>
+
+        {/* Assignee Badge in Hero */}
+        <div style={{ position: 'absolute', top: 10, left: 10 }}>
+          {isEveryone ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 8px',
+                borderRadius: 8,
+                background: 'rgba(168, 85, 247, 0.85)',
+                backdropFilter: 'blur(6px)',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '0.74rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+            >
+              🌟 Everyone
+            </span>
+          ) : (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(6px)',
+                padding: '3px 8px',
+                borderRadius: 999,
+                border: '1px solid rgba(255,255,255,0.2)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+            >
+              <img
+                src={resolveAvatarUrl(assignedPerson?.avatar)}
+                alt={reward.assigned_to}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
+                }}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                }}
+              />
+              <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.78rem' }}>
+                {reward.assigned_to}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Card Body */}
+      <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                color: '#f8fafc',
+                lineHeight: 1.3,
+              }}
+              title={reward.title}
+            >
+              {reward.title}
+            </h3>
+            {reward.is_recurring !== false ? (
+              <span
+                title="Repeatable / recurring reward"
+                style={{
+                  fontSize: '0.72rem',
+                  color: '#94a3b8',
+                  background: 'rgba(255,255,255,0.06)',
+                  padding: '2px 6px',
+                  borderRadius: 6,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🔁 Recurring
+              </span>
+            ) : (
+              <span
+                title="One-time reward"
+                style={{
+                  fontSize: '0.72rem',
+                  color: '#94a3b8',
+                  background: 'rgba(255,255,255,0.06)',
+                  padding: '2px 6px',
+                  borderRadius: 6,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                1-time
+              </span>
+            )}
+          </div>
+
+          {/* Optional description */}
+          {reward.description && (
+            <p
+              style={{
+                margin: '4px 0 8px',
+                fontSize: '0.82rem',
+                color: 'rgba(255,255,255,0.65)',
+                lineHeight: 1.4,
+              }}
+              title={reward.description}
+            >
+              {reward.description}
+            </p>
+          )}
+
+          {/* Progress bar */}
+          {targetPerson && (
+            <div style={{ margin: '8px 0 4px' }}>
+              <div className="reward-progress-track" style={{ height: 6, borderRadius: 3 }}>
+                <div className="reward-progress-bar" style={{ width: `${achievedPercent}%` }} />
+              </div>
+              <div className="reward-progress-text" style={{ fontSize: '0.74rem', marginTop: 3 }}>
+                <span>{targetPerson.name}: {currentPts} / {reqPts} pts</span>
+                <span>{achievedPercent}%</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Actions row: Redeem button + Edit / Delete icons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+          <Button
+            variant={targetPerson && !canRedeem ? 'secondary' : 'success'}
+            size="sm"
+            icon="fas fa-check"
+            onClick={() => onRedeem(reward)}
+            disabled={targetPerson ? !canRedeem : false}
+            style={{
+              flex: 1,
+              cursor: targetPerson && !canRedeem ? 'not-allowed' : 'pointer',
+            }}
+            title={
+              targetPerson && !canRedeem
+                ? `Not enough points (${currentPts}/${reqPts})`
+                : `Redeem "${reward.title}"`
+            }
+          >
+            Redeem
+          </Button>
+
+          {isParent && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <IconButton
+                size="sm"
+                variant="ghost"
+                icon="fas fa-pencil-alt"
+                aria-label="Edit reward"
+                title="Edit reward"
+                onClick={() => onEdit(reward)}
+              />
+              <IconButton
+                size="sm"
+                variant="danger"
+                icon="fas fa-trash-alt"
+                aria-label="Delete reward"
+                title="Delete reward"
+                onClick={() => onDelete(reward)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+export default RewardCard;
