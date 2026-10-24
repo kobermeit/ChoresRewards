@@ -16,6 +16,29 @@
 
 ---
 
+## Feature Registry (Quick Feature-to-File Cheat Sheet)
+*Use this lookup to jump directly to the right files without scanning the codebase.*
+
+| User Feature / UI Element | Key Frontend Component | Backend Route / Database |
+| :--- | :--- | :--- |
+| **Chores Hub & Columns** | `client/src/components/ChoresKanbanSection.tsx` | `server/src/routes/chores.ts` (`chore` table) |
+| **Timed Chore Card (Back)** | `client/src/components/ChoreTimerCardBack.tsx` | `client/src/context/TimerContext.tsx` |
+| **Add / Edit Chore Modal** | `client/src/components/ChoreModal.tsx` | `server/src/routes/chores.ts` |
+| **Chore & Reward Primitives** | `client/src/components/ui/ItemCard.tsx`, `CardShell.tsx`, `TimerRing.tsx` | Design system (`client/src/styles/tokens.css`) |
+| **Rewards & Redemption** | `client/src/components/RewardsSection.tsx`, `Overlays.tsx` | `server/src/routes/rewards.ts` (`reward` table) |
+| **Meal Planner (1 / 2 Weeks)** | `client/src/components/MealAndShoppingSection.tsx` | `server/src/routes/meals.ts` (`meal_plan` table) |
+| **Smart Shopping List** | `client/src/components/MealAndShoppingSection.tsx` | `server/src/routes/shopping.ts` (`shopping_item` table) |
+| **Visual Timer (Tile & Modal)** | `client/src/components/DashboardSection.tsx`, `Overlays.tsx` | Redux / `TimerRing.tsx` |
+| **Parent Mode & Permissions** | `client/src/context/AppContext.tsx`, `ChoresKanbanSection.tsx` | `server/src/routes/auth.ts`, `server/src/routes/chores.ts` |
+| **Seasonal Themes & Dates** | `client/src/components/SeasonalSettingsView.tsx`, `Header.tsx` | `server/src/routes/seasonal.ts`, `server/src/services/seasons.ts` |
+| **Sound Themes & Audio FX** | `client/src/services/soundService.ts`, `SeasonalSettingsView.tsx` | Web Audio synth + `server/src/routes/settings.ts` (`/static/sounds/`) |
+| **Family Profiles & Points** | `client/src/components/FamilyMemberModal.tsx`, `ProfileSwitcherModal.tsx` | `server/src/routes/settings.ts` (`person` table) |
+| **Extra Bonus Chores Pool** | `client/src/components/SettingsAndLogsViews.tsx` (`tab === 'extra'`) | `server/src/routes/chores.ts` (`is_extra = 1`) |
+| **App Bar, Clock, Weather** | `client/src/components/Header.tsx`, `SideNav.tsx` | Open-Meteo API + device clock |
+| **Household Settings & Prefs** | `client/src/components/SettingsAndLogsViews.tsx`, `hooks/useSettings.ts` | `server/src/routes/seasonal.ts` (`/api/prefs`), `settings.ts` |
+
+---
+
 ## Directory Layout & Key Modules
 ```
 choresrewards/
@@ -87,6 +110,9 @@ choresrewards/
 - **Always build production bundles before push**: Run `npm run build` (`npm run build:client` + `npm run build:server`) before committing.
 
 ## Quality Standards & Live Browser Verification
+- **Batch-End Safety Checks Only (Token & Latency Conservation)**:
+  - Do NOT run verification audits (`npm run verify`), TypeScript builds (`npm run build`), or test commands between individual incremental edits within a batch.
+  - Run verification and build commands **ONLY ONCE at the end of the entire batch** when all planned edits are finished, right before reporting completion to the user.
 - **Mandatory Ingress & Environment Portability Audit**:
   - Run `npm run verify` (`node scripts/verify_ingress.js`) before every deploy or commit.
   - Zero tolerance for hardcoded absolute paths (`/static/...` or `/api/...`). All paths must be relative (`./static/...`) or passed through `resolveAssetUrl(url)`.
