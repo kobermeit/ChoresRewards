@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Button, TimerRing } from '../../../components/ui';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface VisualTimerWidgetProps {
   timerPct: number;
@@ -27,8 +28,9 @@ export const VisualTimerWidget: React.FC<VisualTimerWidgetProps> = memo(({
   return (
     <div
       className="dashboard-card dashboard-card-timer"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'space-between' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}
     >
+      <SeasonalCardWatermark variant={1} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-hourglass-half" style={{ color: '#38bdf8' }} />

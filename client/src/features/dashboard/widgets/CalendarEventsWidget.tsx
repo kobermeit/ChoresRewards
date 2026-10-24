@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { CalendarEvent } from '../../../types';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface CalendarEventsWidgetProps {
   dateFilter: 'today' | 'tomorrow' | 'week';
@@ -22,9 +23,10 @@ export const CalendarEventsWidget: React.FC<CalendarEventsWidgetProps> = memo(({
   return (
     <div
       className="dashboard-card"
-      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
       onClick={onOpenCalendar}
     >
+      <SeasonalCardWatermark variant={3} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-calendar-day" style={{ color: '#38bdf8' }} />

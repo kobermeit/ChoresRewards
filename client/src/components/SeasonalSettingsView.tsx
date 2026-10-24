@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   useGetSeasonalQuery,
   useUpdateSeasonalSettingsMutation,
@@ -14,6 +14,7 @@ export const SeasonalSettingsView: React.FC = () => {
   const [updateSettings, { isLoading: isUpdatingSettings }] = useUpdateSeasonalSettingsMutation();
   const [updateSeason] = useUpdateSeasonMutation();
   const [updateEvent] = useUpdateSeasonalEventMutation();
+  const [expandedEventKey, setExpandedEventKey] = useState<string | null>('christmas');
 
   if (isLoading || !data) {
     return (
@@ -24,11 +25,18 @@ export const SeasonalSettingsView: React.FC = () => {
   }
 
   const { settings, seasons, events, active } = data;
-  const currentSoundTheme = settings.sound_theme as SoundTheme;
   const forcedTheme = settings.forced_theme || '';
 
+  const getSoundForTheme = (themeKey: string): SoundTheme => {
+    if (themeKey === 'christmas' || themeKey === 'winter') return 'christmas';
+    if (themeKey === 'halloween') return 'spooky';
+    if (themeKey === 'easter' || themeKey === 'spring' || themeKey === 'autumn') return 'chimes';
+    if (themeKey === 'new_year') return 'fanfare';
+    return (active.event?.sound_key || active.season?.sound_key || 'default') as SoundTheme;
+  };
+
   const handleTestSound = (themeToPlay?: SoundTheme) => {
-    const key = themeToPlay || currentSoundTheme;
+    const key = themeToPlay || getSoundForTheme(forcedTheme);
     const effective = key === 'auto'
       ? (active.event?.sound_key || active.season?.sound_key || 'default')
       : key;
@@ -39,13 +47,13 @@ export const SeasonalSettingsView: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', minWidth: 0 }}>
       {/* Header card */}
       <div className="card" style={{ padding: 24, borderRadius: 18, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
           <div>
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>🍂</span> Seasonal Themes & Sound FX
+              <span>🍂</span> Seasonal Themes &amp; Audio
             </h3>
             <p style={{ opacity: 0.75, fontSize: '0.88rem', margin: '4px 0 0 0' }}>
-              Automatically display festive badges, seasonal greetings and themed audio during holidays and seasons.
+              Automatically display festive badges, seasonal watermarks, accents, and themed audio during holidays and seasons.
             </p>
           </div>
           <Badge
@@ -67,7 +75,7 @@ export const SeasonalSettingsView: React.FC = () => {
             borderRadius: 12,
             background: 'rgba(255, 255, 255, 0.04)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
-            marginBottom: 20,
+            marginBottom: 16,
           }}
         >
           <input
@@ -79,10 +87,10 @@ export const SeasonalSettingsView: React.FC = () => {
           />
           <div>
             <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
-              Enable Seasonal Themes & Events
+              Enable Seasonal Themes &amp; Events
             </span>
             <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
-              Shows active holiday / season icon in the app header, tints accents, and activates seasonal sound themes.
+              Shows active holiday / season icon in the app header, tints accents, and activates seasonal visual &amp; audio themes.
             </div>
           </div>
         </label>
@@ -110,7 +118,7 @@ export const SeasonalSettingsView: React.FC = () => {
               justifyContent: 'space-between',
               flexWrap: 'wrap',
               gap: 12,
-              marginBottom: 20,
+              marginBottom: 18,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
@@ -128,7 +136,7 @@ export const SeasonalSettingsView: React.FC = () => {
                 </div>
                 <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: 2 }}>
                   {forcedTheme
-                    ? `Simulated for testing. Visuals and sounds are locked to this theme.`
+                    ? 'Simulated theme. Visual watermarks and audio synthesis are locked to this theme.'
                     : active.event && active.event.window_start && active.event.window_end
                     ? `Celebration Window: ${active.event.window_start} to ${active.event.window_end}`
                     : active.season
@@ -142,7 +150,7 @@ export const SeasonalSettingsView: React.FC = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => updateSettings({ forced_theme: '' })}
+                  onClick={() => updateSettings({ forced_theme: '', sound_theme: 'auto' })}
                 >
                   Reset to Auto
                 </Button>
@@ -159,37 +167,55 @@ export const SeasonalSettingsView: React.FC = () => {
           </div>
         )}
 
-        {/* 3-Column Responsive Grid: Hemisphere, Sound Theme, and Force Simulation */}
+        {/* Unified 2-Column Responsive Grid: Theme & Hemisphere */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
             gap: 16,
             width: '100%',
             minWidth: 0,
             boxSizing: 'border-box',
           }}
         >
-          {/* 1. Theme Simulation / Manual Override */}
+          {/* 1. Unified Theme Selector (Controls Visual + Audio together) */}
           <FormField
-            label="Active Theme Simulation (Preview Mode)"
-            help="Lock the theme ON to test visuals, banners, and sounds without waiting for holidays."
+            label="Theme"
+            help="Select a theme to style visual watermarks, header emblems, accents, and sound effects."
           >
-            <Select
-              value={forcedTheme}
-              disabled={isUpdatingSettings}
-              onChange={(e) => updateSettings({ forced_theme: e.target.value })}
-            >
-              <option value="">🗓️ Automatic (Live Calendar Date)</option>
-              <option value="halloween">🎃 Halloween Event (Spooky Theme)</option>
-              <option value="christmas">🎄 Christmas Event (Holiday Theme)</option>
-              <option value="easter">🐰 Easter Event (Spring / Easter Theme)</option>
-              <option value="new_year">🎆 New Year&apos;s Day (Celebration Theme)</option>
-              <option value="spring">🌸 Spring Season</option>
-              <option value="summer">☀️ Summer Season</option>
-              <option value="autumn">🍂 Autumn Season</option>
-              <option value="winter">❄️ Winter Season</option>
-            </Select>
+            <div style={{ display: 'flex', gap: 8, width: '100%', minWidth: 0, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Select
+                  value={forcedTheme}
+                  disabled={isUpdatingSettings || !settings.seasonal_themes_enabled}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    updateSettings({ forced_theme: next, sound_theme: 'auto' });
+                    const soundToPlay = getSoundForTheme(next);
+                    handleTestSound(soundToPlay);
+                  }}
+                >
+                  <option value="">🗓️ Automatic (Follows Calendar &amp; Seasons)</option>
+                  <option value="christmas">🎄 Christmas (Winter Wonderland)</option>
+                  <option value="halloween">🎃 Halloween (Spooky Season)</option>
+                  <option value="easter">🐰 Easter (Spring Celebration)</option>
+                  <option value="new_year">🎆 New Year&apos;s Day (Royal Fanfare)</option>
+                  <option value="spring">🌸 Spring Season</option>
+                  <option value="summer">☀️ Summer Season</option>
+                  <option value="autumn">🍂 Autumn Season</option>
+                  <option value="winter">❄️ Winter Season</option>
+                </Select>
+              </div>
+              <Button
+                variant="secondary"
+                icon="fas fa-play"
+                title="Preview theme sound"
+                aria-label="Preview theme sound"
+                disabled={!settings.seasonal_themes_enabled}
+                style={{ flexShrink: 0 }}
+                onClick={() => handleTestSound()}
+              />
+            </div>
           </FormField>
 
           {/* 2. Hemisphere */}
@@ -199,48 +225,12 @@ export const SeasonalSettingsView: React.FC = () => {
           >
             <Select
               value={settings.hemisphere}
-              disabled={isUpdatingSettings}
+              disabled={isUpdatingSettings || !settings.seasonal_themes_enabled}
               onChange={(e) => updateSettings({ hemisphere: e.target.value as 'south' | 'north' })}
             >
               <option value="south">Southern Hemisphere (Australia / NZ / South America)</option>
               <option value="north">Northern Hemisphere (North America / Europe / Asia)</option>
             </Select>
-          </FormField>
-
-          {/* 3. Sound Theme */}
-          <FormField
-            label="Sound Theme"
-            help="Audio synthesis for chore completion and timer finish."
-          >
-            <div style={{ display: 'flex', gap: 8, width: '100%', minWidth: 0, alignItems: 'center' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Select
-                  value={settings.sound_theme}
-                  disabled={isUpdatingSettings}
-                  onChange={(e) => {
-                    const next = e.target.value as SoundTheme;
-                    updateSettings({ sound_theme: next });
-                    handleTestSound(next);
-                  }}
-                >
-                  <option value="auto">Auto (Syncs with Active Holiday & Season)</option>
-                  <option value="default">Default (Pleasant Synth Chime)</option>
-                  <option value="fantasy">Fantasy Quest (Zelda Secret Chime)</option>
-                  <option value="christmas">Christmas Bells (Celesta & Chimes)</option>
-                  <option value="spooky">Spooky Halloween (Theremin Arpeggio)</option>
-                  <option value="chimes">Zen Wind Chimes (Soft Pentatonic)</option>
-                  <option value="fanfare">Royal Fanfare (Brass Chime)</option>
-                </Select>
-              </div>
-              <Button
-                variant="secondary"
-                icon="fas fa-play"
-                title="Preview sound theme"
-                aria-label="Preview sound theme"
-                style={{ flexShrink: 0 }}
-                onClick={() => handleTestSound()}
-              />
-            </div>
           </FormField>
         </div>
       </div>
@@ -248,68 +238,149 @@ export const SeasonalSettingsView: React.FC = () => {
       {/* Seasonal Events (Easter, Halloween, Christmas, New Year's) */}
       <div className="card" style={{ padding: 24, borderRadius: 18, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <h4 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', color: '#f8fafc' }}>
-          🎉 Seasonal Events & Holidays
+          🎉 Seasonal Events &amp; Holidays
         </h4>
         <p style={{ opacity: 0.7, fontSize: '0.85rem', margin: '0 0 16px 0' }}>
-          Events run for a designated window (typically 1 week before and after the date). Easter is calculated dynamically each year.
+          Events activate automatically based on designated calendar dates (Halloween: Oct 24 – Nov 1, Easter: 1 week prior through Easter Monday, Christmas: Dec 1 – Dec 26, New Year&apos;s: Dec 31 – Jan 1).
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', minWidth: 0 }}>
-          {events.map((ev) => (
-            <label
-              key={ev.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderRadius: 12,
-                background: ev.enabled ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.015)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                cursor: 'pointer',
-                flexWrap: 'wrap',
-                gap: 10,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                <input
-                  type="checkbox"
-                  checked={ev.enabled}
-                  onChange={(e) => updateEvent({ id: ev.id, enabled: e.target.checked })}
-                  style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)' }}
-                />
-                <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{ev.emoji}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: ev.enabled ? '#f8fafc' : '#94a3b8' }}>
-                    {ev.name}
-                  </div>
-                  <div style={{ fontSize: '0.76rem', opacity: 0.65 }}>
-                    {ev.rule_type === 'easter'
-                      ? `Dynamic Easter calculation (Window: ${ev.window_start || 'Spring'} to ${ev.window_end || 'Easter'})`
-                      : `Fixed date (${ev.month_day}, ±${ev.days_before} days)`}
+          {events.map((ev) => {
+            const hasSubSettings = ev.key === 'christmas';
+            const isExpanded = expandedEventKey === ev.key;
+            const isEventDisabled = !ev.enabled || !settings.seasonal_themes_enabled;
+
+            return (
+              <div
+                key={ev.id}
+                style={{
+                  borderRadius: 14,
+                  background: ev.enabled && settings.seasonal_themes_enabled ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.015)',
+                  border: `1px solid ${ev.enabled && settings.seasonal_themes_enabled ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.04)'}`,
+                  padding: '12px 16px',
+                  transition: 'background 0.2s, border-color 0.2s',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      minWidth: 0,
+                      flex: 1,
+                      cursor: settings.seasonal_themes_enabled ? 'pointer' : 'not-allowed',
+                      opacity: settings.seasonal_themes_enabled ? 1 : 0.6,
+                      margin: 0,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={ev.enabled}
+                      disabled={!settings.seasonal_themes_enabled || isUpdatingSettings}
+                      onChange={(e) => updateEvent({ id: ev.id, enabled: e.target.checked })}
+                      style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{ev.emoji}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: ev.enabled && settings.seasonal_themes_enabled ? '#f8fafc' : '#94a3b8' }}>
+                        {ev.name}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', opacity: 0.65 }}>
+                        {ev.window_start && ev.window_end
+                          ? `Active window: ${ev.window_start} to ${ev.window_end}`
+                          : ev.rule_type === 'easter'
+                          ? 'Dynamic Easter calculation'
+                          : `Fixed date (${ev.month_day})`}
+                      </div>
+                    </div>
+                  </label>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {ev.sound_key && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon="fas fa-volume-high"
+                        title={`Preview ${ev.sound_key} sound`}
+                        disabled={!settings.seasonal_themes_enabled}
+                        onClick={() => playThemedSound(ev.sound_key || 'default', 'chore_done')}
+                      />
+                    )}
+                    {hasSubSettings && (
+                      <Button
+                        size="sm"
+                        variant={isExpanded && !isEventDisabled ? 'secondary' : 'ghost'}
+                        icon={isExpanded && !isEventDisabled ? 'fas fa-chevron-up' : 'fas fa-chevron-down'}
+                        disabled={isEventDisabled}
+                        title={isEventDisabled ? 'Enable this theme to configure options' : isExpanded ? 'Collapse options' : 'Expand options'}
+                        onClick={() => setExpandedEventKey(isExpanded ? null : ev.key)}
+                        style={{ fontSize: '0.82rem' }}
+                      >
+                        Options
+                      </Button>
+                    )}
+                    <Badge variant={ev.enabled && settings.seasonal_themes_enabled ? 'success' : 'neutral'}>
+                      {ev.enabled && settings.seasonal_themes_enabled ? 'Enabled' : 'Disabled'}
+                    </Badge>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                {ev.sound_key && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon="fas fa-volume-high"
-                    title={`Preview ${ev.sound_key} sound`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      playThemedSound(ev.sound_key || 'default', 'chore_done');
+                {/* Sub-settings (only expandable and active when parent theme is enabled) */}
+                {hasSubSettings && isExpanded && !isEventDisabled && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '12px 16px',
+                      borderRadius: 10,
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
                     }}
-                  />
+                  >
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Christmas Theme Options
+                    </div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        cursor: isEventDisabled ? 'not-allowed' : 'pointer',
+                        margin: 0,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={settings.falling_snow_enabled ?? true}
+                        disabled={isEventDisabled || isUpdatingSettings}
+                        onChange={(e) => updateSettings({ falling_snow_enabled: e.target.checked })}
+                        style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f8fafc' }}>
+                          ❄️ Light Falling Snow (Winter &amp; Christmas)
+                        </span>
+                        <div style={{ fontSize: '0.76rem', opacity: 0.7 }}>
+                          Gentle, GPU-accelerated snowfall effect during winter &amp; Christmas events. Automatically disabled on mobile screens (&lt; 768px).
+                        </div>
+                      </div>
+                    </label>
+                  </div>
                 )}
-                <Badge variant={ev.enabled ? 'success' : 'neutral'}>
-                  {ev.enabled ? 'Enabled' : 'Disabled'}
-                </Badge>
               </div>
-            </label>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -329,7 +400,7 @@ export const SeasonalSettingsView: React.FC = () => {
               style={{
                 padding: '14px 16px',
                 borderRadius: 12,
-                background: s.enabled ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.015)',
+                background: s.enabled && settings.seasonal_themes_enabled ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.015)',
                 border: `1px solid ${active.season?.id === s.id ? s.accent || 'var(--cr-primary)' : 'rgba(255, 255, 255, 0.06)'}`,
                 display: 'flex',
                 alignItems: 'center',
@@ -337,7 +408,7 @@ export const SeasonalSettingsView: React.FC = () => {
                 gap: 10,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: settings.seasonal_themes_enabled ? 1 : 0.6 }}>
                 <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{s.emoji}</span>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#f8fafc' }}>
@@ -357,8 +428,9 @@ export const SeasonalSettingsView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={s.enabled}
+                disabled={!settings.seasonal_themes_enabled || isUpdatingSettings}
                 onChange={(e) => updateSeason({ id: s.id, enabled: e.target.checked })}
-                style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)' }}
+                style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)', cursor: settings.seasonal_themes_enabled ? 'pointer' : 'not-allowed' }}
                 aria-label={`Enable ${s.name}`}
               />
             </div>

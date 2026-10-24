@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { Button, IconButton, Input, RichEditor } from '../../../components/ui';
 import { Modal } from '../../../components/common/Modal';
 import { DashboardStickyNote } from '../../../types';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
@@ -52,8 +53,9 @@ export const StickyNotesWidget: React.FC<StickyNotesWidgetProps> = memo(({
     <div
       className="dashboard-card dashboard-card-notes"
       id="dashboard-notes-panel"
-      style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
     >
+      <SeasonalCardWatermark variant={8} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-note-sticky" style={{ color: '#fbbf24' }} />

@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface PlayGamesWidgetProps {
   onOpenPlayGame: (gameType: 'maths' | 'colours' | 'patterns' | 'memory') => void;
@@ -9,8 +10,9 @@ export const PlayGamesWidget: React.FC<PlayGamesWidgetProps> = memo(({ onOpenPla
     <div
       className="dashboard-card dashboard-card-play"
       id="dashboard-play-panel"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
     >
+      <SeasonalCardWatermark variant={6} />
       <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         <i className="fas fa-star" style={{ color: '#fbbf24' }} />
         <span>Play Games</span>

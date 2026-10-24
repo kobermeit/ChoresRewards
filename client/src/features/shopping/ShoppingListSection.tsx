@@ -129,46 +129,13 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
         }
       });
 
-      Object.entries(ingredientsMap).forEach(([, ings]) => {
-        const ingList: MealIngredient[] = Array.isArray(ings)
-          ? ings
-          : ings && typeof ings === 'object'
-          ? Object.values(ings)
-          : [];
-        ingList.forEach((i) => {
-          if (
-            (i.store || '').toLowerCase() === store.id.toLowerCase() ||
-            (i.store || '').toLowerCase() === store.name.toLowerCase()
-          ) {
-            const name = getItemName(i);
-            const qty = getItemQty(i);
-            if (name) {
-              const existing = itemsByName.get(name.toLowerCase());
-              itemsByName.set(name.toLowerCase(), {
-                name: existing?.name || name,
-                qty: qty || existing?.qty || '',
-              });
-            }
-          }
-        });
-      });
-
-      if (itemsByName.size < 5) {
-        (intel.catalog || []).forEach((c) => {
-          const name = getItemName(c);
-          if (name && !itemsByName.has(name.toLowerCase())) {
-            itemsByName.set(name.toLowerCase(), { name, qty: '' });
-          }
-        });
-      }
-
       map[store.id] = Array.from(itemsByName.values()).sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
       );
     });
 
     return map;
-  }, [stores, intel, ingredientsMap]);
+  }, [stores, intel]);
 
   const effectiveShopChecked = useMemo(() => {
     return { ...(shop?.checked || {}), ...optimisticChecked };

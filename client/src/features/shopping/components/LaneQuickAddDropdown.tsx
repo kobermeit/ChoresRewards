@@ -13,7 +13,7 @@ export const LaneQuickAddDropdown: React.FC<LaneQuickAddDropdownProps> = ({
   storeName,
   items,
   onSelect,
-  showFilter = items.length > 8,
+  showFilter = true,
 }) => {
   const options = items.map((it) => ({
     value: it.name,
@@ -28,6 +28,8 @@ export const LaneQuickAddDropdown: React.FC<LaneQuickAddDropdownProps> = ({
       options={options}
       onChange={onSelect}
       showFilter={showFilter}
+      allowCustomValue={true}
+      customValueLabel={(text) => `Add "${text}" to ${storeName}`}
       height={36}
       ariaLabel={`Add item to ${storeName}`}
     />

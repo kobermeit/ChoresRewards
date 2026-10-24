@@ -12,7 +12,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   iconPosition?: 'left' | 'right';
   isLoading?: boolean;
   fullWidth?: boolean;
-  collapseOnMobile?: boolean; // When true, hides label text on small mobile screens (<640px) keeping only the icon
+  collapseOnMobile?: boolean; // When true (default when icon present), hides label text on mobile (<768px) keeping only the icon
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -25,11 +25,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       iconPosition = 'left',
       isLoading = false,
       fullWidth = false,
-      collapseOnMobile = false,
+      collapseOnMobile = true,
       children,
       className = '',
       style,
       disabled,
+      title,
       ...props
     },
     ref
@@ -38,6 +39,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const sizeClass = `cr-btn-${size}`;
     const isIconOnly = !children && Boolean(icon);
     const collapseClass = collapseOnMobile && icon && children ? 'cr-btn-collapse-mobile' : '';
+    const autoTitle = title || (typeof children === 'string' ? children : undefined);
     const shapeClass = isIconOnly
       ? shape === 'circle'
         ? 'cr-btn-icon-only cr-btn-rounded-full'
@@ -55,6 +57,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         style={{ ...widthStyle, ...style }}
         disabled={disabled || isLoading}
         aria-busy={isLoading}
+        title={autoTitle}
+        aria-label={props['aria-label'] || autoTitle}
         {...props}
       >
         {isLoading && <i className="fas fa-spinner fa-spin" aria-hidden="true" />}

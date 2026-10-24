@@ -620,21 +620,19 @@ function getRelativeAge(from: Date | null, to: Date): string {
                     <span>Activity Log</span>
                   </button>
 
-                  <button
-                    type="button"
-                    className="header-menu-item"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      if (adultMode) {
+                  {adultMode && (
+                    <button
+                      type="button"
+                      className="header-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
                         setActiveView('settings');
-                      } else {
-                        openAdultPinModal(() => setActiveView('settings'));
-                      }
-                    }}
-                  >
-                    <i className="fas fa-gear header-menu-item-icon" />
-                    <span>Settings & Config</span>
-                  </button>
+                      }}
+                    >
+                      <i className="fas fa-gear header-menu-item-icon" />
+                      <span>Settings & Config</span>
+                    </button>
+                  )}
 
                   <div className="header-menu-divider" style={{ margin: '6px 0 0' }} />
 

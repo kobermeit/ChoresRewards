@@ -40,6 +40,7 @@ export interface SeasonalSettings {
   hemisphere: 'south' | 'north';
   sound_theme: SoundTheme;
   forced_theme?: string | null;
+  falling_snow_enabled?: boolean;
 }
 
 export interface SeasonalResponse {

@@ -1,6 +1,8 @@
 import React, { memo } from 'react';
 import { UserAvatar } from '../../../components/ui';
 import { Person, Chore } from '../../../types';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
+import { isChoreScheduledForDate } from '../../chores/choreUtils';
 
 export interface FamilyTasksWidgetProps {
   dateFilter: 'today' | 'tomorrow' | 'week';
@@ -27,10 +29,11 @@ export const FamilyTasksWidget: React.FC<FamilyTasksWidgetProps> = memo(({
   return (
     <div
       className="dashboard-card"
-      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
       onClick={onOpenChores}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <SeasonalCardWatermark variant={0} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-list-check" style={{ color: '#4ade80' }} />
           <span>{title}</span>
@@ -38,9 +41,14 @@ export const FamilyTasksWidget: React.FC<FamilyTasksWidgetProps> = memo(({
         <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>Chores &rarr;</span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0, position: 'relative', zIndex: 1 }}>
         {family.map((person) => {
-          const pChores = chores.filter((c) => c.assigned_to === person.name && !c.deleted);
+          const pChores = chores.filter(
+            (c) =>
+              (c.assigned_to === person.name || c.assigned_to_id === person.id) &&
+              !c.deleted &&
+              (dateFilter === 'week' || isChoreScheduledForDate(c))
+          );
           const incomplete = pChores.filter((c) => !c.completed);
           const done = pChores.filter((c) => c.completed);
 

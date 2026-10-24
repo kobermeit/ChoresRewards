@@ -523,10 +523,25 @@ function seedSeasonalData() {
       `INSERT OR IGNORE INTO seasonal_events (key, name, rule_type, month_day, days_before, days_after, emoji, accent, sound_key)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
-    insEvent.run('new_year', "New Year's", 'fixed', '01-01', 3, 3, '🎆', '#a855f7', 'fanfare');
-    insEvent.run('easter', 'Easter', 'easter', null, 3, 3, '🐣', '#a3e635', 'chimes');
-    insEvent.run('halloween', 'Halloween', 'fixed', '10-31', 4, 2, '🎃', '#f97316', 'spooky');
-    insEvent.run('christmas', 'Christmas', 'fixed', '12-25', 4, 2, '🎄', '#22c55e', 'christmas');
+    insEvent.run('new_year', "New Year's", 'fixed', '01-01', 1, 0, '🎆', '#a855f7', 'fanfare');
+    insEvent.run('easter', 'Easter', 'easter', null, 7, 1, '🐣', '#a3e635', 'chimes');
+    insEvent.run('halloween', 'Halloween', 'fixed', '10-31', 7, 1, '🎃', '#f97316', 'spooky');
+    insEvent.run('christmas', 'Christmas', 'fixed', '12-25', 24, 1, '❄️', '#38bdf8', 'christmas');
+
+    // Migrate existing database seasonal window dates to precise rules
+    db.prepare("UPDATE seasonal_events SET days_before = 1, days_after = 0 WHERE key = 'new_year'").run();
+    db.prepare("UPDATE seasonal_events SET days_before = 7, days_after = 1 WHERE key = 'easter'").run();
+    db.prepare("UPDATE seasonal_events SET days_before = 7, days_after = 1 WHERE key = 'halloween'").run();
+    db.prepare("UPDATE seasonal_events SET days_before = 24, days_after = 1, emoji = '❄️', accent = '#38bdf8' WHERE key = 'christmas'").run();
+
+    // Ensure seasons have default sound themes
+    db.prepare("UPDATE seasons SET sound_key = 'christmas' WHERE key = 'winter' AND (sound_key IS NULL OR sound_key = '')").run();
+    db.prepare("UPDATE seasons SET sound_key = 'chimes' WHERE key = 'spring' AND (sound_key IS NULL OR sound_key = '')").run();
+    db.prepare("UPDATE seasons SET sound_key = 'chimes' WHERE key = 'autumn' AND (sound_key IS NULL OR sound_key = '')").run();
+    db.prepare("UPDATE seasons SET sound_key = 'default' WHERE key = 'summer' AND (sound_key IS NULL OR sound_key = '')").run();
+
+    // Clean obsolete duplicate legacy settings
+    db.prepare("DELETE FROM app_settings WHERE key IN ('meal_plan_json', 'meal_suggestions_json')").run();
 
     const defaults: Record<string, string> = {
       seasonal_themes_enabled: 'true',

@@ -100,3 +100,28 @@ export function formatPoints(pts: number | string, isCashMode = false): string {
   if (isCashMode) return `$${n.toFixed(2)}`;
   return n % 1 === 0 ? `${n.toFixed(0)}` : `${n.toFixed(1)}`;
 }
+
+export function isChoreScheduledForDate(
+  chore: { is_daily?: boolean | number; days_of_week?: string | string[] | null },
+  dateIso?: string
+): boolean {
+  if (!chore.is_daily) return true;
+  const raw = Array.isArray(chore.days_of_week)
+    ? chore.days_of_week
+    : chore.days_of_week
+    ? String(chore.days_of_week).split(',')
+    : [];
+  const scheduled = raw.map((d) => d.trim().toLowerCase()).filter(Boolean);
+  if (scheduled.length === 0 || scheduled.length >= 7) return true;
+
+  const targetDate = dateIso && /^\d{4}-\d{2}-\d{2}$/.test(dateIso)
+    ? new Date(dateIso + 'T12:00:00')
+    : new Date();
+  const dayIndex = targetDate.getDay(); // 0=Sun, 1=Mon...
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayShorts = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const currentLong = dayNames[dayIndex];
+  const currentShort = dayShorts[dayIndex];
+
+  return scheduled.some((d) => d === currentLong || d === currentShort);
+}

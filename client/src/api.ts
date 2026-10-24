@@ -52,6 +52,12 @@ export class ApiError extends Error {
   }
 }
 
+export function dispatchGlobalToast(message: string, type: 'error' | 'warning' | 'info' | 'success' = 'error') {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cr:toast', { detail: { message, type } }));
+  }
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   let data: any = null;
   try {
@@ -69,6 +75,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
         : res.status === 401
         ? 'Authentication required — please sign in'
         : `Request failed (HTTP ${res.status})`);
+    dispatchGlobalToast(errorMsg, 'error');
     throw new ApiError(errorMsg, res.status, data);
   }
 
@@ -76,12 +83,20 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T = any>(endpoint: string): Promise<T> {
-  const res = await fetch(resolveApiUrl(endpoint), {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  return handleResponse<T>(res);
+  try {
+    const res = await fetch(resolveApiUrl(endpoint), {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    return await handleResponse<T>(res);
+  } catch (err: any) {
+    if (!(err instanceof ApiError)) {
+      const msg = err?.message || 'Network request failed';
+      dispatchGlobalToast(msg, 'error');
+    }
+    throw err;
+  }
 }
 
 import { store } from './store';
@@ -138,20 +153,36 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
 }
 
 export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> {
-  const res = await fetch(resolveApiUrl(endpoint), {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  });
-  return handleResponse<T>(res);
+  try {
+    const res = await fetch(resolveApiUrl(endpoint), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    return await handleResponse<T>(res);
+  } catch (err: any) {
+    if (!(err instanceof ApiError)) {
+      const msg = err?.message || 'Network request failed';
+      dispatchGlobalToast(msg, 'error');
+    }
+    throw err;
+  }
 }
 
 export async function apiDelete<T = any>(endpoint: string): Promise<T> {
-  const res = await fetch(resolveApiUrl(endpoint), {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  return handleResponse<T>(res);
+  try {
+    const res = await fetch(resolveApiUrl(endpoint), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    return await handleResponse<T>(res);
+  } catch (err: any) {
+    if (!(err instanceof ApiError)) {
+      const msg = err?.message || 'Network request failed';
+      dispatchGlobalToast(msg, 'error');
+    }
+    throw err;
+  }
 }

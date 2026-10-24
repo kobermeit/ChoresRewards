@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { db, AppSetting, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
 import { UPLOADS_DIR, APP_VERSION } from '../config';
 import { hashPin } from './auth';
-import { getAppTimezone, getMondayOfWeek, isChoreOverdue } from '../utils/time';
+import { getAppTimezone, getMondayOfWeek, isChoreOverdue, isDayOfWeekScheduled } from '../utils/time';
 import { ensureDailyReset, getExtraChores, loadQuizQuestions } from '../services/chores';
 import {
   getWeekDaysList,
@@ -46,9 +46,11 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     const peopleRows = db.prepare('SELECT * FROM person ORDER BY "order", id').all() as Array<any>;
     const needsSetup = peopleRows.length === 0;
 
-    const choresRows = db
-      .prepare('SELECT * FROM chore WHERE deleted = 0 AND (is_daily = 0 OR due_date IS NULL OR due_date <= ?) ORDER BY due_date, id')
-      .all(familyToday) as Array<any>;
+    const choresRows = (
+      db
+        .prepare('SELECT * FROM chore WHERE deleted = 0 AND (is_daily = 0 OR due_date IS NULL OR due_date <= ?) ORDER BY due_date, id')
+        .all(familyToday) as Array<any>
+    ).filter((c) => !c.is_daily || isDayOfWeekScheduled(familyToday, c.days_of_week));
 
     const overdueChoreIds: number[] = [];
     const chores = choresRows.map((c) => {

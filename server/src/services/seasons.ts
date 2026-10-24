@@ -82,6 +82,7 @@ export function getSeasonalSettings() {
     hemisphere: (AppSetting.get('hemisphere', 'south') === 'north' ? 'north' : 'south') as Hemisphere,
     sound_theme: AppSetting.get('sound_theme', 'auto') || 'auto',
     forced_theme: AppSetting.get('forced_theme', '') || '',
+    falling_snow_enabled: AppSetting.get('falling_snow_enabled', 'true') === 'true',
   };
 }
 

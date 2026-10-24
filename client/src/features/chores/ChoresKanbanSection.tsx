@@ -7,7 +7,7 @@ import { Modal } from '../../components/common/Modal';
 import { useUiPref, useSeason } from '../../hooks/useSettings';
 import { useTimer } from '../../context/TimerContext';
 import { fireCelebrationFireworks, fireChoreConfetti } from '../../services/celebrationService';
-import { BODY_CHALLENGES, detectChoreIcon } from './choreUtils';
+import { BODY_CHALLENGES, detectChoreIcon, isChoreScheduledForDate } from './choreUtils';
 import { ChoreCard } from './components/ChoreCard';
 import { ChoreKanbanColumn } from './components/ChoreKanbanColumn';
 import { ChoreCelebrationModal } from './components/ChoreCelebrationModal';
@@ -41,7 +41,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   }, [isChild, activeUser?.id, setSelectedChorePersonId]);
 
   const [hideCompleted, setHideCompleted] = useUiPref('hideCompletedChores');
-  const [parentManageMode, setParentManageMode] = useUiPref('parentManageMode');
   const [flippedChores, setFlippedChores] = useState<Record<number, boolean>>({});
 
   // Modals state
@@ -234,7 +233,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
       id="chores-section"
       className={isStandalonePage ? '' : 'chores-section'}
       title="Family Members Chores"
-      subtitle={seasonInfo.greetingSuffix}
       icon="fas fa-list-check"
       iconClass="section-icon-chores"
       boxed={!isStandalonePage}
@@ -252,6 +250,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         >
           <PillButton
             onClick={() => setSelectedChorePersonId(null)}
+            icon="fas fa-users"
+            className="member-filter-pill member-filter-all"
+            title="All Family"
             style={{
               padding: '6px 14px',
               border: !selectedPerson ? '2px solid var(--color-primary)' : '1px solid rgba(148,163,184,0.28)',
@@ -270,13 +271,16 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
               (c) =>
                 (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
                 !c.deleted &&
-                !c.completed
+                !c.completed &&
+                isChoreScheduledForDate(c, data?.current_date)
             ).length;
             const isSelected = selectedPerson?.id === person.id;
             return (
               <PillButton
                 key={person.id}
                 onClick={() => setSelectedChorePersonId(isSelected ? null : person.id)}
+                className="member-filter-pill"
+                title={`${person.name} (${pPending > 0 ? `${pPending} left` : 'All done'})`}
                 style={{
                   padding: '4px 12px 4px 6px',
                   border: isSelected
@@ -301,8 +305,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                   size={26}
                   borderWidth={1.5}
                 />
-                <span>{person.name}</span>
+                <span className="member-filter-name">{person.name}</span>
                 <span
+                  className="member-filter-badge"
                   style={{
                     fontSize: '0.75rem',
                     padding: '1px 7px',
@@ -328,19 +333,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             aria-label={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
             title={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
           />
-
-          {isParent && (
-            <IconButton
-              shape="circle"
-              variant={parentManageMode ? 'primary' : 'ghost'}
-              className={`shopping-toolbar-btn shopping-icon-btn${parentManageMode ? ' active' : ''}`}
-              style={{ flexShrink: 0 }}
-              onClick={() => setParentManageMode(!parentManageMode)}
-              icon="fas fa-sliders"
-              aria-label={parentManageMode ? 'Parent Controls Active' : 'Clean View Active'}
-              title={parentManageMode ? 'Parent Controls Active' : 'Clean View Active'}
-            />
-          )}
         </div>
       }
     >
@@ -350,7 +342,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             const pChores = chores.filter(
               (c) =>
                 (c.assigned_to_id === selectedPerson.id || c.assigned_to === selectedPerson.name) &&
-                !c.deleted
+                !c.deleted &&
+                isChoreScheduledForDate(c, data?.current_date)
             );
             const pending = pChores.filter((c) => !c.completed);
             const completed = pChores.filter((c) => c.completed);
@@ -376,7 +369,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                     person={selectedPerson}
                     isCash={isCash}
                     isParent={Boolean(isParent)}
-                    parentManageMode={Boolean(parentManageMode)}
                     isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
                     completeBtnLabel={completeLabel}
                     isFlipped={Boolean(flippedChores[chore.id])}
@@ -398,7 +390,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             const personChores = chores.filter(
               (c) =>
                 (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
-                !c.deleted
+                !c.deleted &&
+                isChoreScheduledForDate(c, data?.current_date)
             );
             const completeLabel = activeUser && activeUser.id === person.id ? 'Complete' : `Complete for ${person.name}`;
 
@@ -411,7 +404,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 overdueIds={overdueIds}
                 isCash={isCash}
                 isParent={Boolean(isParent)}
-                parentManageMode={Boolean(parentManageMode)}
                 completeBtnLabel={completeLabel}
                 flippedChores={flippedChores}
                 availableExtraChores={availableExtraChores}

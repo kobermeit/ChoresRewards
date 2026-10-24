@@ -1,21 +1,109 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { WipBanner } from './ui';
 
-export const SectionHelpTip: React.FC<{ text: string }> = ({ text }) => {
+export interface SectionHelpTipProps {
+  text?: string;
+  title?: string;
+  tips?: string[];
+}
+
+export const SectionHelpTip: React.FC<SectionHelpTipProps> = ({ text, title, tips }) => {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const hasContent = Boolean((text && text.trim().length > 0) || (tips && tips.length > 0));
 
   useEffect(() => {
     if (!open) return;
+    const updatePosition = () => {
+      if (wrapRef.current) {
+        const rect = wrapRef.current.getBoundingClientRect();
+        const popoverWidth = Math.min(300, window.innerWidth - 24);
+        const left = Math.max(12, Math.min(window.innerWidth - popoverWidth - 12, rect.left + rect.width / 2 - popoverWidth / 2));
+        setCoords({
+          top: rect.bottom + 8,
+          left,
+        });
+      }
+    };
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
     const onDocClick = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+      if (
+        wrapRef.current &&
+        !wrapRef.current.contains(e.target as Node) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      document.removeEventListener('mousedown', onDocClick);
+    };
   }, [open]);
+
+  // If there is no text and no tips, do NOT render anything
+  if (!hasContent) {
+    return null;
+  }
+
+  const tooltipNode = open && coords && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            width: Math.min(300, window.innerWidth - 24),
+            maxWidth: 'calc(100vw - 24px)',
+            background: 'rgba(15, 23, 42, 0.98)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(96, 165, 250, 0.45)',
+            borderRadius: 12,
+            padding: '12px 14px',
+            color: '#e2e8f0',
+            fontSize: '0.82rem',
+            fontWeight: 500,
+            lineHeight: 1.45,
+            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.85)',
+            zIndex: 100000,
+            textAlign: 'left',
+            whiteSpace: 'normal',
+            boxSizing: 'border-box',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {title && (
+            <div style={{ fontWeight: 700, color: '#60a5fa', marginBottom: 6, fontSize: '0.88rem' }}>
+              {title}
+            </div>
+          )}
+          {text && <div style={{ marginBottom: tips && tips.length > 0 ? 6 : 0 }}>{text}</div>}
+          {tips && tips.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {tips.map((tip, idx) => (
+                <li key={idx} style={{ opacity: 0.9 }}>
+                  {tip}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <span
@@ -29,7 +117,7 @@ export const SectionHelpTip: React.FC<{ text: string }> = ({ text }) => {
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        title={text}
+        title={title || text || 'Section Help'}
         aria-label="Section Help"
         style={{
           width: 22,
@@ -51,32 +139,7 @@ export const SectionHelpTip: React.FC<{ text: string }> = ({ text }) => {
       >
         ?
       </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            minWidth: 250,
-            maxWidth: 320,
-            background: '#0f172a',
-            border: '1px solid rgba(96,165,250,0.45)',
-            borderRadius: 12,
-            padding: '10px 14px',
-            color: '#e2e8f0',
-            fontSize: '0.8rem',
-            fontWeight: 500,
-            lineHeight: 1.45,
-            boxShadow: '0 12px 28px rgba(0,0,0,0.55)',
-            zIndex: 9500,
-            textAlign: 'left',
-            whiteSpace: 'normal',
-          }}
-        >
-          {text}
-        </div>
-      )}
+      {tooltipNode}
     </span>
   );
 };

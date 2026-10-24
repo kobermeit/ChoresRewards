@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Reward, Person } from '../../types';
 import { apiPost } from '../../api';
-import { PageContainer, Button, PillButton, ResponsiveGrid } from '../../components/ui';
+import { PageContainer, Button, PillButton, ResponsiveGrid, UserAvatar } from '../../components/ui';
 import { RewardCard } from './components/RewardCard';
 import { RewardEditModal } from './components/RewardEditModal';
 import { ClaimRewardModal } from './components/ClaimRewardModal';
@@ -129,25 +129,72 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
         ) : null
       }
       toolbar={
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <PillButton
-            active={selectedPersonId === null}
             onClick={() => setSelectedPersonId(null)}
+            icon="fas fa-users"
+            className="member-filter-pill member-filter-all"
+            title="All Family"
+            style={{
+              padding: '6px 14px',
+              border: selectedPersonId === null ? '2px solid var(--color-primary)' : '1px solid rgba(148,163,184,0.28)',
+              background: selectedPersonId === null ? 'var(--color-primary)' : 'rgba(15,23,42,0.45)',
+              color: selectedPersonId === null ? '#ffffff' : 'var(--cr-text-primary)',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              boxShadow: selectedPersonId === null ? '0 3px 12px rgba(59,130,246,0.35)' : 'none',
+            }}
           >
-            🌟 All Rewards ({availableRewards.length})
+            All Family
           </PillButton>
           {family.map((person) => {
             const isSelected = selectedPerson?.id === person.id;
             const pts = (person.points || 0) + (person.bonus_points || 0);
+            const ptsDisplay = isCash ? `$${pts.toFixed(2)}` : `${pts} pts`;
             return (
               <PillButton
                 key={person.id}
-                active={isSelected}
-                accentColor={person.color}
-                avatarUrl={person.avatar}
                 onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
+                className="member-filter-pill"
+                title={`${person.name} (${ptsDisplay})`}
+                style={{
+                  padding: '4px 12px 4px 6px',
+                  border: isSelected
+                    ? `2px solid ${person.color || '#60a5fa'}`
+                    : '1px solid rgba(148,163,184,0.28)',
+                  background: isSelected
+                    ? person.color || 'rgba(59,130,246,0.28)'
+                    : 'rgba(15,23,42,0.45)',
+                  color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
               >
-                {person.name} ({isCash ? `$${pts.toFixed(2)}` : `${pts} pts`})
+                <UserAvatar
+                  avatar={person.avatar}
+                  name={person.name}
+                  color={person.color}
+                  size={26}
+                  borderWidth={1.5}
+                />
+                <span className="member-filter-name">{person.name}</span>
+                <span
+                  className="member-filter-badge"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '1px 7px',
+                    borderRadius: 'var(--radius-pill)',
+                    background: isSelected ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.12)',
+                    color: isSelected ? '#f8fafc' : '#cbd5e1',
+                    fontWeight: 800,
+                  }}
+                >
+                  {ptsDisplay}
+                </span>
               </PillButton>
             );
           })}

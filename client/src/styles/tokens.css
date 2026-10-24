@@ -459,7 +459,7 @@
   to { transform: translateX(0); }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .cr-btn.cr-btn-collapse-mobile {
     padding-left: 10px !important;
     padding-right: 10px !important;
@@ -469,6 +469,24 @@
   }
   .cr-btn.cr-btn-collapse-mobile .cr-btn-icon {
     margin: 0 !important;
+  }
+
+  /* Member filter pills on mobile: hide text & badge, show ONLY avatar or group icon */
+  .member-filter-pill {
+    padding: 4px 8px !important;
+    gap: 0 !important;
+  }
+  .member-filter-pill .member-filter-name,
+  .member-filter-pill .member-filter-badge {
+    display: none !important;
+  }
+
+  .cr-modal-overlay {
+    padding: 10px !important;
+  }
+  .cr-modal-dialog {
+    max-height: calc(100vh - 20px) !important;
+    border-radius: var(--radius-lg, 16px) !important;
   }
 }
 
@@ -485,8 +503,8 @@
   position: relative !important;
   width: 100% !important;
   max-width: 580px;
-  max-height: min(88dvh, calc(100vh - 40px)) !important;
-  margin: auto 0 !important;
+  max-height: calc(100vh - 40px) !important;
+  margin: auto !important;
   display: flex !important;
   flex-direction: column !important;
   background: var(--color-bg-surface, #1e293b) !important;

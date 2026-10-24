@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { db, AppSetting, logActivity, roundPoints } from '../db';
 import { UPLOADS_DIR } from '../config';
 import { requireAuth, requireAdult } from './auth';
-import { getAppTimezone, getFamilyToday, getLocalNowNaive, addDays, isChoreOverdue } from '../utils/time';
+import { getAppTimezone, getFamilyToday, getLocalNowNaive, addDays, isChoreOverdue, isDayOfWeekScheduled } from '../utils/time';
 import {
   calculateWeeklyProgress,
   checkAndAwardBadges,
@@ -435,6 +435,11 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
 
     const tz = getAppTimezone();
     const { isoNaive, dateStr, hour, weekdayLower } = getLocalNowNaive(tz);
+
+    if (chore.is_daily && !isDayOfWeekScheduled(dateStr, chore.days_of_week)) {
+      res.status(400).json({ success: false, error: 'This recurring chore is not scheduled for today' });
+      return;
+    }
     const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
     const completedBy = req.body?.completed_by ? String(req.body.completed_by).trim() : null;

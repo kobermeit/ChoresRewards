@@ -422,11 +422,6 @@ export function upsertRecipe(input: {
     AppSetting.set('meal_planner_suggestions_json', JSON.stringify(suggestions));
   }
 
-  // Also register ingredients in shopping_catalog
-  for (const ing of cleanedIngs) {
-    touchCatalogItemOnAdd(ing.name, ing.store, false);
-  }
-
   return {
     meal_key: mealKey,
     title,
@@ -656,7 +651,6 @@ export function getShoppingData() {
       ? Object.keys(raw.active)
       : [],
     meal_order: Array.isArray(raw?.meal_order) ? raw.meal_order : [],
-    archived: Array.isArray(raw?.archived) ? raw.archived : [],
   };
 }
 
@@ -1530,10 +1524,9 @@ householdRouter.post('/api/remove_shopping_item', (req: Request, res: Response) 
   res.json({ success: true, ...current });
 });
 
-// Archive all checked items (marks them as Purchased in SQLite, logs purchase timestamp, and moves to archived list)
+// Archive all checked items (marks them as Purchased in relational SQLite purchase log, increments stats, and clears from active list)
 function handleArchiveCheckedShopping(_req: Request, res: Response) {
   const current = getShoppingData();
-  const nowIso = new Date().toISOString();
   const remainingGeneral: any[] = [];
   let purchasedCount = 0;
 
@@ -1542,12 +1535,6 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
     const isChecked = Boolean(g.checked || current.checked[itemKey]);
     if (isChecked) {
       recordCatalogPurchase(g.name, g.store || 'aldi', g.qty || '');
-      current.archived.unshift({
-        name: g.name,
-        store: g.store || 'aldi',
-        qty: g.qty || '',
-        purchased_at: nowIso,
-      });
       delete current.checked[itemKey];
       purchasedCount++;
     } else {
@@ -1567,12 +1554,6 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
       const displayName = matchIng?.name || ingLower;
       const store = matchIng?.store || 'aldi';
       recordCatalogPurchase(displayName, store, matchIng?.qty || '');
-      current.archived.unshift({
-        name: displayName,
-        store,
-        qty: matchIng?.qty || '',
-        purchased_at: nowIso,
-      });
       // Hide checked meal ingredient until unchecked or re-added
       current.hidden[chkKey] = true;
       delete current.checked[chkKey];
@@ -1581,7 +1562,7 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
   }
 
   current.general = remainingGeneral;
-  current.archived = current.archived.slice(0, 80);
+  delete (current as any).archived;
   AppSetting.set('shopping_list_json', JSON.stringify(current));
   res.json({ success: true, purchased_count: purchasedCount, archived_count: purchasedCount, ...current });
 }
@@ -1606,11 +1587,18 @@ householdRouter.post('/api/shopping/catalog/delete', (req: Request, res: Respons
   }
 
   const placeholders = ids.map(() => '?').join(',');
+  // Find names/keys of deleted items to also remove them from active shopping list if present
+  const itemsToDelete = db.prepare(`SELECT id, name, normalized_key FROM shopping_catalog WHERE id IN (${placeholders})`).all(...ids) as any[];
+  const deletedNormKeys = new Set(itemsToDelete.map((it) => it.normalized_key));
+
   db.prepare(`DELETE FROM shopping_purchase_log WHERE catalog_id IN (${placeholders})`).run(...ids);
   const result = db.prepare(`DELETE FROM shopping_catalog WHERE id IN (${placeholders})`).run(...ids);
 
   logActivity('shopping_catalog_deleted', `Deleted ${result.changes} items from shopping catalog`);
   const shopping = getShoppingData();
+  shopping.general = (shopping.general || []).filter((g: any) => !deletedNormKeys.has(normalizeShoppingKey(g.name)));
+  delete (shopping as any).archived;
+  AppSetting.set('shopping_list_json', JSON.stringify(shopping));
   const intelligence = getShoppingIntelligence(shopping.general || []);
 
   res.json({ success: true, deleted: result.changes, catalog: intelligence.catalog, intelligence });

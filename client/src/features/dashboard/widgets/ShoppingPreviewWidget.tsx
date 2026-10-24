@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { ShoppingStore } from '../../../types';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface ShoppingPreviewWidgetProps {
   items: Array<{ name: string; qty?: string; store?: string }>;
@@ -17,10 +18,11 @@ export const ShoppingPreviewWidget: React.FC<ShoppingPreviewWidgetProps> = memo(
   return (
     <div
       className="dashboard-card"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
       onClick={onOpenShopping}
       title="Click to view full shopping list"
     >
+      <SeasonalCardWatermark variant={4} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3
           className="dashboard-card-title"

@@ -10,7 +10,6 @@ export interface ChoreKanbanColumnProps {
   overdueIds: Set<number>;
   isCash: boolean;
   isParent: boolean;
-  parentManageMode: boolean;
   completeBtnLabel: string;
   flippedChores: Record<number, boolean>;
   availableExtraChores: ExtraChore[];
@@ -35,7 +34,6 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
   overdueIds,
   isCash,
   isParent,
-  parentManageMode,
   completeBtnLabel,
   flippedChores,
   availableExtraChores,
@@ -216,7 +214,6 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
               person={person}
               isCash={isCash}
               isParent={isParent}
-              parentManageMode={parentManageMode}
               isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
               completeBtnLabel={completeBtnLabel}
               isFlipped={Boolean(flippedChores[chore.id])}
@@ -258,7 +255,7 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
       )}
 
       {/* + Add Chore tile */}
-      {isParent && parentManageMode && (
+      {isParent && (
         <button
           type="button"
           className="chore-kanban-add-btn"

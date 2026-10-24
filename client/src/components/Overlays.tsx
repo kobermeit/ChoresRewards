@@ -4,6 +4,7 @@ import { ScreensaverOverlay } from '../features/overlays/ScreensaverOverlay';
 import { VisualTimerModal } from '../features/overlays/VisualTimerModal';
 import { KidsPlayWidgetModal } from '../features/overlays/KidsPlayWidgetModal';
 import { ChoreModal } from './ChoreModal';
+import { SeasonalFallingSnow } from './SeasonalFallingSnow';
 
 export const Overlays: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ export const Overlays: React.FC = () => {
       <VisualTimerModal />
       <KidsPlayWidgetModal />
       <ChoreModal />
+      <SeasonalFallingSnow />
     </>
   );
 };

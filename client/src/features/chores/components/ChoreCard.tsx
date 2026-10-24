@@ -9,7 +9,6 @@ export interface ChoreCardProps {
   person: Person;
   isCash: boolean;
   isParent: boolean;
-  parentManageMode: boolean;
   isOverdue: boolean;
   completeBtnLabel: string;
   isFlipped: boolean;
@@ -27,7 +26,6 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
   person,
   isCash,
   isParent,
-  parentManageMode,
   isOverdue,
   completeBtnLabel,
   isFlipped,
@@ -190,7 +188,7 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
     </Button>
   );
 
-  const secondaryActions = isParent && parentManageMode ? (
+  const secondaryActions = isParent ? (
     <div style={{ display: 'flex', gap: 4 }}>
       <IconButton
         size="sm"

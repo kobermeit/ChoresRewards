@@ -122,3 +122,33 @@ export function isChoreOverdue(
   }
   return false;
 }
+
+export function isDayOfWeekScheduled(dateIso: string, daysOfWeekStr?: string | null): boolean {
+  if (!daysOfWeekStr || !String(daysOfWeekStr).trim()) return true;
+  const scheduledDays = String(daysOfWeekStr)
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+  if (scheduledDays.length === 0 || scheduledDays.length >= 7) return true;
+
+  const [y, m, d] = dateIso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dayIndex = dt.getUTCDay(); // 0=Sun, 1=Mon...
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayShorts = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const currentLong = dayNames[dayIndex];
+  const currentShort = dayShorts[dayIndex];
+
+  return scheduledDays.some((d) => d === currentLong || d === currentShort);
+}
+
+export function getNextScheduledDate(fromIso: string, daysOfWeekStr?: string | null): string {
+  if (!daysOfWeekStr || !String(daysOfWeekStr).trim()) return fromIso;
+  for (let i = 0; i < 7; i++) {
+    const candidate = addDays(fromIso, i);
+    if (isDayOfWeekScheduled(candidate, daysOfWeekStr)) {
+      return candidate;
+    }
+  }
+  return fromIso;
+}

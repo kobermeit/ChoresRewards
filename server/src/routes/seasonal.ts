@@ -31,8 +31,9 @@ seasonalRouter.get('/seasonal', (_req: Request, res: Response) => {
 });
 
 seasonalRouter.put('/seasonal/settings', requireAdult, (req: Request, res: Response) => {
-  const { seasonal_themes_enabled, hemisphere, sound_theme, forced_theme } = req.body || {};
+  const { seasonal_themes_enabled, hemisphere, sound_theme, forced_theme, falling_snow_enabled } = req.body || {};
   if (seasonal_themes_enabled !== undefined) AppSetting.set('seasonal_themes_enabled', String(Boolean(seasonal_themes_enabled)));
+  if (falling_snow_enabled !== undefined) AppSetting.set('falling_snow_enabled', String(Boolean(falling_snow_enabled)));
   if (hemisphere !== undefined) {
     if (hemisphere !== 'south' && hemisphere !== 'north') {
       res.status(400).json({ success: false, error: 'hemisphere must be south or north' });

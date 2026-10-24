@@ -2,6 +2,20 @@ import React from 'react';
 import { SectionHelpTip } from '../HelpTooltipAndView';
 import { useSeason } from '../../hooks/useSettings';
 
+function getSeasonalIcon(key?: string): string {
+  switch (key) {
+    case 'spring': return 'fas fa-seedling';
+    case 'summer': return 'fas fa-sun';
+    case 'autumn': return 'fas fa-leaf';
+    case 'winter': return 'fas fa-snowflake';
+    case 'halloween': return 'fas fa-ghost';
+    case 'christmas': return 'fas fa-gift';
+    case 'easter': return 'fas fa-egg';
+    case 'new_year': return 'fas fa-star';
+    default: return 'fas fa-wand-magic-sparkles';
+  }
+}
+
 export interface PageContainerProps {
   id?: string;
   title: string;
@@ -40,6 +54,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   const seasonInfo = useSeason();
   const isThemed = seasonInfo.enabled && Boolean(seasonInfo.theme);
   const seasonAccent = seasonInfo.accent || '#3b82f6';
+  const seasonalKey = (seasonInfo.event?.key || seasonInfo.season?.key || seasonInfo.theme?.key || '').toLowerCase();
+  const seasonalIcon = isThemed ? getSeasonalIcon(seasonalKey) : null;
 
   if (boxed) {
     return (
@@ -65,6 +81,25 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           ...style,
         }}
       >
+        {isThemed && (
+          <div
+            className="page-header-seasonal-emblem"
+            style={{
+              position: 'absolute',
+              right: 18,
+              top: 20,
+              fontSize: '4.2rem',
+              opacity: 0.14,
+              pointerEvents: 'none',
+              userSelect: 'none',
+              lineHeight: 1,
+              zIndex: 0,
+            }}
+            aria-hidden="true"
+          >
+            {seasonInfo.emoji || (seasonalIcon ? <i className={seasonalIcon} /> : '✨')}
+          </div>
+        )}
         <div
           className="page-header-row"
           style={{
@@ -88,7 +123,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 color: 'var(--color-text-primary, #f8fafc)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 10,
+                gap: 8,
               }}
             >
               {icon && (
@@ -98,6 +133,18 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 />
               )}
               <span>{title}</span>
+              {isThemed && seasonalIcon && (
+                <i
+                  className={`${seasonalIcon} page-header-seasonal-suffix`}
+                  style={{
+                    fontSize: '1rem',
+                    color: seasonAccent,
+                    opacity: 0.9,
+                  }}
+                  title={seasonInfo.theme?.name || undefined}
+                  aria-hidden="true"
+                />
+              )}
             </h2>
             {badge && <div className="page-header-badge">{badge}</div>}
             {helpTip && (
@@ -154,6 +201,27 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           overflow: 'hidden',
         }}
       >
+        {isThemed && (
+          <div
+            className="page-header-seasonal-emblem"
+            style={{
+              position: 'absolute',
+              right: 20,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '4.5rem',
+              opacity: 0.14,
+              pointerEvents: 'none',
+              userSelect: 'none',
+              lineHeight: 1,
+              zIndex: 0,
+            }}
+            aria-hidden="true"
+          >
+            {seasonInfo.emoji || (seasonalIcon ? <i className={seasonalIcon} /> : '✨')}
+          </div>
+        )}
+
         {/* Tier 1: Title, Icon & Top-Right Actions */}
         <div
           className="page-header-row"
@@ -203,9 +271,24 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                     fontWeight: 800,
                     letterSpacing: '-0.02em',
                     color: '#f8fafc',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
                   }}
                 >
-                  {title}
+                  <span>{title}</span>
+                  {isThemed && seasonalIcon && (
+                    <i
+                      className={`${seasonalIcon} page-header-seasonal-suffix`}
+                      style={{
+                        fontSize: '1.15rem',
+                        color: seasonAccent,
+                        opacity: 0.9,
+                      }}
+                      title={seasonInfo.theme?.name || undefined}
+                      aria-hidden="true"
+                    />
+                  )}
                 </h1>
                 {badge && <div className="page-header-badge">{badge}</div>}
                 {helpTip && (

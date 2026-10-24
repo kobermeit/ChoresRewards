@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { db, AppSetting, BADGE_DEFINITIONS, logActivity } from '../db';
 import { DATA_DIR } from '../config';
-import { getFamilyToday, getMondayOfWeek, addDays } from '../utils/time';
+import { getFamilyToday, getMondayOfWeek, addDays, isDayOfWeekScheduled, getNextScheduledDate } from '../utils/time';
 import { sendGotifyNotification, shouldNotifyPerson } from './gotify';
 import { defaultQuizQuestions } from '../defaultQuizQuestions';
 
@@ -187,17 +187,20 @@ export function resetDailyChores(): void {
     let dueDatetime = chore.due_datetime ? String(chore.due_datetime) : null;
     let rowChanged = false;
 
-    if (!choreDate || choreDate < today) {
+    const isDueToday = isDayOfWeekScheduled(today, chore.days_of_week);
+    const targetDate = isDueToday ? today : getNextScheduledDate(today, chore.days_of_week);
+
+    if (!choreDate || choreDate < today || (choreDate === today && !isDueToday)) {
       completed = false;
-      dueDate = today;
+      dueDate = targetDate;
       rowChanged = true;
-      resetCount++;
+      if (isDueToday) resetCount++;
     }
 
     if (!completed && dueDatetime) {
       const dtDate = dueDatetime.slice(0, 10);
-      if (dtDate < today) {
-        dueDatetime = `${today}${dueDatetime.slice(10)}`;
+      if (dtDate < today || (dtDate === today && !isDueToday)) {
+        dueDatetime = `${targetDate}${dueDatetime.slice(10)}`;
         rowChanged = true;
       }
     }

@@ -77,19 +77,9 @@ export function useSeason() {
     const enabled = data?.settings.seasonal_themes_enabled ?? false;
     const accent = enabled && theme?.accent ? theme.accent : null;
     const emoji = enabled && theme?.emoji ? theme.emoji : null;
-
-    let greetingSuffix = '';
-    if (enabled && event) {
-      if (event.key === 'halloween') greetingSuffix = '🎃 Spooky Season!';
-      else if (event.key === 'christmas') greetingSuffix = '🎄 Merry Christmas & Happy Holidays!';
-      else if (event.key === 'easter') greetingSuffix = '🐰 Happy Easter!';
-      else if (event.key === 'new_year') greetingSuffix = '🎆 Happy New Year!';
-    } else if (enabled && season) {
-      if (season.key === 'spring') greetingSuffix = '🌸 Springtime!';
-      else if (season.key === 'summer') greetingSuffix = '☀️ Summer vibes!';
-      else if (season.key === 'autumn') greetingSuffix = '🍂 Cozy Autumn!';
-      else if (season.key === 'winter') greetingSuffix = '❄️ Crisp Winter!';
-    }
+    const christmasEvent = data?.events?.find((e: any) => e.key === 'christmas');
+    const isChristmasEnabled = (christmasEvent ? Boolean(christmasEvent.enabled) : true) || (data?.settings.forced_theme === 'christmas');
+    const fallingSnowEnabled = enabled && isChristmasEnabled && (data?.settings.falling_snow_enabled ?? true);
 
     return {
       season,
@@ -98,7 +88,7 @@ export function useSeason() {
       enabled,
       accent,
       emoji,
-      greetingSuffix,
+      fallingSnowEnabled,
       forcedTheme: data?.settings.forced_theme || null,
     };
   }, [data]);

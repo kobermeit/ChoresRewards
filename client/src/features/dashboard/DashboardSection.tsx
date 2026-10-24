@@ -32,7 +32,7 @@ export const DashboardSection: React.FC = () => {
     resetTimer,
   } = useApp();
 
-  const { navigateTo } = useNavigation();
+  const { navigate } = useNavigation();
   const [dateFilter, setDateFilter] = useState<'today' | 'tomorrow' | 'week'>('today');
 
   const stickyNotes: DashboardStickyNote[] = data?.sticky_notes || [];
@@ -127,14 +127,32 @@ export const DashboardSection: React.FC = () => {
     return events.slice(0, 6);
   }, [data?.calendar_events, data?.current_date, dateFilter]);
 
-  // Shopping preview
+  // Shopping preview - synchronize with ShoppingListSection (only count ingredients for planned meals + general items)
   const uncheckedShopping = useMemo(() => {
     const list: Array<{ name: string; qty?: string; store?: string }> = [];
     const shop = data?.shopping || data?.shopping_list;
     const ingMap = (data?.meal_planner?.ingredients || data?.meal_ingredients || {}) as Record<string, any>;
     const checked = (shop?.checked || {}) as Record<string, boolean>;
 
+    // Build map of planned meals for this week
+    const plannedMealsMap: Record<string, boolean> = {};
+    const plan = data?.meal_planner?.plan || {};
+    Object.values(plan).forEach((daySlots: any) => {
+      if (Array.isArray(daySlots)) {
+        daySlots.forEach((c: any) => {
+          if (c && c.title) plannedMealsMap[c.title.toLowerCase()] = true;
+        });
+      } else if (daySlots && typeof daySlots === 'object') {
+        Object.values(daySlots).forEach((name: any) => {
+          if (typeof name === 'string' && name.trim()) {
+            plannedMealsMap[name.trim().toLowerCase()] = true;
+          }
+        });
+      }
+    });
+
     Object.entries(ingMap).forEach(([mealKey, ings]) => {
+      if (!plannedMealsMap[mealKey.toLowerCase()]) return;
       const ingList: any[] = Array.isArray(ings) ? ings : ings && typeof ings === 'object' ? Object.values(ings) : [];
       ingList.forEach((i) => {
         if (!i || typeof i !== 'object' || !i.name) return;
@@ -155,16 +173,16 @@ export const DashboardSection: React.FC = () => {
     });
 
     return list;
-  }, [data?.shopping, data?.shopping_list, data?.meal_planner?.ingredients, data?.meal_ingredients]);
+  }, [data?.shopping, data?.shopping_list, data?.meal_planner?.plan, data?.meal_planner?.ingredients, data?.meal_ingredients]);
 
   const activeRewards = useMemo(() => {
-    return (data?.rewards || []).filter((r) => !r.archived && !r.is_hidden).slice(0, 5);
+    return (data?.rewards || []).filter((r) => !r.completed && !r.redeemed && !r.archived && !r.is_hidden).slice(0, 5);
   }, [data?.rewards]);
 
   if (!data) return null;
 
   const filterActionButtons = (
-    <div style={{ display: 'inline-flex', gap: 6, background: 'rgba(255, 255, 255, 0.06)', padding: 3, borderRadius: 'var(--radius-pill)' }}>
+    <div className="dashboard-filter-pills" style={{ display: 'inline-flex', gap: 6 }}>
       {(['today', 'tomorrow', 'week'] as const).map((filterKey) => {
         const isSelected = dateFilter === filterKey;
         const labels = { today: 'Today', tomorrow: 'Tomorrow', week: 'This Week' };
@@ -213,11 +231,11 @@ export const DashboardSection: React.FC = () => {
           chores={data.chores || []}
           onSelectPerson={(pid) => {
             setSelectedChorePersonId(pid);
-            navigateTo('chores');
+            navigate('chores');
           }}
           onOpenChores={() => {
             setSelectedChorePersonId(null);
-            navigateTo('chores');
+            navigate('chores');
           }}
         />
 
@@ -236,26 +254,26 @@ export const DashboardSection: React.FC = () => {
         <PlannedMealsWidget
           dateFilter={dateFilter}
           meals={targetMealCards}
-          onOpenPlanner={() => navigateTo('meals')}
+          onOpenPlanner={() => navigate('meals')}
         />
 
         <CalendarEventsWidget
           dateFilter={dateFilter}
           events={filteredEvents}
-          onOpenCalendar={() => navigateTo('calendar')}
+          onOpenCalendar={() => navigate('calendar')}
         />
 
         <ShoppingPreviewWidget
           items={uncheckedShopping.slice(0, 5)}
           totalUnchecked={uncheckedShopping.length}
           stores={data.shopping_list?.stores || []}
-          onOpenShopping={() => navigateTo('shopping')}
+          onOpenShopping={() => navigate('shopping')}
         />
 
         <TopRewardsWidget
           rewards={activeRewards}
           formatRewardValue={formatRewardValue}
-          onOpenRewards={() => navigateTo('rewards')}
+          onOpenRewards={() => navigate('rewards')}
         />
 
         <PlayGamesWidget onOpenPlayGame={openPlayGame} />

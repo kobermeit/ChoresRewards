@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface PlannedMealsWidgetProps {
   dateFilter: 'today' | 'tomorrow' | 'week';
@@ -21,9 +22,10 @@ export const PlannedMealsWidget: React.FC<PlannedMealsWidgetProps> = memo(({
   return (
     <div
       className="dashboard-card"
-      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
       onClick={onOpenPlanner}
     >
+      <SeasonalCardWatermark variant={2} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-utensils" style={{ color: '#fb923c' }} />

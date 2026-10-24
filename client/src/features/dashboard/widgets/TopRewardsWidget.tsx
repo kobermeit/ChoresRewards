@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { resolveAssetUrl } from '../../../api';
 import { Reward } from '../../../types';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface TopRewardsWidgetProps {
   rewards: Reward[];
@@ -16,9 +17,10 @@ export const TopRewardsWidget: React.FC<TopRewardsWidgetProps> = memo(({
   return (
     <div
       className="dashboard-card"
-      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
       onClick={onOpenRewards}
     >
+      <SeasonalCardWatermark variant={5} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fas fa-trophy" style={{ color: '#a78bfa' }} />

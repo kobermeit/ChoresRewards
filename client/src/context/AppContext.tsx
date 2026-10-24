@@ -486,13 +486,29 @@ export const AppProvider: React.FC<{
         type: options?.type || 'info',
         undoAction: options?.undoAction,
       };
-      setToasts((prev) => [...prev, item]);
+      setToasts((prev) => {
+        // Prevent stacking duplicate identical messages within active toasts
+        if (prev.some((t) => t.message === message)) return prev;
+        return [...prev, item];
+      });
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
       }, 3500);
     },
     []
   );
+
+  // Global API error toast listener
+  useEffect(() => {
+    const handleGlobalToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string; type?: ToastItem['type'] }>;
+      if (customEvent.detail?.message) {
+        showToast(customEvent.detail.message, { type: customEvent.detail.type || 'error' });
+      }
+    };
+    window.addEventListener('cr:toast', handleGlobalToast);
+    return () => window.removeEventListener('cr:toast', handleGlobalToast);
+  }, [showToast]);
 
   // Persistent Timer Countdown Interval
   useEffect(() => {

@@ -20,6 +20,8 @@ export interface CustomDropdownProps {
   className?: string;
   ariaLabel?: string;
   disabled?: boolean;
+  allowCustomValue?: boolean;
+  customValueLabel?: (text: string) => string;
 }
 
 export const CustomDropdown: React.FC<CustomDropdownProps> = ({
@@ -34,6 +36,8 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   className = '',
   ariaLabel,
   disabled = false,
+  allowCustomValue = false,
+  customValueLabel,
 }) => {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -64,10 +68,23 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   }, [options, value]);
 
   const filteredOptions = useMemo(() => {
-    if (!showFilter || !filter.trim()) return options;
-    const q = filter.trim().toLowerCase();
-    return options.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [options, filter, showFilter]);
+    let list = options;
+    if (showFilter && filter.trim()) {
+      const q = filter.trim().toLowerCase();
+      list = options.filter((opt) => opt.label.toLowerCase().includes(q));
+    }
+    if (allowCustomValue && filter.trim() && list.length === 0) {
+      const trimmed = filter.trim();
+      const customOpt: CustomDropdownOption = {
+        value: trimmed,
+        label: customValueLabel ? customValueLabel(trimmed) : `Add "${trimmed}"`,
+        action: true,
+        icon: 'fas fa-plus',
+      };
+      return [customOpt];
+    }
+    return list;
+  }, [options, filter, showFilter, allowCustomValue, customValueLabel]);
 
   const handleSelect = (optValue: string) => {
     onChange(optValue);
@@ -95,6 +112,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         display: 'inline-block',
         width: '100%',
         boxSizing: 'border-box',
+        zIndex: open ? 60 : undefined,
         ...style,
       }}
     >

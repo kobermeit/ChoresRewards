@@ -1,6 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { IconButton } from '../../../components/ui';
 import { resolveAssetUrl, apiGet } from '../../../api';
+import { SeasonalCardWatermark } from '../SeasonalCardWatermark';
 
 export interface FamilyPhotosWidgetProps {
   onOpenScreensaver: () => void;
@@ -27,8 +28,9 @@ export const FamilyPhotosWidget: React.FC<FamilyPhotosWidgetProps> = memo(({ onO
       className="dashboard-card dashboard-card-photos"
       id="dash-photos-card"
       title="Tap photo for slideshow"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', overflow: 'hidden' }}
     >
+      <SeasonalCardWatermark variant={7} />
       <h3 className="dashboard-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         <i className="fas fa-images" style={{ color: '#f472b6' }} />
         <span>Family Photos</span>
