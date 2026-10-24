@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { SideNav } from './components/SideNav';
@@ -22,6 +22,16 @@ const MainShell: React.FC<{
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
   const { data, loading, isSyncing, activeView, isParent, setProfileSwitcherOpen, setActiveView } = useApp();
+
+  const [visitedViews, setVisitedViews] = useState<Record<string, boolean>>(() => ({
+    [activeView || 'dashboard']: true,
+  }));
+
+  useEffect(() => {
+    if (activeView) {
+      setVisitedViews((prev) => (prev[activeView] ? prev : { ...prev, [activeView]: true }));
+    }
+  }, [activeView]);
 
   if (loading && !data) {
     return (
@@ -50,79 +60,135 @@ const MainShell: React.FC<{
       <SideNav />
       <div id="site-content">
         <Header />
-        {activeView === 'settings' ? (
-          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-            {isParent ? (
-              <SettingsView />
-            ) : (
-              <div
-                style={{
-                  maxWidth: 580,
-                  margin: '60px auto',
-                  padding: '36px 24px',
-                  textAlign: 'center',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  borderRadius: 'var(--modal-radius)',
-                  border: '1px solid var(--color-border-subtle)',
-                  boxShadow: 'var(--shadow-lg)',
-                }}
-              >
-                <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔒</div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
-                  Parent Authorisation Required
-                </h2>
-                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: 24 }}>
-                  System settings and configuration can only be accessed by a Parent profile.
-                </p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  <Button
-                    variant="primary"
-                    onClick={() => setProfileSwitcherOpen(true)}
-                  >
-                    Switch to Parent
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setActiveView('dashboard')}
-                  >
-                    Return to Dashboard
-                  </Button>
+
+        {/* Cached Views for Instant 0ms Tab Transitions */}
+        {visitedViews['dashboard'] && (
+          <div style={{ display: activeView === 'dashboard' ? 'block' : 'none' }}>
+            <DashboardSection />
+          </div>
+        )}
+
+        {visitedViews['chores'] && (
+          <div style={{ display: activeView === 'chores' ? 'block' : 'none' }}>
+            <ChoresKanbanSection isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['rewards'] && (
+          <div style={{ display: activeView === 'rewards' ? 'block' : 'none' }}>
+            <RewardsSection isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['redeemed'] && (
+          <div style={{ display: activeView === 'redeemed' ? 'block' : 'none' }}>
+            <RedeemedRewardsSection isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['meals'] && (
+          <div style={{ display: activeView === 'meals' ? 'block' : 'none' }}>
+            <MealAndShoppingSection subView="meals" isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['shopping'] && (
+          <div style={{ display: activeView === 'shopping' ? 'block' : 'none' }}>
+            <MealAndShoppingSection subView="shopping" isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['library'] && (
+          <div style={{ display: activeView === 'library' ? 'block' : 'none' }}>
+            <MealAndShoppingSection subView="library" isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['notes'] && (
+          <div style={{ display: activeView === 'notes' ? 'block' : 'none' }}>
+            <NotesSection isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['calendar'] && (
+          <div style={{ display: activeView === 'calendar' ? 'block' : 'none' }}>
+            <CalendarView />
+          </div>
+        )}
+
+        {visitedViews['organise'] && (
+          <div style={{ display: activeView === 'organise' ? 'block' : 'none' }}>
+            <OrganiseSection isStandalonePage />
+          </div>
+        )}
+
+        {visitedViews['settings'] && (
+          <div style={{ display: activeView === 'settings' ? 'block' : 'none' }}>
+            <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
+              {isParent ? (
+                <SettingsView />
+              ) : (
+                <div
+                  style={{
+                    maxWidth: 580,
+                    margin: '60px auto',
+                    padding: '36px 24px',
+                    textAlign: 'center',
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    borderRadius: 'var(--modal-radius)',
+                    border: '1px solid var(--color-border-subtle)',
+                    boxShadow: 'var(--shadow-lg)',
+                  }}
+                >
+                  <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔒</div>
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+                    Parent Authorisation Required
+                  </h2>
+                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: 24 }}>
+                    System settings and configuration can only be accessed by a Parent profile.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                    <Button
+                      variant="primary"
+                      onClick={() => setProfileSwitcherOpen(true)}
+                    >
+                      Switch to Parent
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setActiveView('dashboard')}
+                    >
+                      Return to Dashboard
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </Container>
-        ) : activeView === 'activity_log' ? (
-          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-            <ActivityLogView />
-          </Container>
-        ) : activeView === 'chore_history' ? (
-          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-            <ChoreHistoryView />
-          </Container>
-        ) : activeView === 'help' ? (
-          <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-            <HelpView />
-          </Container>
-        ) : activeView === 'calendar' ? (
-          <CalendarView />
-        ) : activeView === 'chores' ? (
-          <ChoresKanbanSection isStandalonePage />
-        ) : activeView === 'rewards' ? (
-          <RewardsSection isStandalonePage />
-        ) : activeView === 'redeemed' ? (
-          <RedeemedRewardsSection isStandalonePage />
-        ) : activeView === 'meals' ? (
-          <MealAndShoppingSection subView="meals" isStandalonePage />
-        ) : activeView === 'shopping' ? (
-          <MealAndShoppingSection subView="shopping" isStandalonePage />
-        ) : activeView === 'library' ? (
-          <MealAndShoppingSection subView="library" isStandalonePage />
-        ) : activeView === 'notes' ? (
-          <NotesSection isStandalonePage />
-        ) : activeView === 'organise' ? (
-          <OrganiseSection isStandalonePage />
-        ) : (
-          <DashboardSection />
+              )}
+            </Container>
+          </div>
+        )}
+
+        {visitedViews['activity_log'] && (
+          <div style={{ display: activeView === 'activity_log' ? 'block' : 'none' }}>
+            <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
+              <ActivityLogView />
+            </Container>
+          </div>
+        )}
+
+        {visitedViews['chore_history'] && (
+          <div style={{ display: activeView === 'chore_history' ? 'block' : 'none' }}>
+            <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
+              <ChoreHistoryView />
+            </Container>
+          </div>
+        )}
+
+        {visitedViews['help'] && (
+          <div style={{ display: activeView === 'help' ? 'block' : 'none' }}>
+            <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
+              <HelpView />
+            </Container>
+          </div>
         )}
       </div>
 

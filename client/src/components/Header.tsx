@@ -47,6 +47,8 @@ export const Header: React.FC = () => {
   const [clockDate, setClockDate] = useState('Loading…');
   const [headerMinimized] = useUiPref('headerMinimized');
   const seasonInfo = useSeason();
+  const isThemed = seasonInfo.enabled && Boolean(seasonInfo.theme);
+  const seasonAccent = seasonInfo.accent || '#3b82f6';
 
   // Weather state
   const [weatherCurrent, setWeatherCurrent] = useState<{
@@ -315,11 +317,16 @@ function getRelativeAge(from: Date | null, to: Date): string {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '0.5rem 1rem',
-          background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
+          background: isThemed
+            ? `linear-gradient(135deg, ${seasonAccent}24 0%, var(--cr-header-bg-2) 100%)`
+            : 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
           padding: '0.4rem 1.1rem',
           borderRadius: '14px 14px 0 0',
-          borderBottom: '1px solid var(--cr-surface-border)',
-          transition: 'padding 0.2s ease',
+          borderBottom: isThemed
+            ? `1px solid ${seasonAccent}55`
+            : '1px solid var(--cr-surface-border)',
+          boxShadow: isThemed ? `0 2px 14px ${seasonAccent}1a` : undefined,
+          transition: 'padding 0.2s ease, background 0.3s ease, border-color 0.3s ease',
         }}
       >
         {/* Left Zone: Mascot & Title */}
@@ -908,13 +915,40 @@ function getRelativeAge(from: Date | null, to: Date): string {
           onClick={(e) => e.stopPropagation()}
           style={{
             width: 'min(940px, calc(100vw - 32px))',
-            background: 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
+            background: isThemed
+              ? `linear-gradient(135deg, ${seasonAccent}22 0%, var(--cr-header-bg-2) 100%)`
+              : 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
             borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: '0 20px 45px -8px rgba(0, 0, 0, 0.75), 0 0 25px rgba(59, 130, 246, 0.25)',
+            border: isThemed
+              ? `1px solid ${seasonAccent}55`
+              : '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: isThemed
+              ? `0 20px 45px -8px rgba(0, 0, 0, 0.75), 0 0 25px ${seasonAccent}33`
+              : '0 20px 45px -8px rgba(0, 0, 0, 0.75), 0 0 25px rgba(59, 130, 246, 0.25)',
             overflow: 'hidden',
           }}
         >
+          {isThemed && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 22px 0',
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                color: seasonAccent,
+                borderBottom: `1px solid ${seasonAccent}25`,
+                paddingBottom: 8,
+                margin: '0 4px',
+              }}
+            >
+              <span>{seasonInfo.emoji} {seasonInfo.theme?.name} Forecast</span>
+              <span style={{ fontSize: '0.78rem', opacity: 0.85, fontWeight: 600 }}>
+                {seasonInfo.greetingSuffix}
+              </span>
+            </div>
+          )}
           <div
             id="weather-forecast-days"
             style={{

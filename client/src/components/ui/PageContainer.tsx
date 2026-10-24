@@ -1,5 +1,20 @@
 import React from 'react';
 import { SectionHelpTip } from '../HelpTooltipAndView';
+import { useSeason } from '../../hooks/useSettings';
+
+function getSeasonalIcon(key?: string): string {
+  switch (key) {
+    case 'spring': return 'fas fa-seedling';
+    case 'summer': return 'fas fa-sun';
+    case 'autumn': return 'fas fa-leaf';
+    case 'winter': return 'fas fa-snowflake';
+    case 'halloween': return 'fas fa-ghost';
+    case 'christmas': return 'fas fa-gift';
+    case 'easter': return 'fas fa-egg';
+    case 'new_year': return 'fas fa-star';
+    default: return 'fas fa-wand-magic-sparkles';
+  }
+}
 
 export interface PageContainerProps {
   id?: string;
@@ -36,6 +51,14 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   style = {},
   boxed = false,
 }) => {
+  const seasonInfo = useSeason();
+  const isThemed = seasonInfo.enabled && Boolean(seasonInfo.theme);
+  const seasonAccent = seasonInfo.accent || '#3b82f6';
+  const seasonalKey = seasonInfo.event?.key || seasonInfo.season?.key;
+  const seasonalIcon = isThemed ? getSeasonalIcon(seasonalKey) : null;
+  const effectiveIcon = seasonalIcon || icon;
+  const effectiveIconClass = isThemed ? '' : iconClass;
+
   if (boxed) {
     return (
       <section
@@ -44,14 +67,40 @@ export const PageContainer: React.FC<PageContainerProps> = ({
         style={{
           margin: '1rem',
           padding: '1.5rem',
-          background: 'linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%)',
-          border: '1px solid var(--cr-surface-border)',
+          background: isThemed
+            ? `linear-gradient(135deg, ${seasonAccent}1c 0%, var(--cr-surface-2) 100%)`
+            : 'linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%)',
+          border: isThemed
+            ? `1px solid ${seasonAccent}44`
+            : '1px solid var(--cr-surface-border)',
           borderRadius: 'var(--card-radius, 16px)',
-          boxShadow: '0 4px 20px var(--cr-shadow)',
+          boxShadow: isThemed
+            ? `0 4px 20px var(--cr-shadow), 0 0 15px ${seasonAccent}18`
+            : '0 4px 20px var(--cr-shadow)',
           boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden',
           ...style,
         }}
       >
+        {isThemed && (
+          <div
+            style={{
+              position: 'absolute',
+              right: 18,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '4.2rem',
+              opacity: 0.1,
+              pointerEvents: 'none',
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+            aria-hidden="true"
+          >
+            {seasonInfo.emoji}
+          </div>
+        )}
         <div
           className="page-header-row"
           style={{
@@ -61,6 +110,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
             flexWrap: 'wrap',
             gap: 12,
             marginBottom: toolbar ? 12 : 16,
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -76,7 +127,12 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 gap: 10,
               }}
             >
-              {icon && <i className={`${icon} ${iconClass}`.trim()} />}
+              {effectiveIcon && (
+                <i
+                  className={`${effectiveIcon} ${effectiveIconClass}`.trim()}
+                  style={isThemed ? { color: seasonAccent } : undefined}
+                />
+              )}
               <span>{title}</span>
             </h2>
             {badge && <div className="page-header-badge">{badge}</div>}
@@ -90,8 +146,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           </div>
           {actions && <div className="page-header-actions">{actions}</div>}
         </div>
-        {toolbar && <div className="page-header-toolbar" style={{ marginBottom: 16 }}>{toolbar}</div>}
-        <div className="page-container-body">{children}</div>
+        {toolbar && <div className="page-header-toolbar" style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>{toolbar}</div>}
+        <div className="page-container-body" style={{ position: 'relative', zIndex: 1 }}>{children}</div>
       </section>
     );
   }
@@ -117,15 +173,42 @@ export const PageContainer: React.FC<PageContainerProps> = ({
           flexDirection: 'column',
           gap: 12,
           marginBottom: 20,
-          background: 'rgba(255, 255, 255, 0.04)',
+          background: isThemed
+            ? `linear-gradient(135deg, ${seasonAccent}1c 0%, rgba(15, 23, 42, 0.7) 100%)`
+            : 'rgba(255, 255, 255, 0.04)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           padding: '14px 20px',
           borderRadius: 16,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+          border: isThemed
+            ? `1px solid ${seasonAccent}44`
+            : '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: isThemed
+            ? `0 4px 20px rgba(0, 0, 0, 0.2), 0 0 16px ${seasonAccent}1a`
+            : '0 4px 20px rgba(0, 0, 0, 0.15)',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {isThemed && (
+          <div
+            style={{
+              position: 'absolute',
+              right: 18,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '4.2rem',
+              opacity: 0.1,
+              pointerEvents: 'none',
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+            aria-hidden="true"
+          >
+            {seasonInfo.emoji}
+          </div>
+        )}
+
         {/* Tier 1: Title, Icon & Top-Right Actions */}
         <div
           className="page-header-row"
@@ -135,26 +218,34 @@ export const PageContainer: React.FC<PageContainerProps> = ({
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 14,
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {icon && (
+            {effectiveIcon && (
               <div
                 className="page-header-icon-box"
                 style={{
                   width: 42,
                   height: 42,
                   borderRadius: 12,
-                  background: 'rgba(255, 255, 255, 0.08)',
+                  background: isThemed ? `${seasonAccent}25` : 'rgba(255, 255, 255, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '1.25rem',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  border: isThemed
+                    ? `1px solid ${seasonAccent}55`
+                    : '1px solid rgba(255, 255, 255, 0.12)',
                   flexShrink: 0,
+                  boxShadow: isThemed ? `0 0 10px ${seasonAccent}2a` : undefined,
                 }}
               >
-                <i className={`${icon} ${iconClass}`.trim()} />
+                <i
+                  className={`${effectiveIcon} ${effectiveIconClass}`.trim()}
+                  style={isThemed ? { color: seasonAccent } : undefined}
+                />
               </div>
             )}
             <div>
@@ -196,6 +287,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 alignItems: 'center',
                 gap: 8,
                 marginLeft: 'auto',
+                position: 'relative',
+                zIndex: 1,
               }}
             >
               {actions}
@@ -214,7 +307,11 @@ export const PageContainer: React.FC<PageContainerProps> = ({
               flexWrap: 'wrap',
               gap: 8,
               paddingTop: 10,
-              borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+              borderTop: isThemed
+                ? `1px solid ${seasonAccent}25`
+                : '1px solid rgba(255, 255, 255, 0.07)',
+              position: 'relative',
+              zIndex: 1,
             }}
           >
             {toolbar}

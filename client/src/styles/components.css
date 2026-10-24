@@ -4156,18 +4156,18 @@ body.side-nav-body-collapsed { padding-left: 8px; }
 
 @media (min-width: 768px) {
   .shopping-page-container {
-    height: calc(100vh - 105px) !important;
-    max-height: calc(100vh - 105px) !important;
+    height: calc(100vh - 110px) !important;
+    max-height: calc(100vh - 110px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    padding-top: 10px !important;
-    padding-bottom: 12px !important;
+    padding-top: 16px !important;
+    padding-bottom: 20px !important;
   }
   .shopping-page-container .page-header-card {
     flex-shrink: 0 !important;
-    margin-bottom: 10px !important;
-    padding: 10px 18px !important;
+    margin-bottom: 16px !important;
+    padding: 14px 20px !important;
   }
   .shopping-page-container .page-container-body {
     flex: 1 1 0 !important;
