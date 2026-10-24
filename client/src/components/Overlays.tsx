@@ -4,7 +4,7 @@ import { apiGet, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { Modal } from './common/Modal';
 import { ChoreModal } from './ChoreModal';
-import { DurationStepper } from './ui';
+import { DurationStepper, TimerRing } from './ui';
 
 export const Overlays: React.FC = () => {
   return (
@@ -391,77 +391,24 @@ const VisualTimerModal: React.FC = () => {
               />
             </div>
 
-            {/* Circular SVG Ring & Time Digits */}
+            {/* Circular SVG Ring & Time Digits (Unified TimerRing) */}
             <div
               style={{
-                position: 'relative',
                 width: 240,
                 height: 240,
                 margin: '0 auto 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <svg width="240" height="240" style={{ transform: 'rotate(-90deg)' }}>
-                <circle
-                  cx="120"
-                  cy="120"
-                  r={radius}
-                  fill="transparent"
-                  stroke="rgba(255, 255, 255, 0.08)"
-                  strokeWidth="14"
-                />
-                <circle
-                  cx="120"
-                  cy="120"
-                  r={radius}
-                  fill="transparent"
-                  stroke={strokeColor}
-                  strokeWidth="14"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={dashOffset}
-                  strokeLinecap="round"
-                  style={{ transition: 'stroke-dashoffset 0.5s linear, stroke 0.3s ease' }}
-                />
-              </svg>
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '3.3rem',
-                    fontWeight: 800,
-                    fontFamily: 'monospace',
-                    letterSpacing: '-0.02em',
-                    color: '#f8fafc',
-                    lineHeight: 1,
-                  }}
-                >
-                  {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-                </div>
-                {timerRemainingSeconds === 0 && timerTotalSeconds > 0 ? (
-                  <div
-                    style={{
-                      color: '#4ade80',
-                      fontWeight: 900,
-                      fontSize: '1.05rem',
-                      marginTop: 6,
-                      textShadow: '0 2px 10px rgba(74, 222, 128, 0.5)',
-                    }}
-                  >
-                    🎉 TIME&apos;S UP!
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
-                    {timerRunning ? 'Counting down...' : 'Ready'}
-                  </div>
-                )}
-              </div>
+              <TimerRing
+                fraction={pct}
+                color={strokeColor}
+                label={`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
+                caption={timerRemainingSeconds === 0 && timerTotalSeconds > 0 ? "TIME'S UP!" : timerRunning ? 'ACTIVE' : 'READY'}
+                strokeWidth={5}
+              />
             </div>
 
             {/* Windows Clock Style Icon-Only Controls: Large Play/Pause + Reset */}

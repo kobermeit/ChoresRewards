@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { SetupWizard } from './SetupWizard';
+import { SeasonalSettingsView } from './SeasonalSettingsView';
 import { Button, Input, Select, Card, Badge, FormGrid, FormField, WipBanner } from './ui';
 import { Modal } from './common/Modal';
 
@@ -11,7 +12,7 @@ import { Modal } from './common/Modal';
 export const SettingsView: React.FC = () => {
   const { data, refresh, setActiveView, showToast, playSound, theme, toggleTheme, confirm, openEditMemberModal, openEditChoreModal } = useApp();
   const [tab, setTab] = useState<
-    'general' | 'setup' | 'family' | 'chores' | 'extra' | 'sounds' | 'discord' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
+    'general' | 'setup' | 'seasonal' | 'family' | 'chores' | 'extra' | 'sounds' | 'discord' | 'calendar' | 'screensaver' | 'quiz' | 'notion'
   >('general');
   const [settingsData, setSettingsData] = useState<any>(null);
 
@@ -391,6 +392,7 @@ export const SettingsView: React.FC = () => {
       items: [
         { id: 'general', label: 'General & Security', icon: 'fas fa-sliders', badge: null },
         { id: 'setup', label: 'System Defaults', icon: 'fas fa-wand-magic-sparkles', badge: null },
+        { id: 'seasonal', label: 'Seasonal Themes', icon: 'fas fa-calendar-star', badge: null },
         { id: 'screensaver', label: 'Screensaver', icon: 'fas fa-image', badge: ssEnabled ? 'Active' : null },
         { id: 'sounds', label: 'Sound FX', icon: 'fas fa-volume-high', badge: null },
       ],
@@ -556,6 +558,9 @@ export const SettingsView: React.FC = () => {
           }}
         />
       )}
+
+      {/* SEASONAL THEMES TAB */}
+      {tab === 'seasonal' && <SeasonalSettingsView />}
 
       {/* 1. GENERAL TAB */}
       {tab === 'general' && (
@@ -1307,6 +1312,37 @@ export const SettingsView: React.FC = () => {
           <p style={{ opacity: 0.75, fontSize: '0.9rem' }}>
             Upload MP3/WAV clips to play when chores or rewards are completed.
           </p>
+
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#f8fafc' }}>
+                Looking for Sound Themes (Zelda, Christmas, Spooky, Chimes)?
+              </div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.75 }}>
+                Configure procedural sound themes and seasonal event sounds under Seasonal Themes.
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="fas fa-calendar-star"
+              onClick={() => setTab('seasonal')}
+            >
+              Open Seasonal Themes
+            </Button>
+          </div>
           <input
             type="file"
             accept="audio/*"

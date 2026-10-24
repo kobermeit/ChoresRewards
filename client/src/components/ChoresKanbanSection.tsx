@@ -7,6 +7,7 @@ import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FormErrorAlert } from './FormErrorAlert';
 import { Button, IconButton, PillButton, Input, Card, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, ItemCard, UserAvatar, FlipCard } from './ui';
+import { useHouseholdPrefs, useUiPref } from '../hooks/useSettings';
 import { useTimer } from '../context/TimerContext';
 import { ChoreTimerCardBack } from './ChoreTimerCardBack';
 import { fireCelebrationFireworks, fireChoreConfetti } from '../services/celebrationService';
@@ -147,16 +148,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const [addChoreModalOpen, setAddChoreModalOpen] = useState(false);
   const [addChoresCollapsed, setAddChoresCollapsed] = useState(true);
 
-  // Quick suggestions
-  const [choreSuggestions, setChoreSuggestions] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('choreSuggestions');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_CHORE_SUGGESTIONS;
-  });
+  // Quick suggestions from household prefs (DB backed)
+  const { choreSuggestions: dbSuggestions, setChoreSuggestions: saveDbSuggestions } = useHouseholdPrefs();
+  const choreSuggestions = dbSuggestions && dbSuggestions.length > 0 ? dbSuggestions : INITIAL_CHORE_SUGGESTIONS;
   const [showAddSuggestionInput, setShowAddSuggestionInput] = useState(false);
   const [newSuggestionText, setNewSuggestionText] = useState('');
   const [suggestionsEditMode, setSuggestionsEditMode] = useState(false);
@@ -180,14 +174,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const [draggedPersonId, setDraggedPersonId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  // Hide completed chores toggle (persisted across sessions)
-  const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('cr_hide_completed_chores') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Hide completed chores toggle & Parent manage controls toggle (persisted across sessions via Redux)
+  const [hideCompleted, setHideCompleted] = useUiPref('hideCompletedChores');
+  const [parentManageMode, setParentManageMode] = useUiPref('parentManageMode');
 
   // Delete / Skip Chore Modal
   const [choreToDelete, setChoreToDelete] = useState<Chore | null>(null);
@@ -249,16 +238,12 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     hour < 12 ? '☀️ Good morning!' : hour < 17 ? '🌤️ Good afternoon!' : '🌙 Good evening!';
 
   const saveSuggestions = (next: string[]) => {
-    setChoreSuggestions(next);
-    try {
-      localStorage.setItem('choreSuggestions', JSON.stringify(next));
-    } catch {
-      // ignore
-    }
+    saveDbSuggestions(next);
   };
 
   const handleCompleteChore = async (chore: Chore, person: Person) => {
     try {
+      const isCompletedForAnother = Boolean(isParent && activeUser?.name && activeUser.id !== person.id);
       const res = await apiPost<{
         success: boolean;
         new_points: number;
@@ -266,6 +251,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
       }>('complete_chore', {
         chore_id: chore.id,
         date_completed: new Date().toISOString(),
+        completed_by: isParent && activeUser?.name ? activeUser.name : undefined,
       });
 
       if (res.success) {
@@ -275,7 +261,10 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         try {
           fireChoreConfetti();
         } catch {}
-        showToast(`✅ "${chore.title}" completed! (+${formatRewardValue(chore.points)})`, {
+        const successMsg = isCompletedForAnother
+          ? `✅ "${chore.title}" completed by ${activeUser?.name} for ${person.name}! (+${formatRewardValue(chore.points)})`
+          : `✅ "${chore.title}" completed! (+${formatRewardValue(chore.points)})`;
+        showToast(successMsg, {
           type: 'success',
           undoAction: async () => {
             await apiPost('undo_complete_chore', { chore_id: chore.id });
@@ -669,19 +658,25 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         variant={hideCompleted ? 'primary' : 'ghost'}
         className={`shopping-toolbar-btn shopping-icon-btn${hideCompleted ? ' active' : ''}`}
         style={{ marginLeft: 'auto', flexShrink: 0 }}
-        onClick={() => {
-          setHideCompleted((prev) => {
-            const next = !prev;
-            try {
-              localStorage.setItem('cr_hide_completed_chores', String(next));
-            } catch {}
-            return next;
-          });
-        }}
+        onClick={() => setHideCompleted(!hideCompleted)}
         icon={hideCompleted ? 'fas fa-eye-slash' : 'fas fa-eye'}
         aria-label={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
         title={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
       />
+
+      {/* Parent Manage Controls Toggle (Clean View vs Edit/Delete Controls) */}
+      {isParent && (
+        <IconButton
+          shape="circle"
+          variant={parentManageMode ? 'primary' : 'ghost'}
+          className={`shopping-toolbar-btn shopping-icon-btn${parentManageMode ? ' active' : ''}`}
+          style={{ flexShrink: 0 }}
+          onClick={() => setParentManageMode(!parentManageMode)}
+          icon="fas fa-sliders"
+          aria-label={parentManageMode ? 'Parent Controls Active (Click for Clean View)' : 'Clean View Active (Click to show Edit/Delete)'}
+          title={parentManageMode ? 'Parent Controls Active (Click for Clean View)' : 'Clean View Active (Click to show Edit/Delete)'}
+        />
+      )}
     </div>
   );
 
@@ -875,7 +870,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                       </Button>
                     )}
 
-                    {isParent && (
+                    {isParent && parentManageMode && (
                       <Button
                         size="sm"
                         variant="primary"
@@ -1050,11 +1045,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               className="btn-complete-chore"
                               onClick={() => handleCompleteChore(chore, person)}
                             >
-                              Complete
+                              {completeBtnLabel}
                             </Button>
                           );
 
-                          const secondaryActions = isParent ? (
+                          const secondaryActions = (isParent && parentManageMode) ? (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <IconButton
                                 size="sm"
@@ -1493,11 +1488,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                               className="btn-complete-chore"
                               onClick={() => handleCompleteChore(chore, person)}
                             >
-                              Complete
+                              {Boolean(isParent && activeUser && person.id !== activeUser.id) ? `Complete for ${person.name}` : 'Complete'}
                             </Button>
                           );
 
-                          const secondaryActions = isParent ? (
+                          const secondaryActions = (isParent && parentManageMode) ? (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <IconButton
                                 size="sm"
@@ -1595,7 +1590,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 )}
 
                 {/* + Add Chore tile */}
-                {isParent && (
+                {isParent && parentManageMode && (
                   <button
                     type="button"
                     className="chore-kanban-add-btn"

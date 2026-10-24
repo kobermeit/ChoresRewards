@@ -6,6 +6,7 @@ import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
 import { FamilyMemberModal } from '../components/FamilyMemberModal';
 import { playSoundCategory, speakAnnouncement, SoundCategory } from '../services/soundService';
 import { fireCelebrationFireworks } from '../services/celebrationService';
+import { useHouseholdPrefs, useUiPref, useSoundTheme } from '../hooks/useSettings';
 
 export interface ToastItem {
   id: string;
@@ -144,9 +145,9 @@ export const AppProvider: React.FC<{
   const [data, setData] = useState<BootstrapData | null>(null);
   const [loading, setLoading] = useState(true);
   const [theme] = useState<'dark' | 'light'>('dark');
-  const [muted, setMuted] = useState<boolean>(() => {
-    return localStorage.getItem('globalMute') === 'true';
-  });
+  const { muted, setMuted } = useHouseholdPrefs();
+  const [, setActivePersonId] = useUiPref('activePersonId');
+  const { effective: soundTheme } = useSoundTheme();
   const [adultMode, setAdultModeState] = useState<boolean>(() => {
     return sessionStorage.getItem('cr_adult_unlocked') === 'true';
   });
@@ -431,7 +432,6 @@ export const AppProvider: React.FC<{
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
-    localStorage.setItem('cr-theme', 'dark');
   }, []);
 
   // Strict server authority: isParent requires server adult_mode (or an open system without PINs)
@@ -458,7 +458,7 @@ export const AppProvider: React.FC<{
           pin,
         });
         if (res && res.success && res.active_user) {
-          localStorage.setItem('cr_active_person_id', String(res.active_user.id));
+          setActivePersonId(res.active_user.id);
           setActiveUser(res.active_user);
           if (res.active_user.role === 'parent') {
             setAdultMode(true);
@@ -489,23 +489,19 @@ export const AppProvider: React.FC<{
   }, []);
 
   const toggleMute = useCallback(() => {
-    setMuted((prev) => {
-      const next = !prev;
-      localStorage.setItem('globalMute', String(next));
-      return next;
-    });
-  }, []);
+    setMuted(!muted);
+  }, [muted, setMuted]);
 
   const playSound = useCallback(
     (categoryOrUrl?: SoundCategory | string) => {
       if (muted) return;
       if (categoryOrUrl && (categoryOrUrl.startsWith('/') || categoryOrUrl.startsWith('http') || categoryOrUrl.includes('.'))) {
-        playSoundCategory('chore_done', { customUrl: categoryOrUrl });
+        playSoundCategory('chore_done', { customUrl: categoryOrUrl, theme: soundTheme });
       } else {
-        playSoundCategory(categoryOrUrl as SoundCategory || 'chore_done');
+        playSoundCategory((categoryOrUrl as SoundCategory) || 'chore_done', { theme: soundTheme });
       }
     },
-    [muted]
+    [muted, soundTheme]
   );
 
   const speak = useCallback(

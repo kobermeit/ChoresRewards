@@ -437,6 +437,8 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
     const { isoNaive, dateStr, hour, weekdayLower } = getLocalNowNaive(tz);
     const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
+    const completedBy = req.body?.completed_by ? String(req.body.completed_by).trim() : null;
+    const isCompletedForAnother = Boolean(completedBy && completedBy.toLowerCase() !== assignedName.toLowerCase());
 
     db.prepare('UPDATE chore SET completed = 1, date_completed = ?, assigned_to = ? WHERE id = ?').run(
       isoNaive,
@@ -464,18 +466,18 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
           req.session.celebrate_avatar = person.avatar || 'default_avatar.png';
         }
 
-        logActivity(
-          'chore_completed',
-          `Chore '${chore.title}' was completed and ${pointsAwarded} points were awarded`,
-          assignedName
-        );
+        const logMsg = isCompletedForAnother
+          ? `Chore '${chore.title}' was completed by ${completedBy} for ${assignedName} and ${pointsAwarded} points were awarded`
+          : `Chore '${chore.title}' was completed and ${pointsAwarded} points were awarded`;
+
+        logActivity('chore_completed', logMsg, assignedName);
 
         const notifyCompleted = AppSetting.get('gotify_notify_chores_completed', 'false') === 'true';
         if (notifyCompleted && (shouldNotifyPerson(person.id) || shouldNotifyPerson(assignedName))) {
-          sendGotifyNotification(
-            'Chore Completed',
-            `Chore '${chore.title}' was completed by ${assignedName}. ${pointsAwarded} points awarded.`
-          ).catch(() => {});
+          const notifMsg = isCompletedForAnother
+            ? `Chore '${chore.title}' was completed by ${completedBy} for ${assignedName}. ${pointsAwarded} points awarded.`
+            : `Chore '${chore.title}' was completed by ${assignedName}. ${pointsAwarded} points awarded.`;
+          sendGotifyNotification('Chore Completed', notifMsg).catch(() => {});
         }
 
         const badgeRes = checkAndAwardBadges(person.id, dateStr, hour, weekdayLower);
@@ -483,11 +485,10 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
         currentStreak = badgeRes.currentStreak;
       } else {
         newPoints = roundPoints(Number(person.points || 0) + Number(person.bonus_points || 0));
-        logActivity(
-          'chore_completed',
-          `Chore '${chore.title}' was completed but was overdue. No points awarded.`,
-          assignedName
-        );
+        const overdueMsg = isCompletedForAnother
+          ? `Chore '${chore.title}' was completed by ${completedBy} for ${assignedName} but was overdue. No points awarded.`
+          : `Chore '${chore.title}' was completed but was overdue. No points awarded.`;
+        logActivity('chore_completed', overdueMsg, assignedName);
       }
     }
 

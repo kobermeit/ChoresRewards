@@ -42,6 +42,7 @@ export const TimerRing: React.FC<TimerRingProps> = ({
         minHeight: 0,
         minWidth: 0,
         width: '100%',
+        height: '100%',
         containerType: 'size',
         display: 'flex',
         alignItems: 'center',
@@ -51,7 +52,14 @@ export const TimerRing: React.FC<TimerRingProps> = ({
     >
       <svg
         viewBox="0 0 100 100"
-        style={{ width: 'min(100cqw, 100cqh)', height: 'min(100cqw, 100cqh)', display: 'block' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          maxWidth: 'min(100cqw, 100cqh, 100%)',
+          maxHeight: 'min(100cqw, 100cqh, 100%)',
+          aspectRatio: '1 / 1',
+          display: 'block',
+        }}
         role="img"
         aria-label={`${label} ${caption || ''}`.trim()}
       >

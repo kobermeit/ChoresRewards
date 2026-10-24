@@ -1,22 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useUiPref } from '../hooks/useSettings';
 
 export const SideNav: React.FC = () => {
   const { isParent, isChild, activeView, setActiveView } = useApp();
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('sideNavCollapsed') === 'true';
-  });
+  const [collapsed, setCollapsed] = useUiPref('sideNavCollapsed');
 
   useEffect(() => {
-    document.body.classList.toggle('side-nav-body-collapsed', collapsed);
+    document.body.classList.toggle('side-nav-body-collapsed', Boolean(collapsed));
   }, [collapsed]);
 
   const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem('sideNavCollapsed', String(next));
-      return next;
-    });
+    setCollapsed(!collapsed);
   };
 
   return (

@@ -5,12 +5,27 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
  * can have different layouts), so they live in Redux and are persisted via redux-persist.
  * This is the ONLY state persisted to browser storage.
  */
+export interface PersistedChoreTimer {
+  choreId: number;
+  choreTitle: string;
+  assignedName?: string;
+  assignedAvatar?: string;
+  totalSeconds: number;
+  remainingSeconds: number;
+  startTime: number;
+  endTime: number;
+  isRunning: boolean;
+  pausedRemaining?: number;
+}
+
 export interface UiState {
   sideNavCollapsed: boolean;
   headerMinimized: boolean;
   hideCompletedChores: boolean;
   plannerViewMode: '1week' | '2weeks';
   activePersonId: number | null;
+  parentManageMode: boolean;
+  activeTimers: Record<number, PersistedChoreTimer>;
 }
 
 const initialState: UiState = {
@@ -19,6 +34,8 @@ const initialState: UiState = {
   hideCompletedChores: false,
   plannerViewMode: '2weeks',
   activePersonId: null,
+  parentManageMode: true,
+  activeTimers: {},
 };
 
 const uiSlice = createSlice({
@@ -40,9 +57,22 @@ const uiSlice = createSlice({
     setActivePersonId(state, action: PayloadAction<number | null>) {
       state.activePersonId = action.payload;
     },
+    setParentManageMode(state, action: PayloadAction<boolean>) {
+      state.parentManageMode = action.payload;
+    },
+    setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
+      state.activeTimers = action.payload;
+    },
   },
 });
 
-export const { setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId } =
-  uiSlice.actions;
+export const {
+  setSideNavCollapsed,
+  setHeaderMinimized,
+  setHideCompletedChores,
+  setPlannerViewMode,
+  setActivePersonId,
+  setParentManageMode,
+  setActiveTimers,
+} = uiSlice.actions;
 export default uiSlice.reducer;

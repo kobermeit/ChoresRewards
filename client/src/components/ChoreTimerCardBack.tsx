@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTimer } from '../context/TimerContext';
+import { useApp } from '../context/AppContext';
 import { Chore, Person } from '../types';
 import { CardShell, TimerRing, Button, IconButton } from './ui';
 
@@ -16,10 +17,14 @@ interface ChoreTimerCardBackProps {
  */
 export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   chore,
+  person,
   onFlipBack,
   onComplete,
 }) => {
   const { getChoreTimer, startChoreTimer, pauseChoreTimer, resumeChoreTimer } = useTimer();
+  const { isParent, activeUser } = useApp();
+
+  const isCompletedForAnother = Boolean(isParent && activeUser && person && person.id !== activeUser.id);
 
   const timer = getChoreTimer(chore.id);
   const total = timer ? timer.totalSeconds : (chore.duration_seconds || 600);
@@ -106,7 +111,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
             className="btn-complete-chore"
             onClick={onComplete}
           >
-            Done
+            {isCompletedForAnother ? `Done for ${person?.name}` : 'Done'}
           </Button>
         </div>
       </div>

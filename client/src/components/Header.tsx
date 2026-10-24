@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl, resolveAvatarUrl } from '../api';
 import { Overlay } from './ui';
+import { useSeason, useUiPref } from '../hooks/useSettings';
 
 function weatherInfo(code: number): { icon: string; color: string; desc: string } {
   if (code === 0) return { icon: 'fa-sun', color: '#fbbf24', desc: 'Clear Sky' };
@@ -44,13 +45,8 @@ export const Header: React.FC = () => {
 
   const [clockTime, setClockTime] = useState('--:--');
   const [clockDate, setClockDate] = useState('Loading…');
-  const [headerMinimized, setHeaderMinimized] = useState(() => {
-    try {
-      return localStorage.getItem('headerMinimized') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [headerMinimized] = useUiPref('headerMinimized');
+  const seasonInfo = useSeason();
 
   // Weather state
   const [weatherCurrent, setWeatherCurrent] = useState<{
@@ -370,6 +366,28 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 }}
               >
                 v{data.app_version}
+              </span>
+            )}
+            {seasonInfo.enabled && seasonInfo.theme && (
+              <span
+                style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  color: seasonInfo.accent || '#f8fafc',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${seasonInfo.accent ? seasonInfo.accent + '55' : 'rgba(255, 255, 255, 0.15)'}`,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  letterSpacing: '0.01em',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title={seasonInfo.event ? `Active Event: ${seasonInfo.theme.name}` : `Active Season: ${seasonInfo.theme.name}`}
+              >
+                <span>{seasonInfo.emoji}</span>
+                <span>{seasonInfo.theme.name}</span>
               </span>
             )}
           </div>

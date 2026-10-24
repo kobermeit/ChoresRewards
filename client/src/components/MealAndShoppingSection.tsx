@@ -7,6 +7,7 @@ import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FallbackImage } from './common/FallbackImage';
 import { PageContainer, Button, IconButton, PillButton, Badge, Input, Select, Textarea, FormField, WheelPickerOverlay } from './ui';
+import { useUiPref } from '../hooks/useSettings';
 
 const MEAL_KEYS: Array<'breakfast' | 'lunch' | 'dinner'> = ['breakfast', 'lunch', 'dinner'];
 
@@ -180,13 +181,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
   const [libraryCollapsed, setLibraryCollapsed] = useState(true);
 
   // Week navigation & 2-week view state with cache for instant 0ms switching
-  const [plannerViewMode, setPlannerViewMode] = useState<'1week' | '2weeks'>(() => {
-    try {
-      return (localStorage.getItem('cr_planner_view_mode') as '1week' | '2weeks') || '2weeks';
-    } catch {
-      return '2weeks';
-    }
-  });
+  const [plannerViewMode, setPlannerViewMode] = useUiPref('plannerViewMode');
   const [activeWeekStart, setActiveWeekStart] = useState<string>('');
   const [weekDaysState, setWeekDaysState] = useState<any[]>([]);
   const [weekPlanState, setWeekPlanState] = useState<Record<string, any>>({});
@@ -195,11 +190,6 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
 
   const togglePlannerViewMode = (mode: '1week' | '2weeks') => {
     setPlannerViewMode(mode);
-    try {
-      localStorage.setItem('cr_planner_view_mode', mode);
-    } catch {
-      // ignore
-    }
   };
 
   // Shopping intelligence states

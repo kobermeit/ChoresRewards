@@ -1,5 +1,74 @@
 # Project Guidelines for ChoresRewards
 
+## Architecture & Technology Stack
+- **Backend**: Node.js + Express + TypeScript (`server/`).
+  - Database: SQLite via `better-sqlite3` (`server/src/db.ts`).
+  - Auth: Session-based role auth (`parent`, `child`, `family`) with PIN verification.
+  - File Uploads: `multer` (`server/uploads/` mounted to `/static/uploads`).
+  - Notifications: Gotify push service (`server/src/services/gotify.ts`).
+  - Seasons & Holidays: Anonymous Gregorian Easter calculation & hemisphere date adjustments (`server/src/services/seasons.ts`).
+- **Frontend**: React 18 + TypeScript + Vite (`client/`).
+  - State & Persistence: Redux Toolkit + RTK Query (`client/src/store/api.ts`) + `redux-persist` (`whitelist: ['ui']`).
+  - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in SQLite via `/api/prefs`.
+  - Audio Engine: Zero-latency procedural Web Audio synthesis (`soundService.ts`) with theme support (Zelda Fantasy, Christmas Bells, Spooky, Zen Chimes, Fanfare) + bundled fallback audio clips.
+  - Visuals & Celebrations: Canvas-confetti + custom celebration fireworks.
+- **Deployment Targets**: Runs standalone on port `8099` AND inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`).
+
+---
+
+## Directory Layout & Key Modules
+```
+choresrewards/
+├── client/src/
+│   ├── components/
+│   │   ├── ui/                       # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, Badge, FlipCard
+│   │   ├── ChoresKanbanSection.tsx   # Chores hub: Responsive grid, kanban columns, flip timer cards, parent manage toggle
+│   │   ├── ChoreTimerCardBack.tsx    # Timed chore reverse face using CardShell & dynamic TimerRing
+│   │   ├── MealAndShoppingSection.tsx# Meal planner (1/2 week views) & smart shopping list
+│   │   ├── DashboardSection.tsx      # Family summary, quick actions, visual timer card, activity feed
+│   │   ├── SettingsAndLogsViews.tsx  # System settings tabs (General, Family, Chores, Seasonal, Sounds, etc.)
+│   │   ├── SeasonalSettingsView.tsx  # Holiday events, hemisphere selection, sound theme selector & preview
+│   │   ├── Header.tsx & SideNav.tsx  # App bar with seasonal badge, clock, weather, view switcher
+│   │   └── Overlays.tsx              # Full-screen modals (VisualTimerModal, ProfileSwitcher, PIN modal)
+│   ├── context/
+│   │   ├── AppContext.tsx            # Household session, role gating, toast manager, playSound dispatcher
+│   │   └── TimerContext.tsx          # High-precision chore countdown interval engine synced to Redux
+│   ├── store/
+│   │   ├── index.ts                  # Redux store with redux-persist & RTK Query middleware
+│   │   ├── api.ts                    # RTK Query endpoints for seasonal themes & household prefs
+│   │   └── uiSlice.ts                # Per-device UI preferences (navigation, clean view, active timers)
+│   ├── hooks/useSettings.ts          # Typed hooks: useHouseholdPrefs, useUiPref, useSeason, useSoundTheme
+│   └── services/soundService.ts      # Web Audio procedural synthesizers & audio clip dispatcher
+└── server/src/
+    ├── db.ts                         # SQLite schema, tables (person, chore, reward, seasons, seasonal_events, settings)
+    ├── routes/                       # Express routes (chores, rewards, seasonal, auth, meals, shopping, settings)
+    └── services/seasons.ts           # Dynamic Easter computation, seasonal window resolution, hemisphere logic
+```
+
+---
+
+## Core Subsystems & Business Rules
+
+### 1. Parent Mode & Role Permissions
+- **Roles**:
+  - `parent`: Full administrative capability. Protected by PIN. When switching to a parent profile, parent mode remains active for the session (no repetitive PIN re-prompts).
+  - `child`: Clean restricted dashboard. Can only start timers and complete their own chores.
+  - `family`: Unlocked shared wall-tablet kiosk view.
+- **Parent Manage Controls**: Parents have a toggle button (`parentManageMode`) in the chores toolbar. When toggled OFF, edit and delete icons are hidden for a clean view while still allowing parents to start or complete chores.
+- **Acting on Child's Chores**: When a parent completes a child's chore ("Complete for Abby"), points are credited to the child and activity logs record who completed it (`Chore 'X' was completed by Parent for Child`). Parents can also have their own chores assigned to them.
+
+### 2. Card Shell & Timer Synchronization
+- All cards (chores, rewards, timed chore reverse faces) share `CardShell` (`client/src/components/ui/CardShell.tsx`) with consistent padding, gap, and action row heights.
+- Timers use `TimerRing` (`client/src/components/ui/TimerRing.tsx`) with CSS Container Queries (`min(100cqw, 100cqh)`). The SVG circle expands dynamically to fill whatever card height or modal container is allocated without manual hardcoding or layout shifts.
+
+### 3. Seasonal Themes & Sound Themes
+- **Seasons & Events**: Database-backed in SQLite (`seasons` and `seasonal_events` tables).
+  - Supports dynamic dates (e.g. Easter calculated via Gregorian algorithm) and fixed holidays (Halloween, Christmas, New Year's) with active celebration windows (typically ±7 days).
+  - Hemisphere toggle adjusts meteorological season dates (Southern Hemisphere default: Dec–Feb Summer, Sep–Nov Spring).
+- **Sound Themes**: Configurable in Settings (`auto`, `default`, `fantasy` [Zelda-style secret chime], `christmas` [bell chime chords], `spooky` [Halloween theremin arpeggio], `chimes` [zen wind chimes], `fanfare` [royal brass]). Synthesized purely via Web Audio API (zero external assets required).
+
+---
+
 ## Plan of Action First
 - **Provide a Plan of Action First**: When the user sends a message with feedback or changes without an explicit "go and fix this now" instruction, respond quickly with a clear plan of action detailing how the message was interpreted and the intended implementation steps, so the user can review and confirm before work begins.
 
@@ -48,6 +117,3 @@
   - Audio playback must pass `resolveAssetUrl(url)` to `new Audio(...)`.
 - **Backend Dual-Path Mounting**: The Express server must continue to serve both `/static` and `/api/static`, as well as `/` and `/api`, guaranteeing both direct port 8099 and Ingress reverse-proxy traffic find all files.
 - **Automated Verification**: Run `npm run verify` to automatically scan all source files for path violations before building production bundles.
-
-
-

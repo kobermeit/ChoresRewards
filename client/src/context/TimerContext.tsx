@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { playSoundCategory, speakAnnouncement } from '../services/soundService';
 import { fireChoreConfetti } from '../services/celebrationService';
+import { useAppDispatch, useAppSelector } from '../store';
+import { setActiveTimers as setReduxTimers } from '../store/uiSlice';
+import { useSoundTheme } from '../hooks/useSettings';
 
 export interface ActiveChoreTimer {
   choreId: number;
@@ -28,18 +31,17 @@ interface TimerContextValue {
 
 const TimerContext = createContext<TimerContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'cr_active_chore_timers_v1';
-
 export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const dispatch = useAppDispatch();
+  const persistedTimers = useAppSelector((s) => s.ui.activeTimers);
+  const { effective: soundTheme } = useSoundTheme();
+
   const [activeTimers, setActiveTimers] = useState<Record<number, ActiveChoreTimer>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return {};
-      const parsed = JSON.parse(saved);
       const now = Date.now();
       const restored: Record<number, ActiveChoreTimer> = {};
 
-      Object.entries(parsed).forEach(([key, timer]: [string, any]) => {
+      Object.entries(persistedTimers || {}).forEach(([key, timer]: [string, any]) => {
         const choreId = Number(key);
         if (!timer.isRunning) {
           restored[choreId] = timer;
@@ -62,14 +64,10 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Track announcements made to avoid repeated voice prompts
   const announcedMilestonesRef = useRef<Record<number, { half?: boolean; oneMin?: boolean }>>({});
 
-  // Save to localStorage whenever timers change
+  // Sync to Redux store (persisted via redux-persist) whenever timers change
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(activeTimers));
-    } catch {
-      // ignore
-    }
-  }, [activeTimers]);
+    dispatch(setReduxTimers(activeTimers));
+  }, [activeTimers, dispatch]);
 
   // High-precision countdown interval using real clock time (no drift on tab backgrounding)
   useEffect(() => {
@@ -107,13 +105,13 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (total > 90 && remaining <= 60 && remaining > 55 && !milestones.oneMin) {
               milestones.oneMin = true;
               announcedMilestonesRef.current[choreId] = milestones;
-              playSoundCategory('timer_alert');
+              playSoundCategory('timer_alert', { theme: soundTheme });
               speakAnnouncement(`One minute remaining for ${timer.choreTitle}!`);
             }
 
             // Timer Done
             if (remaining === 0) {
-              playSoundCategory('timer_done');
+              playSoundCategory('timer_done', { theme: soundTheme });
               speakAnnouncement(`Time is up for ${timer.choreTitle}! Great job!`);
               try {
                 fireChoreConfetti();

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { useGetPrefsQuery, useGetSeasonalQuery, useUpdatePrefsMutation, SoundTheme } from '../store/api';
-import { UiState, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId } from '../store/uiSlice';
+import { UiState, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode } from '../store/uiSlice';
 
 /** Household preferences stored in the DB (mute, chore suggestions). */
 export function useHouseholdPrefs() {
@@ -27,6 +27,7 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
         hideCompletedChores: setHideCompletedChores,
         plannerViewMode: setPlannerViewMode,
         activePersonId: setActivePersonId,
+        parentManageMode: setParentManageMode,
       };
       dispatch(actions[key](v));
     },
