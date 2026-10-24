@@ -91,31 +91,53 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {label}
           </label>
         )}
-        <select
-          ref={ref}
-          id={selectId}
-          value={value}
-          className={`cr-select ${isUnselected ? 'cr-select-placeholder' : ''} ${className}`.trim()}
-          style={{
-            borderColor: error ? 'var(--color-danger-border)' : undefined,
-            color: isUnselected ? 'var(--color-text-muted, #94a3b8)' : undefined,
-            ...style,
-          }}
-          {...props}
-        >
-          {placeholder && (
-            <option value="" disabled hidden>
-              {placeholder}
-            </option>
-          )}
-          {options
-            ? options.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-                  {opt.label}
-                </option>
-              ))
-            : children}
-        </select>
+        <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box' }}>
+          <select
+            ref={ref}
+            id={selectId}
+            value={value}
+            className={`cr-select ${isUnselected ? 'cr-select-placeholder' : ''} ${className}`.trim()}
+            style={{
+              borderColor: error ? 'var(--color-danger-border)' : undefined,
+              color: isUnselected ? 'var(--color-text-muted, #94a3b8)' : undefined,
+              paddingRight: 36,
+              backgroundImage: 'none',
+              ...style,
+            }}
+            {...props}
+          >
+            {placeholder && (
+              <option value="" disabled hidden>
+                {placeholder}
+              </option>
+            )}
+            {options
+              ? options.map((opt) => (
+                  <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                    {opt.label}
+                  </option>
+                ))
+              : children}
+          </select>
+          <div
+            style={{
+              position: 'absolute',
+              right: 14,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              color: isUnselected ? 'var(--color-text-muted, #94a3b8)' : '#94a3b8',
+              fontSize: '0.74rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.7,
+            }}
+            aria-hidden="true"
+          >
+            <i className="fas fa-chevron-down" />
+          </div>
+        </div>
         {error && (
           <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border)', fontWeight: 600 }}>
             {error}

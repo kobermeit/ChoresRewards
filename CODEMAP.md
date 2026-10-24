@@ -22,7 +22,7 @@ choresrewards/
 │   │   │   ├── overlays/       # Screensaver ambient clock, visual timer modal, kids play games, sync splash
 │   │   │   └── header/         # Weather widget, clock widget, forecast modal
 │   │   ├── components/         # Top-level coordinators, legacy backward-compat shims, & shared UI
-│   │   │   ├── ui/             # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, Badge
+│   │   │   ├── ui/             # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, CustomDropdown, Badge
 │   │   │   └── common/         # Common dialogs, Modal, ColorPicker
 │   │   ├── context/            # Global React contexts (AppContext, TimerContext)
 │   │   ├── store/              # Redux Toolkit, RTK Query (api.ts), uiSlice.ts (with redux-persist)

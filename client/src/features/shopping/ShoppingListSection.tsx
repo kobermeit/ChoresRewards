@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { apiPost } from '../../api';
 import { ShoppingStore, ShoppingCatalogItem, MealIngredient } from '../../types';
-import { PageContainer, Button, IconButton, Select, WheelPickerOverlay } from '../../components/ui';
+import { PageContainer, Button, IconButton, CustomDropdown, WheelPickerOverlay } from '../../components/ui';
 import { ShoppingStoreLane } from './components/ShoppingStoreLane';
 import { NewStoreModal } from './components/NewStoreModal';
 import { ShoppingHistoryModal } from './components/ShoppingHistoryModal';
@@ -447,21 +447,24 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
               </div>
             )}
           </div>
-          <Select
+          <CustomDropdown
             value={shoppingStore || stores[0]?.id || ''}
-            onChange={(e) => {
-              if (e.target.value === '__add_new_store__') {
+            onChange={(val) => {
+              if (val === '__add_new_store__') {
                 setNewStoreModalOpen(true);
               } else {
-                setShoppingStore(e.target.value);
+                setShoppingStore(val);
               }
             }}
             options={[
-              ...stores.map((s) => ({ value: s.id, label: s.name })),
-              { value: '__add_new_store__', label: '+ Add store…' },
+              ...stores.map((s) => ({ value: s.id, label: s.name, icon: s.icon })),
+              { value: '__add_new_store__', label: '+ Add store…', action: true },
             ]}
-            className="shopping-store-select shopping-dynamic-store-select"
-            containerStyle={{ flex: '0 0 auto', width: 160, minWidth: 140, margin: 0 }}
+            showFilter={false}
+            height={38}
+            className="shopping-store-dropdown"
+            style={{ flex: '0 0 auto', width: 170, minWidth: 140 }}
+            ariaLabel="Select store"
           />
           <Button
             variant="primary"
