@@ -305,6 +305,8 @@
 .cr-select,
 .cr-textarea {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border-radius: var(--input-radius);
   border: 1px solid var(--color-border-medium);
   background: rgba(15, 23, 42, 0.85);

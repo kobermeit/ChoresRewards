@@ -81,6 +81,7 @@ export function getSeasonalSettings() {
     seasonal_themes_enabled: AppSetting.get('seasonal_themes_enabled', 'true') === 'true',
     hemisphere: (AppSetting.get('hemisphere', 'south') === 'north' ? 'north' : 'south') as Hemisphere,
     sound_theme: AppSetting.get('sound_theme', 'auto') || 'auto',
+    forced_theme: AppSetting.get('forced_theme', '') || '',
   };
 }
 
@@ -109,12 +110,24 @@ export function listEvents(todayIso = getFamilyToday()) {
   });
 }
 
-/** Resolve the currently active season + event (respecting enabled flags and the global toggle). */
+/** Resolve the currently active season + event (respecting enabled flags, manual simulation override, and global toggle). */
 export function getActiveSeasonal(todayIso = getFamilyToday()) {
   const settings = getSeasonalSettings();
   const seasons = listSeasons(settings.hemisphere);
   const events = listEvents(todayIso);
   if (!settings.seasonal_themes_enabled) return { settings, seasons, events, active: { season: null, event: null, today: todayIso } };
+
+  // Manual simulation override for testing / previewing any season or event
+  if (settings.forced_theme) {
+    const forcedEvent = events.find((e) => e.key === settings.forced_theme) || null;
+    if (forcedEvent) {
+      return { settings, seasons, events, active: { season: null, event: forcedEvent, today: todayIso } };
+    }
+    const forcedSeason = seasons.find((s) => s.key === settings.forced_theme) || null;
+    if (forcedSeason) {
+      return { settings, seasons, events, active: { season: forcedSeason, event: null, today: todayIso } };
+    }
+  }
 
   const md = todayIso.slice(5, 10);
   const season = seasons.find((s) => s.enabled && mdInRange(md, s.effective_start_md, s.effective_end_md)) || null;

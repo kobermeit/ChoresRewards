@@ -7,7 +7,7 @@ import { Modal } from './common/Modal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { FormErrorAlert } from './FormErrorAlert';
 import { Button, IconButton, PillButton, Input, Card, Badge, ResponsiveGrid, FormGrid, FormField, PageContainer, ItemCard, UserAvatar, FlipCard } from './ui';
-import { useHouseholdPrefs, useUiPref } from '../hooks/useSettings';
+import { useHouseholdPrefs, useUiPref, useSeason } from '../hooks/useSettings';
 import { useTimer } from '../context/TimerContext';
 import { ChoreTimerCardBack } from './ChoreTimerCardBack';
 import { fireCelebrationFireworks, fireChoreConfetti } from '../services/celebrationService';
@@ -135,6 +135,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     isChild,
     openEditChoreModal,
   } = useApp();
+
+  const seasonInfo = useSeason();
 
   // If active user is a child, automatically focus their chore column
   useEffect(() => {
@@ -686,7 +688,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         id="chores-section"
         className={isStandalonePage ? '' : 'chores-section'}
         title="Family Members Chores"
-        subtitle="Manage daily tasks, streaks and reward points for every family member"
+        subtitle={
+          seasonInfo.greetingSuffix
+            ? `Manage daily tasks, streaks and reward points • ${seasonInfo.greetingSuffix}`
+            : 'Manage daily tasks, streaks and reward points for every family member'
+        }
         icon="fas fa-house-chimney"
         iconClass="section-icon-chores"
         helpTip={{

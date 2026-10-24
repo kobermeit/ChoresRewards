@@ -93,11 +93,17 @@ export const FormGrid: React.FC<FormGridProps> = ({
 export interface FormFieldProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   colSpan?: 12 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2;
+  label?: string;
+  help?: string;
+  error?: string | null;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
   children,
   colSpan = 12,
+  label,
+  help,
+  error,
   className = '',
   style,
   ...props
@@ -105,10 +111,43 @@ export const FormField: React.FC<FormFieldProps> = ({
   return (
     <div
       className={`cr-col-${colSpan} ${className}`.trim()}
-      style={style}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        minWidth: 0,
+        maxWidth: '100%',
+        width: '100%',
+        boxSizing: 'border-box',
+        ...style,
+      }}
       {...props}
     >
+      {label && (
+        <label
+          style={{
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            color: 'var(--color-text-primary, #f8fafc)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {label}
+        </label>
+      )}
       {children}
+      {help && (
+        <span style={{ fontSize: '0.78rem', opacity: 0.7, color: 'var(--color-text-muted, #94a3b8)', lineHeight: 1.4 }}>
+          {help}
+        </span>
+      )}
+      {error && (
+        <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border, #ef4444)', fontWeight: 600 }}>
+          {error}
+        </span>
+      )}
     </div>
   );
 };

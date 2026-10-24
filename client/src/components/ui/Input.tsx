@@ -75,7 +75,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const isUnselected = value === '' || value === undefined || value === null;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...containerStyle }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', ...containerStyle }}>
         {label && (
           <label
             htmlFor={selectId}

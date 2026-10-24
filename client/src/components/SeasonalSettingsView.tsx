@@ -25,9 +25,10 @@ export const SeasonalSettingsView: React.FC = () => {
 
   const { settings, seasons, events, active } = data;
   const currentSoundTheme = settings.sound_theme as SoundTheme;
+  const forcedTheme = settings.forced_theme || '';
 
   const handleTestSound = (themeToPlay?: SoundTheme) => {
-    const key = (themeToPlay || currentSoundTheme);
+    const key = themeToPlay || currentSoundTheme;
     const effective = key === 'auto'
       ? (active.event?.sound_key || active.season?.sound_key || 'default')
       : key;
@@ -35,9 +36,9 @@ export const SeasonalSettingsView: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', minWidth: 0 }}>
       {/* Header card */}
-      <div className="card" style={{ padding: 24, borderRadius: 18 }}>
+      <div className="card" style={{ padding: 24, borderRadius: 18, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
           <div>
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -81,7 +82,7 @@ export const SeasonalSettingsView: React.FC = () => {
               Enable Seasonal Themes & Events
             </span>
             <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
-              Shows active holiday / season icon in the app header and activates seasonal sound themes.
+              Shows active holiday / season icon in the app header, tints accents, and activates seasonal sound themes.
             </div>
           </div>
         </label>
@@ -92,25 +93,43 @@ export const SeasonalSettingsView: React.FC = () => {
             style={{
               padding: '14px 18px',
               borderRadius: 14,
-              background: active.event ? 'rgba(249, 115, 22, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-              border: `1px solid ${active.event ? 'rgba(249, 115, 22, 0.35)' : 'rgba(59, 130, 246, 0.35)'}`,
+              background: active.event
+                ? 'rgba(249, 115, 22, 0.12)'
+                : active.season
+                ? 'rgba(59, 130, 246, 0.12)'
+                : 'rgba(255, 255, 255, 0.04)',
+              border: `1px solid ${
+                active.event
+                  ? 'rgba(249, 115, 22, 0.35)'
+                  : active.season
+                  ? 'rgba(59, 130, 246, 0.35)'
+                  : 'rgba(255, 255, 255, 0.08)'
+              }`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
               gap: 12,
               marginBottom: 20,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+              <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>
                 {active.event?.emoji || active.season?.emoji || '🗓️'}
               </span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc' }}>
-                  {active.event ? `Active Event: ${active.event.name}` : active.season ? `Current Season: ${active.season.name}` : 'No active season or event today'}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{active.event ? `Active Event: ${active.event.name}` : active.season ? `Current Season: ${active.season.name}` : 'No active season or event today'}</span>
+                  {forcedTheme && (
+                    <Badge variant="warning" style={{ fontSize: '0.7rem' }}>
+                      MANUAL OVERRIDE
+                    </Badge>
+                  )}
                 </div>
-                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                  {active.event && active.event.window_start && active.event.window_end
+                <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: 2 }}>
+                  {forcedTheme
+                    ? `Simulated for testing. Visuals and sounds are locked to this theme.`
+                    : active.event && active.event.window_start && active.event.window_end
                     ? `Celebration Window: ${active.event.window_start} to ${active.event.window_end}`
                     : active.season
                     ? `Effective Dates: ${active.season.effective_start_md} to ${active.season.effective_end_md}`
@@ -118,22 +137,65 @@ export const SeasonalSettingsView: React.FC = () => {
                 </div>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon="fas fa-volume-high"
-              onClick={() => handleTestSound()}
-            >
-              Play Theme Sound
-            </Button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {forcedTheme && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => updateSettings({ forced_theme: '' })}
+                >
+                  Reset to Auto
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="fas fa-volume-high"
+                onClick={() => handleTestSound()}
+              >
+                Play Theme Sound
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Hemisphere & Sound Theme Controls */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+        {/* 3-Column Responsive Grid: Hemisphere, Sound Theme, and Force Simulation */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 16,
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* 1. Theme Simulation / Manual Override */}
+          <FormField
+            label="Active Theme Simulation (Preview Mode)"
+            help="Lock the theme ON to test visuals, banners, and sounds without waiting for holidays."
+          >
+            <Select
+              value={forcedTheme}
+              disabled={isUpdatingSettings}
+              onChange={(e) => updateSettings({ forced_theme: e.target.value })}
+            >
+              <option value="">🗓️ Automatic (Live Calendar Date)</option>
+              <option value="halloween">🎃 Halloween Event (Spooky Theme)</option>
+              <option value="christmas">🎄 Christmas Event (Holiday Theme)</option>
+              <option value="easter">🐰 Easter Event (Spring / Easter Theme)</option>
+              <option value="new_year">🎆 New Year&apos;s Day (Celebration Theme)</option>
+              <option value="spring">🌸 Spring Season</option>
+              <option value="summer">☀️ Summer Season</option>
+              <option value="autumn">🍂 Autumn Season</option>
+              <option value="winter">❄️ Winter Season</option>
+            </Select>
+          </FormField>
+
+          {/* 2. Hemisphere */}
           <FormField
             label="Hemisphere"
-            help="Determines whether December is Summer (Southern Hemisphere: Australia, NZ) or Winter (Northern Hemisphere: US, Europe)."
+            help="Southern (Australia/NZ: Dec is Summer) vs Northern (US/Europe: Dec is Winter)."
           >
             <Select
               value={settings.hemisphere}
@@ -145,12 +207,13 @@ export const SeasonalSettingsView: React.FC = () => {
             </Select>
           </FormField>
 
+          {/* 3. Sound Theme */}
           <FormField
             label="Sound Theme"
-            help="Theme for chore completions and timer alerts. 'Auto' dynamically switches to holiday sounds (Halloween spooky, Xmas chimes)."
+            help="Audio synthesis for chore completion and timer finish."
           >
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 8, width: '100%', minWidth: 0, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Select
                   value={settings.sound_theme}
                   disabled={isUpdatingSettings}
@@ -174,6 +237,7 @@ export const SeasonalSettingsView: React.FC = () => {
                 icon="fas fa-play"
                 title="Preview sound theme"
                 aria-label="Preview sound theme"
+                style={{ flexShrink: 0 }}
                 onClick={() => handleTestSound()}
               />
             </div>
@@ -182,7 +246,7 @@ export const SeasonalSettingsView: React.FC = () => {
       </div>
 
       {/* Seasonal Events (Easter, Halloween, Christmas, New Year's) */}
-      <div className="card" style={{ padding: 24, borderRadius: 18 }}>
+      <div className="card" style={{ padding: 24, borderRadius: 18, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <h4 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', color: '#f8fafc' }}>
           🎉 Seasonal Events & Holidays
         </h4>
@@ -190,7 +254,7 @@ export const SeasonalSettingsView: React.FC = () => {
           Events run for a designated window (typically 1 week before and after the date). Easter is calculated dynamically each year.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', minWidth: 0 }}>
           {events.map((ev) => (
             <label
               key={ev.id}
@@ -203,17 +267,19 @@ export const SeasonalSettingsView: React.FC = () => {
                 background: ev.enabled ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.015)',
                 border: '1px solid rgba(255, 255, 255, 0.06)',
                 cursor: 'pointer',
+                flexWrap: 'wrap',
+                gap: 10,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                 <input
                   type="checkbox"
                   checked={ev.enabled}
                   onChange={(e) => updateEvent({ id: ev.id, enabled: e.target.checked })}
                   style={{ width: 17, height: 17, accentColor: 'var(--cr-primary)' }}
                 />
-                <span style={{ fontSize: '1.5rem' }}>{ev.emoji}</span>
-                <div>
+                <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{ev.emoji}</span>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: '0.92rem', color: ev.enabled ? '#f8fafc' : '#94a3b8' }}>
                     {ev.name}
                   </div>
@@ -225,7 +291,7 @@ export const SeasonalSettingsView: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 {ev.sound_key && (
                   <Button
                     size="sm"
@@ -248,7 +314,7 @@ export const SeasonalSettingsView: React.FC = () => {
       </div>
 
       {/* Meteorological Seasons */}
-      <div className="card" style={{ padding: 24, borderRadius: 18 }}>
+      <div className="card" style={{ padding: 24, borderRadius: 18, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <h4 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', color: '#f8fafc' }}>
           🌱 Meteorological Seasons
         </h4>
@@ -256,7 +322,7 @@ export const SeasonalSettingsView: React.FC = () => {
           Base seasons apply whenever no holiday event is active. Dates automatically adjust when switching hemispheres.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, width: '100%', minWidth: 0 }}>
           {seasons.map((s) => (
             <div
               key={s.id}
@@ -272,7 +338,7 @@ export const SeasonalSettingsView: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: '1.6rem' }}>{s.emoji}</span>
+                <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{s.emoji}</span>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#f8fafc' }}>
                     {s.name}

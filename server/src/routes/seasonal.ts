@@ -31,7 +31,7 @@ seasonalRouter.get('/seasonal', (_req: Request, res: Response) => {
 });
 
 seasonalRouter.put('/seasonal/settings', requireAdult, (req: Request, res: Response) => {
-  const { seasonal_themes_enabled, hemisphere, sound_theme } = req.body || {};
+  const { seasonal_themes_enabled, hemisphere, sound_theme, forced_theme } = req.body || {};
   if (seasonal_themes_enabled !== undefined) AppSetting.set('seasonal_themes_enabled', String(Boolean(seasonal_themes_enabled)));
   if (hemisphere !== undefined) {
     if (hemisphere !== 'south' && hemisphere !== 'north') {
@@ -46,6 +46,9 @@ seasonalRouter.put('/seasonal/settings', requireAdult, (req: Request, res: Respo
       return;
     }
     AppSetting.set('sound_theme', sound_theme);
+  }
+  if (forced_theme !== undefined) {
+    AppSetting.set('forced_theme', String(forced_theme || ''));
   }
   res.json({ success: true, ...getActiveSeasonal() });
 });

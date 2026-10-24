@@ -392,7 +392,7 @@ export const SettingsView: React.FC = () => {
       items: [
         { id: 'general', label: 'General & Security', icon: 'fas fa-sliders', badge: null },
         { id: 'setup', label: 'System Defaults', icon: 'fas fa-wand-magic-sparkles', badge: null },
-        { id: 'seasonal', label: 'Seasonal Themes', icon: 'fas fa-calendar-star', badge: null },
+        { id: 'seasonal', label: 'Seasonal Themes', icon: 'fas fa-wand-magic-sparkles', badge: null },
         { id: 'screensaver', label: 'Screensaver', icon: 'fas fa-image', badge: ssEnabled ? 'Active' : null },
         { id: 'sounds', label: 'Sound FX', icon: 'fas fa-volume-high', badge: null },
       ],

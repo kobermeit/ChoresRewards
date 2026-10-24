@@ -39,6 +39,7 @@ export interface SeasonalSettings {
   seasonal_themes_enabled: boolean;
   hemisphere: 'south' | 'north';
   sound_theme: SoundTheme;
+  forced_theme?: string | null;
 }
 
 export interface SeasonalResponse {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { useGetPrefsQuery, useGetSeasonalQuery, useUpdatePrefsMutation, SoundTheme } from '../store/api';
 import { UiState, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode } from '../store/uiSlice';
@@ -39,20 +39,49 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
 /** Active season/event (null when seasonal themes are off). Re-checks every hour. */
 export function useSeason() {
   const { data } = useGetSeasonalQuery(undefined, { pollingInterval: 60 * 60 * 1000 });
-  return useMemo(() => {
+  const result = useMemo(() => {
     const season = data?.active.season ?? null;
     const event = data?.active.event ?? null;
     // An event (e.g. Halloween) always takes precedence over the base season
     const theme = event ?? season;
+    const enabled = data?.settings.seasonal_themes_enabled ?? false;
+    const accent = enabled && theme?.accent ? theme.accent : null;
+    const emoji = enabled && theme?.emoji ? theme.emoji : null;
+
+    let greetingSuffix = '';
+    if (enabled && event) {
+      if (event.key === 'halloween') greetingSuffix = '🎃 Spooky Season!';
+      else if (event.key === 'christmas') greetingSuffix = '🎄 Merry Christmas & Happy Holidays!';
+      else if (event.key === 'easter') greetingSuffix = '🐰 Happy Easter!';
+      else if (event.key === 'new_year') greetingSuffix = '🎆 Happy New Year!';
+    } else if (enabled && season) {
+      if (season.key === 'spring') greetingSuffix = '🌸 Springtime!';
+      else if (season.key === 'summer') greetingSuffix = '☀️ Summer vibes!';
+      else if (season.key === 'autumn') greetingSuffix = '🍂 Cozy Autumn!';
+      else if (season.key === 'winter') greetingSuffix = '❄️ Crisp Winter!';
+    }
+
     return {
       season,
       event,
-      theme,
-      enabled: data?.settings.seasonal_themes_enabled ?? false,
-      accent: theme?.accent || null,
-      emoji: theme?.emoji || null,
+      theme: enabled ? theme : null,
+      enabled,
+      accent,
+      emoji,
+      greetingSuffix,
+      forcedTheme: data?.settings.forced_theme || null,
     };
   }, [data]);
+
+  useEffect(() => {
+    if (result.accent) {
+      document.documentElement.style.setProperty('--cr-season-accent', result.accent);
+    } else {
+      document.documentElement.style.removeProperty('--cr-season-accent');
+    }
+  }, [result.accent]);
+
+  return result;
 }
 
 /**

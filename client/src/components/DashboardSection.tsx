@@ -4,6 +4,7 @@ import { apiGet, apiPost, resolveAssetUrl } from '../api';
 import { DashboardStickyNote } from '../types';
 import { PageContainer, Button, IconButton, Input, UserAvatar, RichEditor, TimerRing } from './ui';
 import { Modal } from './common/Modal';
+import { useSeason } from '../hooks/useSettings';
 
 const STICKY_COLORS = ['#fef08a', '#fed7aa', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fbcfe8'];
 
@@ -27,6 +28,7 @@ export const DashboardSection: React.FC = () => {
   } = useApp();
 
   const [dateFilter, setDateFilter] = useState<'today' | 'tomorrow' | 'week'>('today');
+  const seasonInfo = useSeason();
   const [screensaverMedia, setScreensaverMedia] = useState<Array<{ filename: string; url: string; type: string }>>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
 
@@ -254,6 +256,69 @@ export const DashboardSection: React.FC = () => {
         ],
       }}
     >
+      {seasonInfo.enabled && seasonInfo.theme && (
+        <div
+          style={{
+            margin: '0 0 16px 0',
+            padding: '14px 20px',
+            borderRadius: 16,
+            background: `linear-gradient(135deg, ${seasonInfo.accent ? seasonInfo.accent + '22' : 'rgba(59, 130, 246, 0.15)'}, rgba(15, 23, 42, 0.6))`,
+            border: `1px solid ${seasonInfo.accent ? seasonInfo.accent + '44' : 'rgba(255, 255, 255, 0.1)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontSize: '2.4rem', lineHeight: 1, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }}>
+              {seasonInfo.emoji}
+            </span>
+            <div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>{seasonInfo.greetingSuffix || `${seasonInfo.theme.name} Season`}</span>
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 10,
+                    background: seasonInfo.accent ? seasonInfo.accent + '33' : 'rgba(255,255,255,0.1)',
+                    color: seasonInfo.accent || '#93c5fd',
+                    border: `1px solid ${seasonInfo.accent ? seasonInfo.accent + '55' : 'rgba(255,255,255,0.15)'}`,
+                  }}
+                >
+                  {seasonInfo.event ? 'Holiday Event' : 'Current Season'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: 2 }}>
+                {seasonInfo.event
+                  ? `Enjoy special ${seasonInfo.theme.name} themed sounds & festive celebrations across the family hub!`
+                  : `Welcome to ${seasonInfo.theme.name}! Chores, timers and activities tuned for the season.`}
+              </div>
+            </div>
+          </div>
+          {/* Subtle themed watermark icon in corner */}
+          <div
+            style={{
+              fontSize: '4.5rem',
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              opacity: 0.14,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {seasonInfo.emoji}
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           display: 'grid',
