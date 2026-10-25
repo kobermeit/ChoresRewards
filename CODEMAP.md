@@ -22,7 +22,7 @@ choresrewards/
 │   │   │   ├── overlays/       # Screensaver ambient clock, visual timer modal, kids play games, sync splash
 │   │   │   └── header/         # Weather widget, clock widget, forecast modal
 │   │   ├── components/         # Top-level coordinators, legacy backward-compat shims, & shared UI
-│   │   │   ├── ui/             # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, CustomDropdown, Badge
+│   │   │   ├── ui/             # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, AssigneeSelect, CustomDropdown, Badge
 │   │   │   └── common/         # Common dialogs, Modal, ColorPicker
 │   │   ├── context/            # Global React contexts (AppContext, TimerContext)
 │   │   ├── store/              # Redux Toolkit, RTK Query (api.ts), uiSlice.ts (with redux-persist)
@@ -60,7 +60,7 @@ choresrewards/
 | **Family Calendar** | `client/src/features/calendar/CalendarView.tsx`<br>`features/calendar/components/CalendarMonthView.tsx`<br>`features/calendar/components/CalendarScheduleView.tsx` | `components/CalendarView.tsx` | `/api/sync_calendar`<br>Table: `google_calendar_settings` |
 | **Household Notes** | `client/src/features/notes/NotesSection.tsx`<br>`features/notes/components/NoteRowCard.tsx`<br>`features/notes/components/NoteEditModal.tsx` | `components/CalendarAndNotesSection.tsx` | `/api/text_pads`<br>Table: `text_pad` |
 | **System Settings** | `client/src/features/settings/*` (12 tabs: General, Family, Chores, Seasonal, Sounds, etc.) | `components/SettingsAndLogsViews.tsx` | `/api/prefs`, `/api/seasonal`, `/api/settings` |
-| **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
+| **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx`<br>`components/ConnectionLostOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
 | **Header, Weather & Clock** | `client/src/features/header/WeatherWidget.tsx`<br>`features/header/ClockWidget.tsx`<br>`features/header/WeatherForecastModal.tsx` | `components/Header.tsx` | Open-Meteo API + device clock |
 
 ---

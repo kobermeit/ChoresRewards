@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useNavigation } from '../../hooks/useSettings';
-import { Button, WipBanner } from '../../components/ui';
+import { Button, Select, WipBanner } from '../../components/ui';
 import { SetupWizard } from '../../components/SetupWizard';
 import { SeasonalSettingsView } from '../../components/SeasonalSettingsView';
 import { GeneralSettingsTab } from './tabs/GeneralSettingsTab';
@@ -95,23 +95,11 @@ export const SettingsView: React.FC = () => {
 
       {/* Mobile Category Dropdown Selector (Active on screens <= 768px) */}
       <div className="settings-mobile-category-picker" style={{ marginBottom: 16 }}>
-        <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--cr-text-secondary)', display: 'block', marginBottom: 6 }}>
-          Category:
-        </label>
-        <select
+        <Select
+          label="Category"
           value={tab}
           onChange={(e) => setTab(e.target.value as SettingsTabId)}
-          style={{
-            width: '100%',
-            padding: '12px 14px',
-            borderRadius: 12,
-            background: 'var(--cr-surface-1)',
-            border: '1px solid var(--cr-surface-border)',
-            color: '#f8fafc',
-            fontSize: '0.95rem',
-            fontWeight: 700,
-            outline: 'none',
-          }}
+          aria-label="Settings Category"
         >
           {navGroups.map((g) => (
             <optgroup key={g.group} label={g.group}>
@@ -122,7 +110,7 @@ export const SettingsView: React.FC = () => {
               ))}
             </optgroup>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div

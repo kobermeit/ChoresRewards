@@ -79,15 +79,9 @@ const MainShell: React.FC<{
           </div>
         )}
 
-        {visitedViews['rewards'] && (
-          <div style={{ display: activeView === 'rewards' ? 'block' : 'none' }}>
+        {(visitedViews['rewards'] || visitedViews['redeemed']) && (
+          <div style={{ display: activeView === 'rewards' || activeView === 'redeemed' ? 'block' : 'none' }}>
             <RewardsSection isStandalonePage />
-          </div>
-        )}
-
-        {visitedViews['redeemed'] && (
-          <div style={{ display: activeView === 'redeemed' ? 'block' : 'none' }}>
-            <RedeemedRewardsSection isStandalonePage />
           </div>
         )}
 

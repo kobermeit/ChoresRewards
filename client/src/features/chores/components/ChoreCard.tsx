@@ -161,12 +161,22 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
       aria-label="Undo completion"
     />
   ) : isTimed ? (
-    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+    <div style={{ display: 'flex', gap: 6, width: '100%', alignItems: 'center' }}>
+      <Button
+        size="sm"
+        variant="secondary"
+        icon="fas fa-forward"
+        style={{ flex: '0 0 auto', padding: '0 10px', fontSize: '0.8rem' }}
+        onClick={() => onToggleFlip(chore.id, true)}
+        title="Skip countdown and go straight to completion card"
+      >
+        Skip
+      </Button>
       <Button
         size="sm"
         variant="success"
         icon="fas fa-play"
-        fullWidth
+        style={{ flex: '1 1 auto' }}
         onClick={() => {
           onStartTimer(chore);
           onToggleFlip(chore.id, true);

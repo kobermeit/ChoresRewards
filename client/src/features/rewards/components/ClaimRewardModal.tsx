@@ -19,6 +19,13 @@ export const ClaimRewardModal: React.FC<ClaimRewardModalProps> = ({
 }) => {
   if (!reward) return null;
 
+  const targetGroup = (reward.assigned_to || '').toLowerCase();
+  const eligibleFamily = family.filter((p) => {
+    if (targetGroup === 'kids') return p.role === 'child';
+    if (targetGroup === 'parents' || targetGroup === 'adults') return p.role === 'parent';
+    return true;
+  });
+
   return (
     <Modal
       open={Boolean(reward)}
@@ -38,7 +45,7 @@ export const ClaimRewardModal: React.FC<ClaimRewardModalProps> = ({
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {family.map((person) => {
+          {eligibleFamily.map((person) => {
             const pts = (person.points || 0) + (person.bonus_points || 0);
             const req = Number(reward.points_required || 1);
             const hasEnough = pts >= req;

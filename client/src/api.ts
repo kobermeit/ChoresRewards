@@ -58,6 +58,29 @@ export function dispatchGlobalToast(message: string, type: 'error' | 'warning' |
   }
 }
 
+
+let networkErrorCount = 0;
+
+export function notifyNetworkFailure() {
+  networkErrorCount++;
+  if (networkErrorCount >= 2 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cr:connection_lost'));
+  }
+}
+
+export function notifyNetworkSuccess() {
+  networkErrorCount = 0;
+}
+
+function getFetchSignal(timeoutMs = 2000): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function') {
+    return (AbortSignal as any).timeout(timeoutMs);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(new Error('Network request timed out')), timeoutMs);
+  return controller.signal;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   let data: any = null;
   try {
@@ -79,6 +102,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new ApiError(errorMsg, res.status, data);
   }
 
+  notifyNetworkSuccess();
   return (data !== null ? data : { success: true }) as T;
 }
 
@@ -88,10 +112,12 @@ export async function apiGet<T = any>(endpoint: string): Promise<T> {
       method: 'GET',
       credentials: 'include',
       headers: { Accept: 'application/json' },
+      signal: getFetchSignal(2000),
     });
     return await handleResponse<T>(res);
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
+      notifyNetworkFailure();
       const msg = err?.message || 'Network request failed';
       dispatchGlobalToast(msg, 'error');
     }
@@ -111,6 +137,7 @@ export async function apiPostDirect<T = any>(endpoint: string, body?: any): Prom
       ? { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
       : { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: isFormData ? body : JSON.stringify(body ?? {}),
+    signal: isFormData ? undefined : getFetchSignal(2000),
   });
   return handleResponse<T>(res);
 }
@@ -136,10 +163,14 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
       const isNetworkFail =
         (typeof navigator !== 'undefined' && !navigator.onLine) ||
         err?.name === 'TypeError' ||
+        err?.name === 'TimeoutError' ||
+        err?.name === 'AbortError' ||
+        String(err?.message || '').toLowerCase().includes('timed out') ||
         String(err?.message || '').toLowerCase().includes('failed to fetch') ||
         String(err?.message || '').toLowerCase().includes('network');
 
       if (isNetworkFail) {
+        notifyNetworkFailure();
         try {
           store.dispatch(enqueueOfflineMutation({ endpoint, body }));
         } catch {
@@ -147,6 +178,9 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
         }
         return { success: true, offline: true } as T;
       }
+    }
+    if (!(err instanceof ApiError)) {
+      notifyNetworkFailure();
     }
     throw err;
   }
@@ -159,10 +193,12 @@ export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> 
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(body ?? {}),
+      signal: getFetchSignal(2000),
     });
     return await handleResponse<T>(res);
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
+      notifyNetworkFailure();
       const msg = err?.message || 'Network request failed';
       dispatchGlobalToast(msg, 'error');
     }
@@ -176,10 +212,12 @@ export async function apiDelete<T = any>(endpoint: string): Promise<T> {
       method: 'DELETE',
       credentials: 'include',
       headers: { Accept: 'application/json' },
+      signal: getFetchSignal(2000),
     });
     return await handleResponse<T>(res);
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
+      notifyNetworkFailure();
       const msg = err?.message || 'Network request failed';
       dispatchGlobalToast(msg, 'error');
     }

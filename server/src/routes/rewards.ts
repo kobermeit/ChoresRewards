@@ -217,7 +217,11 @@ rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
     if (!person && reward.assigned_to_id) {
       person = db.prepare('SELECT * FROM person WHERE id = ?').get(reward.assigned_to_id);
     }
-    if (!person && reward.assigned_to && reward.assigned_to.toLowerCase() !== 'everyone' && reward.assigned_to.toLowerCase() !== 'all') {
+    const isGroupReward = (name: string) => {
+      const l = (name || '').toLowerCase();
+      return l === 'everyone' || l === 'all' || l === 'kids' || l === 'parents' || l === 'adults';
+    };
+    if (!person && reward.assigned_to && !isGroupReward(reward.assigned_to)) {
       person = db.prepare('SELECT * FROM person WHERE name = ?').get(reward.assigned_to);
     }
     if (!person) {

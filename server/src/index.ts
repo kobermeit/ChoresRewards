@@ -45,13 +45,16 @@ app.use(
   })
 );
 
-// Serve persistent uploads first, then bundled static assets
-app.use('/static/uploads', express.static(UPLOADS_DIR));
-app.use('/static', express.static(STATIC_DIR));
+// Serve persistent uploads first, then bundled static assets with aggressive client disk caching
+const staticCacheOptions = { maxAge: '30d', immutable: true };
+const uploadsCacheOptions = { maxAge: '1d' };
+
+app.use('/static/uploads', express.static(UPLOADS_DIR, uploadsCacheOptions));
+app.use('/static', express.static(STATIC_DIR, staticCacheOptions));
 
 // Also support /api/static/* in case relative API prefix is used
-app.use('/api/static/uploads', express.static(UPLOADS_DIR));
-app.use('/api/static', express.static(STATIC_DIR));
+app.use('/api/static/uploads', express.static(UPLOADS_DIR, uploadsCacheOptions));
+app.use('/api/static', express.static(STATIC_DIR, staticCacheOptions));
 
 // Mount API & application routes at both root and /api so relative calls work under HA Ingress
 const routers = [

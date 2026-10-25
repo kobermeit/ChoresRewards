@@ -48,6 +48,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {helperText}
           </span>
         )}
+        {!error && helperText && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+            {helperText}
+          </span>
+        )}
       </div>
     );
   }
@@ -64,13 +69,14 @@ export interface SelectOption {
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string | null;
+  helperText?: string;
   options?: SelectOption[];
   containerStyle?: React.CSSProperties;
   placeholder?: string;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, options, placeholder, children, className = '', id, style, containerStyle, value, ...props }, ref) => {
+  ({ label, error, helperText, options, placeholder, children, className = '', id, style, containerStyle, value, ...props }, ref) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     const isUnselected = value === '' || value === undefined || value === null;
 
@@ -143,6 +149,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {error}
           </span>
         )}
+        {!error && helperText && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+            {helperText}
+          </span>
+        )}
       </div>
     );
   }
@@ -194,6 +205,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {error && (
           <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border)', fontWeight: 600 }}>
             {error}
+          </span>
+        )}
+        {!error && helperText && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+            {helperText}
           </span>
         )}
         {!error && helperText && (

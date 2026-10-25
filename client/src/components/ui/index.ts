@@ -18,4 +18,5 @@ export * from './Overlay';
 export * from './CardShell';
 export * from './TimerRing';
 export * from './CustomDropdown';
+export * from './AssigneeSelect';
 export * from '../FormErrorAlert';
