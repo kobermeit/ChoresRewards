@@ -77,17 +77,35 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   const plannedMealsMap = useMemo(() => {
     const planned: Record<string, string> = {};
     const plan = data?.meal_planner?.plan || {};
-    Object.values(plan).forEach((daySlots: any) => {
-      if (!daySlots) return;
-      ['breakfast', 'lunch', 'dinner'].forEach((k) => {
-        const v = (daySlots[k] || '').trim();
-        if (v) {
-          planned[v.toLowerCase()] = v;
-        }
-      });
+    const activeDates = new Set<string>();
+    (data?.meal_planner?.week_days || []).forEach((d: any) => {
+      if (d?.date_str) activeDates.add(d.date_str);
+    });
+
+    const todayStr = data?.current_date || new Date().toISOString().slice(0, 10);
+    Object.entries(plan).forEach(([dateStr, daySlots]: [string, any]) => {
+      // Only include today or upcoming dates (ignore past dates that have already occurred)
+      if (dateStr < todayStr) return;
+      if (activeDates.size > 0 && !activeDates.has(dateStr)) return;
+      if (Array.isArray(daySlots)) {
+        daySlots.forEach((c: any) => {
+          const title = (c?.title || c?.name || '').trim();
+          const mealKey = (c?.meal_key || title).toLowerCase().trim();
+          if (mealKey) {
+            planned[mealKey] = title || mealKey;
+          }
+        });
+      } else if (daySlots && typeof daySlots === 'object') {
+        ['breakfast', 'lunch', 'dinner'].forEach((k) => {
+          const v = (daySlots[k] || '').trim();
+          if (v) {
+            planned[v.toLowerCase()] = v;
+          }
+        });
+      }
     });
     return planned;
-  }, [data?.meal_planner?.plan]);
+  }, [data?.meal_planner?.plan, data?.meal_planner?.week_days]);
 
   const catalogPool: ShoppingCatalogItem[] = useMemo(() => {
     if (intel.catalog && intel.catalog.length > 0) return intel.catalog;
@@ -143,6 +161,13 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
 
   const totalShoppingItems = useMemo(() => {
     let count = 0;
+    // 1. General items
+    (shop?.general || []).forEach((g: any) => {
+      const key = `general::${String(g.name).toLowerCase()}`;
+      if (!g.checked && !effectiveShopChecked[key]) count++;
+    });
+
+    // 2. Meal ingredients for active planned meals only
     Object.entries(ingredientsMap).forEach(([mealKey, ings]) => {
       const isPlannedOrActive =
         Boolean(plannedMealsMap[mealKey.toLowerCase()]) || isMealActive(mealKey);
@@ -153,14 +178,10 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
           ? Object.values(ings)
           : [];
         ingList.forEach((ing) => {
-          const key = `meal::${mealKey}::${ing.name.toLowerCase()}`;
-          if (!effectiveShopChecked[key]) count++;
+          const key = `meal::${mealKey.toLowerCase()}::${ing.name.toLowerCase()}`;
+          if (!effectiveShopChecked[key] && !shop?.hidden?.[key]) count++;
         });
       }
-    });
-    (shop?.general || []).forEach((g: any) => {
-      const key = `general::${String(g.name).toLowerCase()}`;
-      if (!g.checked && !effectiveShopChecked[key]) count++;
     });
     return count;
   }, [ingredientsMap, plannedMealsMap, shop, effectiveShopChecked]);
@@ -464,8 +485,9 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
               isPlannedOrActive &&
               ingList.some(
                 (i: MealIngredient) =>
-                  (i.store || '').toLowerCase() === store.id.toLowerCase() ||
-                  (i.store || '').toLowerCase() === store.name.toLowerCase()
+                  ((i.store || '').toLowerCase() === store.id.toLowerCase() ||
+                  (i.store || '').toLowerCase() === store.name.toLowerCase()) &&
+                  !shop?.hidden?.[`meal::${mealKey.toLowerCase()}::${i.name.toLowerCase()}`]
               )
             );
           });

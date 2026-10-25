@@ -719,7 +719,7 @@ choresRouter.get('/completed_chores_fragment', (_req: Request, res: Response) =>
   res.json({ success: true, chores: completedChores });
 });
 
-choresRouter.get('/api/extra_chores', requireAuth, (req: Request, res: Response) => {
+choresRouter.get(['/api/extra_chores', '/extra_chores'], requireAuth, (req: Request, res: Response) => {
   const personIdRaw = req.query.person_id;
   if (personIdRaw !== undefined && personIdRaw !== '') {
     const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(personIdRaw)) as any;
@@ -735,61 +735,70 @@ choresRouter.get('/api/extra_chores', requireAuth, (req: Request, res: Response)
   res.json({ success: true, extras: allExtras, chores: allExtras });
 });
 
-choresRouter.post('/api/extra_chores/claim', requireAuth, (req: Request, res: Response) => {
-  const { extra_id, person_id } = req.body || {};
-  if (!extra_id || !person_id) {
-    res.status(400).json({ success: false, error: 'extra_id and person_id are required' });
-    return;
-  }
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
-  if (!person) {
-    res.status(404).json({ success: false, error: 'Person not found' });
-    return;
-  }
-  const extra = getExtraChores().find((e) => e.id === String(extra_id) && e.enabled);
-  if (!extra) {
-    res.status(404).json({ success: false, error: 'Extra chore not found' });
-    return;
-  }
-  if (!extraMatchesAge(extra, getPersonAgeValue(person))) {
-    res.status(403).json({ success: false, error: 'Extra chore not available for this age' });
-    return;
-  }
+choresRouter.post(
+  ['/claim_extra_chore', '/api/claim_extra_chore', '/extra_chores/claim', '/api/extra_chores/claim'],
+  requireAuth,
+  (req: Request, res: Response) => {
+    const body = req.body || {};
+    const extraKey = body.extra_id || body.extra_chore_id;
+    const personId = body.person_id;
+    if (!extraKey || !personId) {
+      res.status(400).json({ success: false, error: 'extra_id and person_id are required' });
+      return;
+    }
+    const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(personId)) as any;
+    if (!person) {
+      res.status(404).json({ success: false, error: 'Person not found' });
+      return;
+    }
+    const extra = getExtraChores().find(
+      (e) => (e.id === String(extraKey) || e.title.toLowerCase() === String(extraKey).toLowerCase()) && e.enabled
+    );
+    if (!extra) {
+      res.status(404).json({ success: false, error: 'Extra chore not found' });
+      return;
+    }
+    if (!extraMatchesAge(extra, getPersonAgeValue(person))) {
+      res.status(403).json({ success: false, error: 'Extra chore not available for this age' });
+      return;
+    }
 
-  const openExtras = db
-    .prepare('SELECT * FROM chore WHERE assigned_to_id = ? AND is_extra = 1 AND completed = 0 AND deleted = 0')
-    .all(person.id) as Array<any>;
+    const openExtras = db
+      .prepare('SELECT * FROM chore WHERE assigned_to_id = ? AND is_extra = 1 AND completed = 0 AND deleted = 0')
+      .all(person.id) as Array<any>;
 
-  if (openExtras.some((c) => c.extra_id === extra.id)) {
-    res.status(409).json({ success: false, error: 'That extra is already on their list' });
-    return;
+    if (openExtras.some((c) => c.extra_id === extra.id)) {
+      res.status(409).json({ success: false, error: 'That extra is already on their list' });
+      return;
+    }
+    if (openExtras.length >= 3) {
+      res.status(400).json({ success: false, error: 'Finish an extra first — max 3 at a time' });
+      return;
+    }
+
+    const today = getFamilyToday();
+    const info = db
+      .prepare(
+        `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, due_date, deleted, icon, is_extra, extra_id)
+         VALUES (?, ?, ?, ?, 0, 0, ?, 0, ?, 1, ?)`
+      )
+      .run(extra.title, person.id, person.name, extra.points, today, extra.icon || null, extra.id);
+
+    logActivity('chore_added', `Extra chore '${extra.title}' claimed by ${person.name}`, person.name);
+
+    res.json({
+      success: true,
+      chore_id: Number(info.lastInsertRowid),
+      title: extra.title,
+      points: extra.points,
+      icon: extra.icon || '',
+      assigned_to: person.name,
+      person_id: person.id,
+      is_extra: true,
+      extra_id: extra.id,
+    });
   }
-  if (openExtras.length >= 3) {
-    res.status(400).json({ success: false, error: 'Finish an extra first — max 3 at a time' });
-    return;
-  }
-
-  const info = db
-    .prepare(
-      `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, deleted, icon, is_extra, extra_id)
-       VALUES (?, ?, ?, ?, 0, 0, 0, ?, 1, ?)`
-    )
-    .run(extra.title, person.id, person.name, extra.points, extra.icon || null, extra.id);
-
-  logActivity('chore_added', `Extra chore '${extra.title}' claimed by ${person.name}`, person.name);
-
-  res.json({
-    success: true,
-    chore_id: Number(info.lastInsertRowid),
-    title: extra.title,
-    points: extra.points,
-    icon: extra.icon || '',
-    assigned_to: person.name,
-    person_id: person.id,
-    is_extra: true,
-    extra_id: extra.id,
-  });
-});
+);
 
 // Admin Extra Chores Pool CRUD
 choresRouter.post(['/api/extra_chores/add', '/extra_chores/add'], requireAdult, (req: Request, res: Response) => {

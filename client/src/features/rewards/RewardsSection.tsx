@@ -188,29 +188,34 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
       title={showRedeemed ? 'Redeemed Rewards' : 'Family Rewards'}
       icon={showRedeemed ? 'fas fa-medal' : 'fas fa-trophy'}
       iconClass="section-icon-rewards"
-      badge={showRedeemed ? `${filteredRedeemedRewards.length} redeemed` : `${filteredAvailableRewards.length} available`}
+      badge={showRedeemed ? filteredRedeemedRewards.length : filteredAvailableRewards.length}
       boxed={!isStandalonePage}
       actions={
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={showRedeemed ? 'fas fa-gift' : 'fas fa-clock-rotate-left'}
-            onClick={() => setShowRedeemed(!showRedeemed)}
-            title={showRedeemed ? 'View available rewards store' : 'View redemption history'}
-          >
-            {showRedeemed ? 'Available' : 'Redeemed'}
-          </Button>
-          {!showRedeemed && isParent && (
+          {isParent && (
             <Button
               variant="primary"
               size="sm"
               icon="fas fa-plus"
+              disabled={showRedeemed}
+              collapseOnMobile
               onClick={openAddModal}
+              title={showRedeemed ? 'Switch to Available view to add rewards' : 'Add new reward'}
             >
               Add Reward
             </Button>
           )}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={showRedeemed ? 'fas fa-gift' : 'fas fa-clock-rotate-left'}
+            collapseOnMobile
+            onClick={() => setShowRedeemed(!showRedeemed)}
+            title={showRedeemed ? 'View available rewards store' : 'View redemption history'}
+            style={{ minWidth: 104, justifyContent: 'center' }}
+          >
+            {showRedeemed ? 'Available' : 'Redeemed'}
+          </Button>
         </div>
       }
       toolbar={

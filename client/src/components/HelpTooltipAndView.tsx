@@ -150,7 +150,7 @@ export const HelpView: React.FC = () => {
   const sections = [
     {
       icon: '🏠',
-      title: 'Family Members Chores & User Grid View',
+      title: 'Family Chores & User Grid View',
       color: '#4ade80',
       tips: [
         'Use the family filter pills at the top of the Chores section (All Family, or tap a person\'s name) to switch between the side-by-side columns and a focused, no-scroll grid of that person\'s chores.',

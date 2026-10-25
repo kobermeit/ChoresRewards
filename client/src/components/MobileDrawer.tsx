@@ -16,7 +16,7 @@ interface DrawerItem {
 
 const PRIMARY_ITEMS: DrawerItem[] = [
   { id: 'dashboard', label: 'Today (Dashboard)', icon: 'fas fa-gauge-high' },
-  { id: 'chores', label: 'Chores Hub', icon: 'fas fa-list-check' },
+  { id: 'chores', label: 'Family Chores', icon: 'fas fa-list-check' },
   { id: 'rewards', label: 'Family Rewards', icon: 'fas fa-trophy' },
   { id: 'meals', label: 'Meal Planner', icon: 'fas fa-utensils' },
   { id: 'shopping', label: 'Shopping List', icon: 'fas fa-cart-shopping' },

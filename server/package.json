@@ -1,6 +1,6 @@
 {
   "name": "choresrewards-server",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "ChoresRewards Node.js + Express + SQLite Backend",
   "main": "dist/index.js",
   "scripts": {

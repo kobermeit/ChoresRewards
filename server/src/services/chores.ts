@@ -7,6 +7,8 @@ import { getFamilyToday, getMondayOfWeek, addDays, isDayOfWeekScheduled, getNext
 import { sendGotifyNotification, shouldNotifyPerson } from './gotify';
 import { defaultQuizQuestions } from '../defaultQuizQuestions';
 
+import { calculateAge } from '../utils/people';
+
 export interface ExtraChoreItem {
   id: string;
   title: string;
@@ -112,10 +114,26 @@ export function getExtraChores(): ExtraChoreItem[] {
   return cleaned;
 }
 
-export function getPersonAgeValue(person: { age?: number | null } | null | undefined): number {
-  if (!person || person.age === null || person.age === undefined) return 4;
-  const n = Number(person.age);
-  return Number.isNaN(n) ? 4 : n;
+export function getPersonAgeValue(person: { id?: number; age?: number | null; dob?: string | null } | null | undefined): number {
+  if (!person) return 6;
+  if (person.age !== null && person.age !== undefined) {
+    const n = Number(person.age);
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  if (person.dob) {
+    const calc = calculateAge(person.dob, null);
+    if (calc !== null && calc > 0) return calc;
+  }
+  try {
+    const rawAges = AppSetting.get('person_ages_json', '');
+    if (rawAges && person.id) {
+      const parsed = JSON.parse(rawAges);
+      if (parsed[String(person.id)]) {
+        return Number(parsed[String(person.id)]) || 6;
+      }
+    }
+  } catch {}
+  return 6;
 }
 
 export function extraMatchesAge(extra: ExtraChoreItem, age: number): boolean {

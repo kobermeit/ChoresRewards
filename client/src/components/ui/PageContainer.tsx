@@ -106,14 +106,16 @@ export const PageContainer: React.FC<PageContainerProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
+            flexWrap: 'nowrap',
+            gap: 8,
             marginBottom: toolbar ? 12 : 16,
             position: 'relative',
             zIndex: 1,
+            minWidth: 0,
+            width: '100%',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
             <h2
               className="section-title page-container-title"
               style={{
@@ -124,15 +126,30 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
+                minWidth: 0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
               }}
             >
               {icon && (
                 <i
                   className={`${icon} ${iconClass}`.trim()}
-                  style={isThemed ? { color: seasonAccent } : undefined}
+                  style={{
+                    flexShrink: 0,
+                    ...(isThemed ? { color: seasonAccent } : {}),
+                  }}
                 />
               )}
-              <span>{title}</span>
+              <span
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}
+              >
+                {title}
+              </span>
               {isThemed && seasonalIcon && (
                 <i
                   className={`${seasonalIcon} page-header-seasonal-suffix`}
@@ -140,22 +157,33 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                     fontSize: '1rem',
                     color: seasonAccent,
                     opacity: 0.9,
+                    flexShrink: 0,
                   }}
                   title={seasonInfo.theme?.name || undefined}
                   aria-hidden="true"
                 />
               )}
             </h2>
-            {badge && <div className="page-header-badge">{badge}</div>}
+            {badge && (
+              <div className="page-header-badge" style={{ flexShrink: 0 }}>
+                {badge}
+              </div>
+            )}
             {helpTip && (
-              <SectionHelpTip
-                title={helpTip.title || title}
-                tips={helpTip.tips}
-                text={helpTip.text}
-              />
+              <div style={{ flexShrink: 0 }}>
+                <SectionHelpTip
+                  title={helpTip.title || title}
+                  tips={helpTip.tips}
+                  text={helpTip.text}
+                />
+              </div>
             )}
           </div>
-          {actions && <div className="page-header-actions">{actions}</div>}
+          {actions && (
+            <div className="page-header-actions" style={{ flexShrink: 0 }}>
+              {actions}
+            </div>
+          )}
         </div>
         {toolbar && <div className="page-header-toolbar" style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>{toolbar}</div>}
         <div className="page-container-body" style={{ position: 'relative', zIndex: 1 }}>{children}</div>
@@ -229,13 +257,15 @@ export const PageContainer: React.FC<PageContainerProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 14,
+            flexWrap: 'nowrap',
+            gap: 10,
             position: 'relative',
             zIndex: 1,
+            minWidth: 0,
+            width: '100%',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
             {icon && (
               <div
                 className="page-header-icon-box"
@@ -261,8 +291,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                 />
               </div>
             )}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <h1
                   className="page-container-title"
                   style={{
@@ -274,9 +304,21 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 8,
+                    minWidth: 0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
                   }}
                 >
-                  <span>{title}</span>
+                  <span
+                    style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      minWidth: 0,
+                    }}
+                  >
+                    {title}
+                  </span>
                   {isThemed && seasonalIcon && (
                     <i
                       className={`${seasonalIcon} page-header-seasonal-suffix`}
@@ -284,23 +326,39 @@ export const PageContainer: React.FC<PageContainerProps> = ({
                         fontSize: '1.15rem',
                         color: seasonAccent,
                         opacity: 0.9,
+                        flexShrink: 0,
                       }}
                       title={seasonInfo.theme?.name || undefined}
                       aria-hidden="true"
                     />
                   )}
                 </h1>
-                {badge && <div className="page-header-badge">{badge}</div>}
+                {badge && (
+                  <div className="page-header-badge" style={{ flexShrink: 0 }}>
+                    {badge}
+                  </div>
+                )}
                 {helpTip && (
-                  <SectionHelpTip
-                    title={helpTip.title || title}
-                    tips={helpTip.tips}
-                    text={helpTip.text}
-                  />
+                  <div style={{ flexShrink: 0 }}>
+                    <SectionHelpTip
+                      title={helpTip.title || title}
+                      tips={helpTip.tips}
+                      text={helpTip.text}
+                    />
+                  </div>
                 )}
               </div>
               {subtitle && (
-                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                <p
+                  style={{
+                    margin: '2px 0 0',
+                    fontSize: '0.82rem',
+                    color: '#94a3b8',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   {subtitle}
                 </p>
               )}

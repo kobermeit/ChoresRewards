@@ -127,20 +127,34 @@ export const DashboardSection: React.FC = () => {
     return events.slice(0, 6);
   }, [data?.calendar_events, data?.current_date, dateFilter]);
 
-  // Shopping preview - synchronize with ShoppingListSection (only count ingredients for planned meals + general items)
+  // Shopping preview - synchronize with ShoppingListSection (only count active general items + ingredients for active planned meals)
   const uncheckedShopping = useMemo(() => {
     const list: Array<{ name: string; qty?: string; store?: string }> = [];
     const shop = data?.shopping || data?.shopping_list;
     const ingMap = (data?.meal_planner?.ingredients || data?.meal_ingredients || {}) as Record<string, any>;
     const checked = (shop?.checked || {}) as Record<string, boolean>;
+    const hidden = (shop?.hidden || {}) as Record<string, boolean>;
 
-    // Build map of planned meals for this week
+    // Build map of planned meals for this ACTIVE week only
+    const activeDates = new Set<string>();
+    (data?.meal_planner?.week_days || []).forEach((d: any) => {
+      if (d?.date_str) activeDates.add(d.date_str);
+    });
+
+    const todayStr = data?.current_date || new Date().toISOString().slice(0, 10);
     const plannedMealsMap: Record<string, boolean> = {};
     const plan = data?.meal_planner?.plan || {};
-    Object.values(plan).forEach((daySlots: any) => {
+    Object.entries(plan).forEach(([dateStr, daySlots]: [string, any]) => {
+      // Only include today or upcoming dates (ignore past dates from earlier this week or previous weeks)
+      if (dateStr < todayStr) return;
+      if (activeDates.size > 0 && !activeDates.has(dateStr)) return;
+
       if (Array.isArray(daySlots)) {
         daySlots.forEach((c: any) => {
-          if (c && c.title) plannedMealsMap[c.title.toLowerCase()] = true;
+          if (c && (c.meal_key || c.title)) {
+            const k = (c.meal_key || c.title).toLowerCase().trim();
+            plannedMealsMap[k] = true;
+          }
         });
       } else if (daySlots && typeof daySlots === 'object') {
         Object.values(daySlots).forEach((name: any) => {
@@ -151,18 +165,7 @@ export const DashboardSection: React.FC = () => {
       }
     });
 
-    Object.entries(ingMap).forEach(([mealKey, ings]) => {
-      if (!plannedMealsMap[mealKey.toLowerCase()]) return;
-      const ingList: any[] = Array.isArray(ings) ? ings : ings && typeof ings === 'object' ? Object.values(ings) : [];
-      ingList.forEach((i) => {
-        if (!i || typeof i !== 'object' || !i.name) return;
-        const k = `meal::${mealKey}::${String(i.name).toLowerCase()}`;
-        if (!checked[k]) {
-          list.push({ name: i.name, qty: i.qty, store: i.store });
-        }
-      });
-    });
-
+    // 1. General items first (user's primary shopping list items)
     const generalList = Array.isArray(shop?.general) ? shop.general : [];
     generalList.forEach((g: any) => {
       if (!g || typeof g !== 'object' || !g.name) return;
@@ -172,8 +175,21 @@ export const DashboardSection: React.FC = () => {
       }
     });
 
+    // 2. Meal ingredients only for active week's planned meals
+    Object.entries(ingMap).forEach(([mealKey, ings]) => {
+      if (!plannedMealsMap[mealKey.toLowerCase()]) return;
+      const ingList: any[] = Array.isArray(ings) ? ings : ings && typeof ings === 'object' ? Object.values(ings) : [];
+      ingList.forEach((i) => {
+        if (!i || typeof i !== 'object' || !i.name) return;
+        const k = `meal::${mealKey.toLowerCase()}::${String(i.name).toLowerCase()}`;
+        if (!checked[k] && !hidden[k]) {
+          list.push({ name: i.name, qty: i.qty, store: i.store });
+        }
+      });
+    });
+
     return list;
-  }, [data?.shopping, data?.shopping_list, data?.meal_planner?.plan, data?.meal_planner?.ingredients, data?.meal_ingredients]);
+  }, [data?.shopping, data?.shopping_list, data?.meal_planner?.plan, data?.meal_planner?.week_days, data?.meal_planner?.ingredients, data?.meal_ingredients]);
 
   const activeRewards = useMemo(() => {
     return (data?.rewards || []).filter((r) => !r.completed && !r.redeemed && !r.archived && !r.is_hidden).slice(0, 5);

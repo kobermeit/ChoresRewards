@@ -13,6 +13,7 @@ export interface ChoreKanbanColumnProps {
   completeBtnLabel: string;
   flippedChores: Record<number, boolean>;
   availableExtraChores: ExtraChore[];
+  isLoading?: boolean;
   onOpenProfile: (person: Person) => void;
   onSelectPerson: (personId: number) => void;
   onEditName: (person: Person) => void;
@@ -37,6 +38,7 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
   completeBtnLabel,
   flippedChores,
   availableExtraChores,
+  isLoading,
   onOpenProfile,
   onSelectPerson,
   onEditName,
@@ -226,6 +228,8 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
             />
           ))}
         </div>
+      ) : isLoading ? (
+        <div style={{ minHeight: 120 }} />
       ) : totalToday > 0 && doneToday === totalToday ? (
         <div className="all-done-banner">
           <div className="all-done-emoji">🎉</div>
@@ -241,7 +245,7 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
       )}
 
       {/* Earn More Prompt when no pending chores and extra chores exist */}
-      {pendingChores.length === 0 && availableExtraChores.length > 0 && (
+      {!isLoading && pendingChores.length === 0 && availableExtraChores.length > 0 && (
         <div className="earn-more-prompt" id={`earn-more-${person.id}`}>
           <p className="earn-more-prompt-kicker">Want to earn more?</p>
           <button

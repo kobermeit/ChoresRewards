@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { apiGet, apiPost } from '../../api';
 import { Chore, ExtraChore, Person } from '../../types';
@@ -68,12 +68,15 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   // Day Navigation state (past days completion support)
   const todayDateStr = data?.current_date || new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
-  const [pastChores, setPastChores] = useState<Chore[] | null>(null);
+  const [displayedDate, setDisplayedDate] = useState<string>(todayDateStr);
+  const [pastChoresCache, setPastChoresCache] = useState<Record<string, Chore[]>>({});
   const [isLoadingPast, setIsLoadingPast] = useState(false);
+  const prevActiveChoresRef = useRef<Chore[]>(chores);
 
   useEffect(() => {
     if (data?.current_date && selectedDate === todayDateStr) {
       setSelectedDate(data.current_date);
+      setDisplayedDate(data.current_date);
     }
   }, [data?.current_date]);
 
@@ -106,17 +109,18 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     setSelectedDate(newDate);
   };
 
-  const loadPastChores = async (targetDate: string) => {
-    const startTime = Date.now();
+  const loadPastChores = async (targetDate: string, force = false) => {
+    if (!force && pastChoresCache[targetDate]) {
+      setDisplayedDate(targetDate);
+      setIsLoadingPast(false);
+      return;
+    }
     setIsLoadingPast(true);
     try {
       const res = await apiGet<{ success: boolean; chores: Chore[] }>(`get_chores?date=${targetDate}`);
-      const elapsed = Date.now() - startTime;
-      if (elapsed < 300) {
-        await new Promise((r) => setTimeout(r, 300 - elapsed));
-      }
       if (res?.chores) {
-        setPastChores(res.chores);
+        setPastChoresCache((prev) => ({ ...prev, [targetDate]: res.chores }));
+        setDisplayedDate(targetDate);
       }
     } catch (err) {
       console.error('Failed to load past chores', err);
@@ -129,18 +133,25 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     if (!isToday) {
       loadPastChores(selectedDate);
     } else {
-      if (pastChores !== null) {
-        setIsLoadingPast(true);
-        const timer = setTimeout(() => {
-          setPastChores(null);
-          setIsLoadingPast(false);
-        }, 250);
-        return () => clearTimeout(timer);
-      }
+      setDisplayedDate(todayDateStr);
+      setIsLoadingPast(false);
     }
-  }, [selectedDate, isToday]);
+  }, [selectedDate, isToday, todayDateStr]);
 
-  const activeChores: Chore[] = isToday ? chores : (pastChores || []);
+  const isDateCached = isToday || Boolean(pastChoresCache[selectedDate]);
+  const effectiveDate = isDateCached ? selectedDate : displayedDate;
+
+  const activeChores: Chore[] = useMemo(() => {
+    if (isToday) {
+      prevActiveChoresRef.current = chores;
+      return chores;
+    }
+    if (pastChoresCache[selectedDate]) {
+      prevActiveChoresRef.current = pastChoresCache[selectedDate];
+      return pastChoresCache[selectedDate];
+    }
+    return prevActiveChoresRef.current || chores;
+  }, [isToday, chores, pastChoresCache, selectedDate]);
 
   const selectedPerson = useMemo(() => {
     if (!selectedChorePersonId) return null;
@@ -207,7 +218,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         }
 
         if (!isToday) {
-          loadPastChores(selectedDate);
+          loadPastChores(selectedDate, true);
         }
         await refresh();
       }
@@ -220,7 +231,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     try {
       await apiPost('undo_complete_chore', { chore_id: choreId, for_date: selectedDate });
       if (!isToday) {
-        loadPastChores(selectedDate);
+        loadPastChores(selectedDate, true);
       }
       await refresh();
     } catch (err: any) {
@@ -274,6 +285,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     try {
       await apiPost('claim_extra_chore', {
         extra_chore_id: ec.id,
+        extra_id: ec.id,
         person_id: person.id,
       });
       setExtraModalPerson(null);
@@ -323,166 +335,172 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     <PageContainer
       id="chores-section"
       className={isStandalonePage ? '' : 'chores-section'}
-      title="Family Members Chores"
+      title="Family Chores"
       icon="fas fa-list-check"
       iconClass="section-icon-chores"
       boxed={!isStandalonePage}
       toolbar={
-        <div
-          className="chores-member-filter-bar"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            overflowX: 'auto',
-            paddingBottom: 4,
-            width: '100%',
-          }}
-        >
-          {/* Day Navigation */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              background: 'rgba(15, 23, 42, 0.65)',
-              border: isToday ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(245, 158, 11, 0.45)',
-              borderRadius: 'var(--radius-pill, 999px)',
-              padding: '2px 8px',
-              flexShrink: 0,
-            }}
-          >
-            <IconButton
-              size="sm"
-              variant="ghost"
-              icon="fas fa-chevron-left"
-              aria-label="Previous day"
-              title="Previous day"
-              style={{ width: 26, height: 26 }}
-              onClick={() => handleStepDate(-1)}
-            />
-            <span
+        <div className="chores-member-filter-bar">
+          {/* Day Navigation Row */}
+          <div className="chores-date-nav-row">
+            <div
+              className="chores-date-nav-pill"
               style={{
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: isToday ? '#f8fafc' : '#fbbf24',
-                padding: '0 4px',
-                minWidth: 96,
-                textAlign: 'center',
-                whiteSpace: 'nowrap',
-                userSelect: 'none',
-                display: 'inline-block',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'rgba(15, 23, 42, 0.65)',
+                border: isToday ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(245, 158, 11, 0.45)',
+                borderRadius: 'var(--radius-pill, 999px)',
+                padding: '2px 8px',
+                flexShrink: 0,
               }}
             >
-              {formattedDateLabel}
-            </span>
-            <IconButton
-              size="sm"
-              variant="ghost"
-              icon="fas fa-chevron-right"
-              aria-label="Next day"
-              title="Next day"
-              disabled={isToday}
-              style={{ width: 26, height: 26, opacity: isToday ? 0.35 : 1 }}
-              onClick={() => handleStepDate(1)}
-            />
-            {!isToday && (
-              <Button
+              <IconButton
                 size="sm"
                 variant="ghost"
-                onClick={() => setSelectedDate(todayDateStr)}
-                style={{ fontSize: '0.72rem', padding: '1px 8px', height: 22, borderRadius: 999, marginLeft: 2 }}
-              >
-                Today
-              </Button>
-            )}
-          </div>
-
-          <PillButton
-            onClick={() => setSelectedChorePersonId(null)}
-            icon="fas fa-users"
-            className="member-filter-pill member-filter-all"
-            title="All Family"
-            style={{
-              padding: '6px 14px',
-              border: !selectedPerson ? '2px solid var(--color-primary)' : '1px solid rgba(148,163,184,0.28)',
-              background: !selectedPerson ? 'var(--color-primary)' : 'rgba(15,23,42,0.45)',
-              color: !selectedPerson ? '#ffffff' : 'var(--cr-text-primary)',
-              fontWeight: 800,
-              fontSize: '0.9rem',
-              boxShadow: !selectedPerson ? '0 3px 12px rgba(59,130,246,0.35)' : 'none',
-            }}
-          >
-            All Family
-          </PillButton>
-
-          {family.map((person) => {
-            const pPending = activeChores.filter(
-              (c) =>
-                (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
-                !c.deleted &&
-                !c.completed &&
-                isChoreScheduledForDate(c, selectedDate)
-            ).length;
-            const isSelected = selectedPerson?.id === person.id;
-            return (
-              <PillButton
-                key={person.id}
-                onClick={() => setSelectedChorePersonId(isSelected ? null : person.id)}
-                className="member-filter-pill"
-                title={`${person.name} (${pPending > 0 ? `${pPending} left` : 'All done'})`}
+                icon="fas fa-chevron-left"
+                aria-label="Previous day"
+                title="Previous day"
+                style={{ width: 26, height: 26 }}
+                onClick={() => handleStepDate(-1)}
+              />
+              <span
                 style={{
-                  padding: '4px 12px 4px 6px',
-                  border: isSelected
-                    ? `2px solid ${person.color || '#60a5fa'}`
-                    : '1px solid rgba(148,163,184,0.28)',
-                  background: isSelected
-                    ? person.color || 'rgba(59,130,246,0.28)'
-                    : 'rgba(15,23,42,0.45)',
-                  color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
-                  fontWeight: 800,
-                  fontSize: '0.9rem',
-                  boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  color: isToday ? '#f8fafc' : '#fbbf24',
+                  padding: '0 4px',
+                  minWidth: 96,
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  userSelect: 'none',
+                  display: 'inline-block',
                 }}
               >
-                <UserAvatar
-                  avatar={person.avatar}
-                  name={person.name}
-                  color={person.color}
-                  size={26}
-                  borderWidth={1.5}
-                />
-                <span className="member-filter-name">{person.name}</span>
-                <span
-                  className="member-filter-badge"
+                {formattedDateLabel}
+              </span>
+              <IconButton
+                size="sm"
+                variant="ghost"
+                icon="fas fa-chevron-right"
+                aria-label="Next day"
+                title="Next day"
+                disabled={isToday}
+                style={{ width: 26, height: 26, opacity: isToday ? 0.35 : 1 }}
+                onClick={() => handleStepDate(1)}
+              />
+              {!isToday && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedDate(todayDateStr)}
+                  style={{ fontSize: '0.72rem', padding: '1px 8px', height: 22, borderRadius: 999, marginLeft: 2 }}
+                >
+                  Today
+                </Button>
+              )}
+            </div>
+
+            <IconButton
+              shape="circle"
+              variant={hideCompleted ? 'primary' : 'ghost'}
+              className={`shopping-toolbar-btn shopping-icon-btn chores-mobile-hide-toggle${hideCompleted ? ' active' : ''}`}
+              onClick={() => setHideCompleted(!hideCompleted)}
+              icon={hideCompleted ? 'fas fa-eye-slash' : 'fas fa-eye'}
+              aria-label={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
+              title={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
+            />
+          </div>
+
+          {/* Family Member Filter Pills Row */}
+          <div className="chores-family-pills-row">
+            <PillButton
+              onClick={() => setSelectedChorePersonId(null)}
+              icon="fas fa-users"
+              className="member-filter-pill member-filter-all"
+              title="All Family"
+              style={{
+                padding: '6px 14px',
+                border: !selectedPerson ? '2px solid var(--color-primary)' : '1px solid rgba(148,163,184,0.28)',
+                background: !selectedPerson ? 'var(--color-primary)' : 'rgba(15,23,42,0.45)',
+                color: !selectedPerson ? '#ffffff' : 'var(--cr-text-primary)',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+                boxShadow: !selectedPerson ? '0 3px 12px rgba(59,130,246,0.35)' : 'none',
+              }}
+            >
+              All Family
+            </PillButton>
+
+            {family.map((person) => {
+              const pPending = activeChores.filter(
+                (c) =>
+                  (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
+                  !c.deleted &&
+                  !c.completed &&
+                  isChoreScheduledForDate(c, effectiveDate)
+              ).length;
+              const isSelected = selectedPerson?.id === person.id;
+              return (
+                <PillButton
+                  key={person.id}
+                  onClick={() => setSelectedChorePersonId(isSelected ? null : person.id)}
+                  className="member-filter-pill"
+                  title={`${person.name} (${pPending > 0 ? `${pPending} left` : 'All done'})`}
                   style={{
-                    fontSize: '0.75rem',
-                    padding: '1px 7px',
-                    borderRadius: 'var(--radius-pill)',
-                    background: isSelected ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.12)',
-                    color: isSelected ? '#f8fafc' : '#cbd5e1',
+                    padding: '4px 12px 4px 6px',
+                    border: isSelected
+                      ? `2px solid ${person.color || '#60a5fa'}`
+                      : '1px solid rgba(148,163,184,0.28)',
+                    background: isSelected
+                      ? person.color || 'rgba(59,130,246,0.28)'
+                      : 'rgba(15,23,42,0.45)',
+                    color: isSelected ? '#0f172a' : 'var(--cr-text-primary)',
                     fontWeight: 800,
+                    fontSize: '0.9rem',
+                    boxShadow: isSelected ? '0 3px 12px rgba(0,0,0,0.28)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
                   }}
                 >
-                  {pPending > 0 ? `${pPending} left` : '✓'}
-                </span>
-              </PillButton>
-            );
-          })}
+                  <UserAvatar
+                    avatar={person.avatar}
+                    name={person.name}
+                    color={person.color}
+                    size={26}
+                    borderWidth={1.5}
+                  />
+                  <span className="member-filter-name">{person.name}</span>
+                  <span
+                    className="member-filter-badge"
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '1px 7px',
+                      borderRadius: 'var(--radius-pill)',
+                      background: isSelected ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.12)',
+                      color: isSelected ? '#f8fafc' : '#cbd5e1',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {pPending > 0 ? `${pPending} left` : '✓'}
+                  </span>
+                </PillButton>
+              );
+            })}
 
-          <IconButton
-            shape="circle"
-            variant={hideCompleted ? 'primary' : 'ghost'}
-            className={`shopping-toolbar-btn shopping-icon-btn${hideCompleted ? ' active' : ''}`}
-            style={{ marginLeft: 'auto', flexShrink: 0 }}
-            onClick={() => setHideCompleted(!hideCompleted)}
-            icon={hideCompleted ? 'fas fa-eye-slash' : 'fas fa-eye'}
-            aria-label={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
-            title={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
-          />
+            <IconButton
+              shape="circle"
+              variant={hideCompleted ? 'primary' : 'ghost'}
+              className={`shopping-toolbar-btn shopping-icon-btn chores-desktop-hide-toggle${hideCompleted ? ' active' : ''}`}
+              style={{ marginLeft: 'auto', flexShrink: 0 }}
+              onClick={() => setHideCompleted(!hideCompleted)}
+              icon={hideCompleted ? 'fas fa-eye-slash' : 'fas fa-eye'}
+              aria-label={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
+              title={hideCompleted ? 'Show Completed Chores' : 'Hide Completed Chores'}
+            />
+          </div>
         </div>
       }
     >
@@ -519,7 +537,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
               (c) =>
                 (c.assigned_to_id === selectedPerson.id || c.assigned_to === selectedPerson.name) &&
                 !c.deleted &&
-                isChoreScheduledForDate(c, selectedDate)
+                isChoreScheduledForDate(c, effectiveDate)
             );
             const pending = pChores.filter((c) => !c.completed);
             const completed = pChores.filter((c) => c.completed);
@@ -527,6 +545,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             const completeLabel = activeUser && activeUser.id === selectedPerson.id ? 'Complete' : `Complete for ${selectedPerson.name}`;
 
             if (visible.length === 0) {
+              if (isLoadingPast) {
+                return <div style={{ minHeight: 180 }} />;
+              }
               return (
                 <div className="no-chores-banner">
                   <div className="no-chores-emoji">🎉</div>
@@ -567,7 +588,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
               (c) =>
                 (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
                 !c.deleted &&
-                isChoreScheduledForDate(c, selectedDate)
+                isChoreScheduledForDate(c, effectiveDate)
             );
             const completeLabel = activeUser && activeUser.id === person.id ? 'Complete' : `Complete for ${person.name}`;
 
@@ -583,6 +604,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 completeBtnLabel={completeLabel}
                 flippedChores={flippedChores}
                 availableExtraChores={availableExtraChores}
+                isLoading={isLoadingPast}
                 onOpenProfile={handleOpenProfile}
                 onSelectPerson={(pid) => setSelectedChorePersonId(pid)}
                 onEditName={(p) => {

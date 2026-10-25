@@ -5611,4 +5611,66 @@ body.cr-modal-open {
   }
 }
 
+/* Chores Toolbar Responsive Layout (2 rows on mobile) */
+.chores-member-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.chores-date-nav-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chores-family-pills-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  overflow-x: auto;
+}
+
+.chores-mobile-hide-toggle {
+  display: none !important;
+}
+
+.chores-desktop-hide-toggle {
+  display: inline-flex !important;
+}
+
+@media (max-width: 768px) {
+  .chores-member-filter-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .chores-date-nav-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  .chores-family-pills-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    width: 100% !important;
+    padding-bottom: 2px !important;
+  }
+  .chores-mobile-hide-toggle {
+    display: inline-flex !important;
+  }
+  .chores-desktop-hide-toggle {
+    display: none !important;
+  }
+}
+
+
 

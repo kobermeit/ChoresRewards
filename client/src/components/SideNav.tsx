@@ -42,7 +42,7 @@ export const SideNav: React.FC = () => {
         <button
           type="button"
           className={`side-nav-btn ${activeView === 'chores' ? 'side-nav-active' : ''}`}
-          title="Family Members Chores"
+          title="Family Chores"
           onClick={() => setActiveView('chores')}
         >
           <i className="fas fa-house" />
