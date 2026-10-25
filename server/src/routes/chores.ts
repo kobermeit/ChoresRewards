@@ -338,7 +338,7 @@ choresRouter.post(
 choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) => {
   try {
     const data = req.body || {};
-    const choreId = Number(data.chore_id);
+    const choreId = Number(data.chore_id || data.id);
     const permanent = formFlagIsTrue(data.permanent);
     if (!choreId) {
       res.status(400).json({ success: false, error: 'Chore ID is required' });
@@ -407,7 +407,7 @@ choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, (req: Req
 choresRouter.post('/edit_daily_chore', requireAdult, (req: Request, res: Response) => {
   try {
     const data = req.body || {};
-    const choreId = Number(data.chore_id);
+    const choreId = Number(data.chore_id || data.id);
     const chore = db.prepare('SELECT * FROM chore WHERE id = ? AND is_daily = 1').get(choreId) as any;
     if (!chore) {
       res.status(404).json({ success: false, error: 'Daily chore not found' });

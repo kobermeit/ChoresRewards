@@ -12,9 +12,12 @@ export interface ItemCardProps {
   heroHeight?: number;
   pointsBadge?: React.ReactNode;
   statusBadges?: React.ReactNode;
+  metadata?: React.ReactNode;
   progress?: React.ReactNode;
   primaryAction?: React.ReactNode;
+  actions?: React.ReactNode;
   secondaryActions?: React.ReactNode;
+  headerAction?: React.ReactNode;
   isOverdue?: boolean;
   isCompleted?: boolean;
   accentColor?: string | null;
@@ -33,9 +36,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   heroHeight = 110,
   pointsBadge,
   statusBadges,
+  metadata,
   progress,
   primaryAction,
+  actions,
   secondaryActions,
+  headerAction,
   isOverdue = false,
   isCompleted = false,
   accentColor,
@@ -43,6 +49,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   style = {},
   onClick,
 }) => {
+  const effectivePrimaryAction = primaryAction || actions;
+  const effectiveSecondaryActions = secondaryActions || headerAction;
+  const effectiveStatusBadges = statusBadges || metadata;
+
   const circleSize = Math.max(56, Math.min(84, Math.round(heroHeight * 0.68)));
   const emojiSize = heroHeight <= 100 ? '2.5rem' : '3.3rem';
 
@@ -150,7 +160,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Left Status / Tags Badges */}
-        {statusBadges && (
+        {effectiveStatusBadges && (
           <div
             className="cr-item-card-status-badges"
             style={{
@@ -163,7 +173,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               zIndex: 2,
             }}
           >
-            {statusBadges}
+            {effectiveStatusBadges}
           </div>
         )}
       </div>
@@ -198,7 +208,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               {title}
             </h3>
 
-            {secondaryActions && (
+            {effectiveSecondaryActions && (
               <div
                 className="cr-item-card-secondary-actions"
                 style={{
@@ -208,7 +218,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   flexShrink: 0,
                 }}
               >
-                {secondaryActions}
+                {effectiveSecondaryActions}
               </div>
             )}
           </div>
@@ -248,7 +258,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         </div>
 
         {/* Bottom Actions Row */}
-        {primaryAction && (
+        {effectivePrimaryAction && (
           <div
             className="cr-item-card-actions"
             style={{
@@ -261,7 +271,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               width: '100%',
             }}
           >
-            <div style={{ flex: 1, minWidth: 0 }}>{primaryAction}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>{effectivePrimaryAction}</div>
           </div>
         )}
       </div>
