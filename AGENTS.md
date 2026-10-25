@@ -110,7 +110,8 @@ choresrewards/
 - **Sleep Sequence Order**: When asked to put the PC to sleep, ALWAYS send your final complete summary / status message to the user FIRST so they can read what was done. Only after the final response has been delivered should the OS sleep command be executed (e.g. giving a slight delay or executing as the final action after messaging), never cutting off or suspending mid-turn before the user sees the summary.
 
 ## Versioning Protocol
-- **Only increment version on deploy/push**: Do NOT bump versions multiple times during local development. Only increment when preparing to deploy/push to git, and use a single bump (e.g., `1.2.0` -> `1.2.1` or `1.3.0` depending on release scope).
+- **Strict Deploy Command Requirement (NEVER Deploy Automatically)**: NEVER bump versions, push commits, or deploy unless the user EXPLICITLY uses the word `"deploy"` or commands `"deploy this"`. Standard feedback, feature requests, or UI bug fixes are strictly local development work until the user explicitly commands a deploy.
+- **Only increment version on deploy/push**: Do NOT bump versions multiple times during local development. Only increment when preparing to deploy/push to git upon user request, and use a single bump (e.g., `1.2.0` -> `1.2.1` or `1.3.0` depending on release scope).
 - **Update All 4 Version Files in Lockstep**: When bumping versions, you MUST update all 4 of these files together:
   1. `choresrewards/config.yaml` (`version: "X.Y.Z"`) — **CRITICAL**: Home Assistant Supervisor reads this exact file to detect updates in HAOS. If omitted, Home Assistant will report "No updates available".
   2. `package.json` (Root workspace `version`)
