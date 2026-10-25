@@ -65,6 +65,83 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const family: Person[] = data?.family || [];
   const isCash = Boolean(data?.config?.is_cash_mode);
 
+  // Day Navigation state (past days completion support)
+  const todayDateStr = data?.current_date || new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
+  const [pastChores, setPastChores] = useState<Chore[] | null>(null);
+  const [isLoadingPast, setIsLoadingPast] = useState(false);
+
+  useEffect(() => {
+    if (data?.current_date && selectedDate === todayDateStr) {
+      setSelectedDate(data.current_date);
+    }
+  }, [data?.current_date]);
+
+  const shiftDate = (baseIso: string, offsetDays: number): string => {
+    const [y, m, d] = baseIso.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d + offsetDays));
+    return date.toISOString().slice(0, 10);
+  };
+
+  const isToday = selectedDate === todayDateStr;
+  const yesterdayDateStr = shiftDate(todayDateStr, -1);
+  const isYesterday = selectedDate === yesterdayDateStr;
+
+  const formattedDateLabel = useMemo(() => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    // Consistent 3-character format across all days (e.g. "Sun 25 Oct", "Sat 24 Oct", "Mon 19 Oct")
+    return dateObj.toLocaleDateString('en-GB', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  }, [selectedDate]);
+
+  const handleStepDate = (direction: -1 | 1) => {
+    if (direction === 1 && isToday) return;
+    const newDate = shiftDate(selectedDate, direction);
+    if (direction === 1 && newDate > todayDateStr) return;
+    setSelectedDate(newDate);
+  };
+
+  const loadPastChores = async (targetDate: string) => {
+    const startTime = Date.now();
+    setIsLoadingPast(true);
+    try {
+      const res = await apiGet<{ success: boolean; chores: Chore[] }>(`get_chores?date=${targetDate}`);
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 300) {
+        await new Promise((r) => setTimeout(r, 300 - elapsed));
+      }
+      if (res?.chores) {
+        setPastChores(res.chores);
+      }
+    } catch (err) {
+      console.error('Failed to load past chores', err);
+    } finally {
+      setIsLoadingPast(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isToday) {
+      loadPastChores(selectedDate);
+    } else {
+      if (pastChores !== null) {
+        setIsLoadingPast(true);
+        const timer = setTimeout(() => {
+          setPastChores(null);
+          setIsLoadingPast(false);
+        }, 250);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [selectedDate, isToday]);
+
+  const activeChores: Chore[] = isToday ? chores : (pastChores || []);
+
   const selectedPerson = useMemo(() => {
     if (!selectedChorePersonId) return null;
     return family.find((f) => f.id === selectedChorePersonId) || null;
@@ -73,7 +150,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const overdueIds = useMemo(() => {
     const set = new Set<number>();
     const now = new Date();
-    chores.forEach((c) => {
+    activeChores.forEach((c) => {
       if (!c.completed && c.due_datetime) {
         const d = new Date(c.due_datetime.replace(' ', 'T'));
         if (!isNaN(d.getTime()) && d < now) {
@@ -82,7 +159,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
       }
     });
     return set;
-  }, [chores]);
+  }, [activeChores]);
 
   const toggleChoreFlip = (choreId: number, flip?: boolean) => {
     setFlippedChores((prev) => ({
@@ -91,12 +168,20 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     }));
   };
 
-  const handleCompleteChore = async (chore: Chore, person: Person) => {
+  const handleCompleteChore = async (
+    chore: Chore,
+    person: Person,
+    meta?: { actual_seconds?: number; target_seconds?: number; timer_status?: string }
+  ) => {
     stopChoreTimer(chore.id);
     setFlippedChores((prev) => ({ ...prev, [chore.id]: false }));
     try {
       const res = await apiPost<{ success: boolean; earned_badges?: any[]; all_done?: boolean }>('complete_chore', {
         chore_id: chore.id,
+        for_date: selectedDate,
+        actual_seconds: meta?.actual_seconds ?? 0,
+        target_seconds: meta?.target_seconds ?? chore.duration_seconds ?? null,
+        timer_status: meta?.timer_status,
       });
 
       if (res.success) {
@@ -121,6 +206,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             .catch(() => {});
         }
 
+        if (!isToday) {
+          loadPastChores(selectedDate);
+        }
         await refresh();
       }
     } catch (err: any) {
@@ -130,7 +218,10 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
 
   const handleUndoChore = async (choreId: number) => {
     try {
-      await apiPost('undo_complete_chore', { chore_id: choreId });
+      await apiPost('undo_complete_chore', { chore_id: choreId, for_date: selectedDate });
+      if (!isToday) {
+        loadPastChores(selectedDate);
+      }
       await refresh();
     } catch (err: any) {
       showToast(err?.message || 'Failed to undo chore', { type: 'error' });
@@ -248,6 +339,65 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             width: '100%',
           }}
         >
+          {/* Day Navigation */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'rgba(15, 23, 42, 0.65)',
+              border: isToday ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(245, 158, 11, 0.45)',
+              borderRadius: 'var(--radius-pill, 999px)',
+              padding: '2px 8px',
+              flexShrink: 0,
+            }}
+          >
+            <IconButton
+              size="sm"
+              variant="ghost"
+              icon="fas fa-chevron-left"
+              aria-label="Previous day"
+              title="Previous day"
+              style={{ width: 26, height: 26 }}
+              onClick={() => handleStepDate(-1)}
+            />
+            <span
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                color: isToday ? '#f8fafc' : '#fbbf24',
+                padding: '0 4px',
+                minWidth: 96,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                userSelect: 'none',
+                display: 'inline-block',
+              }}
+            >
+              {formattedDateLabel}
+            </span>
+            <IconButton
+              size="sm"
+              variant="ghost"
+              icon="fas fa-chevron-right"
+              aria-label="Next day"
+              title="Next day"
+              disabled={isToday}
+              style={{ width: 26, height: 26, opacity: isToday ? 0.35 : 1 }}
+              onClick={() => handleStepDate(1)}
+            />
+            {!isToday && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedDate(todayDateStr)}
+                style={{ fontSize: '0.72rem', padding: '1px 8px', height: 22, borderRadius: 999, marginLeft: 2 }}
+              >
+                Today
+              </Button>
+            )}
+          </div>
+
           <PillButton
             onClick={() => setSelectedChorePersonId(null)}
             icon="fas fa-users"
@@ -267,12 +417,12 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
           </PillButton>
 
           {family.map((person) => {
-            const pPending = chores.filter(
+            const pPending = activeChores.filter(
               (c) =>
                 (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
                 !c.deleted &&
                 !c.completed &&
-                isChoreScheduledForDate(c, data?.current_date)
+                isChoreScheduledForDate(c, selectedDate)
             ).length;
             const isSelected = selectedPerson?.id === person.id;
             return (
@@ -336,14 +486,40 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         </div>
       }
     >
-      {selectedPerson ? (
+      <div style={{ position: 'relative', minHeight: 280 }}>
+        {isLoadingPast && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              borderRadius: 14,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              pointerEvents: 'none',
+              animation: 'fadeIn 0.15s ease',
+            }}
+          >
+            <i className="fas fa-circle-notch fa-spin" style={{ fontSize: '2rem', color: '#38bdf8' }} />
+            <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc', letterSpacing: '0.02em' }}>
+              Loading {formattedDateLabel}…
+            </span>
+          </div>
+        )}
+
+        {selectedPerson ? (
         <div className="single-person-chore-view">
           {(() => {
-            const pChores = chores.filter(
+            const pChores = activeChores.filter(
               (c) =>
                 (c.assigned_to_id === selectedPerson.id || c.assigned_to === selectedPerson.name) &&
                 !c.deleted &&
-                isChoreScheduledForDate(c, data?.current_date)
+                isChoreScheduledForDate(c, selectedDate)
             );
             const pending = pChores.filter((c) => !c.completed);
             const completed = pChores.filter((c) => c.completed);
@@ -387,11 +563,11 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
       ) : (
         <div id="kanban">
           {family.map((person) => {
-            const personChores = chores.filter(
+            const personChores = activeChores.filter(
               (c) =>
                 (c.assigned_to_id === person.id || c.assigned_to === person.name) &&
                 !c.deleted &&
-                isChoreScheduledForDate(c, data?.current_date)
+                isChoreScheduledForDate(c, selectedDate)
             );
             const completeLabel = activeUser && activeUser.id === person.id ? 'Complete' : `Complete for ${person.name}`;
 
@@ -427,6 +603,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
           })}
         </div>
       )}
+      </div>
 
       {/* Edit Person Name Modal */}
       <Modal

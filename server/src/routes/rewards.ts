@@ -7,6 +7,7 @@ import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
 import { getAppTimezone, getLocalNowNaive, getFamilyToday, formatDateInTz, getConfiguredTimezone } from '../utils/time';
 import { sendGotifyNotification } from '../services/gotify';
+import { scrapeRewardUrl } from '../services/scraper';
 
 const rewardUpload = multer({
   storage: multer.diskStorage({
@@ -28,7 +29,7 @@ const rewardUpload = multer({
 export const rewardsRouter = Router();
 
 rewardsRouter.post(
-  '/add_reward',
+  ['/add_reward', '/rewards/add_reward'],
   rewardUpload.fields([
     { name: 'reward_image_file', maxCount: 1 },
     { name: 'image', maxCount: 1 },
@@ -63,13 +64,15 @@ rewardsRouter.post(
       const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any);
       const finalAssignee = isEveryone ? 'Everyone' : (person ? person.name : assignedTo);
       const isRecurring = data.is_recurring === undefined || data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1';
+      const sourceUrl = data.source_url ? String(data.source_url).trim() : null;
+      const sourceName = data.source_name ? String(data.source_name).trim() : null;
 
       const info = db
         .prepare(
-          `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, is_recurring)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?)`
+          `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, is_recurring, source_url, source_name)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
         )
-        .run(title, pointsRequired, finalImageUrl, description, person ? person.id : null, finalAssignee, isRecurring ? 1 : 0);
+        .run(title, pointsRequired, finalImageUrl, description, person ? person.id : null, finalAssignee, isRecurring ? 1 : 0, sourceUrl, sourceName);
 
       logActivity(
         'reward_added',
@@ -101,7 +104,7 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post('/edit_reward', (req: Request, res: Response) => {
+rewardsRouter.post(['/edit_reward', '/rewards/edit_reward'], (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const rewardId = Number(data.reward_id ?? data.id);
@@ -126,14 +129,31 @@ rewardsRouter.post('/edit_reward', (req: Request, res: Response) => {
     const isRecurring = data.is_recurring !== undefined
       ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1' ? 1 : 0)
       : (reward.is_recurring !== 0 ? 1 : 0);
+    const sourceUrl = data.source_url !== undefined ? (data.source_url ? String(data.source_url).trim() : null) : reward.source_url;
+    const sourceName = data.source_name !== undefined ? (data.source_name ? String(data.source_name).trim() : null) : reward.source_name;
 
     db.prepare(
-      'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ? WHERE id = ?'
-    ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, rewardId);
+      'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ?, source_url = ?, source_name = ? WHERE id = ?'
+    ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, sourceUrl, sourceName, rewardId);
 
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+rewardsRouter.post(['/import_url', '/rewards/import_url'], async (req: Request, res: Response) => {
+  try {
+    const rawUrl = String(req.body?.url || '').trim();
+    if (!rawUrl || !rawUrl.startsWith('http')) {
+      res.status(400).json({ success: false, error: 'Valid HTTP/HTTPS URL is required' });
+      return;
+    }
+    const pointValue = parseFloat(AppSetting.get('point_value') || '0.50') || 0.50;
+    const scraped = await scrapeRewardUrl(rawUrl, pointValue);
+    res.json({ success: true, ...scraped });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Error importing reward from URL' });
   }
 });
 
@@ -171,7 +191,7 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post('/delete_reward', (req: Request, res: Response) => {
+rewardsRouter.post(['/delete_reward', '/rewards/delete_reward'], (req: Request, res: Response) => {
   try {
     const rewardId = Number(req.body?.reward_id);
     if (!rewardId) {

@@ -66,19 +66,48 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
             }}
           >
             <span style={{ fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>💡</span>
-            <span
-              className="meal-kanban-card-title"
+            <div
               style={{
-                fontSize: '0.84rem',
-                color: '#fbbf24',
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: 0,
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                fontWeight: 700,
+                flex: 1,
+                lineHeight: 1.2,
+                textAlign: 'left',
               }}
             >
-              {suggestedTitle}
-            </span>
+              <span
+                className="meal-kanban-card-title"
+                style={{
+                  fontSize: '0.84rem',
+                  color: '#fbbf24',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  whiteSpace: 'normal',
+                  fontWeight: 700,
+                  textAlign: 'left',
+                }}
+              >
+                {suggestedTitle}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  color: 'rgba(251, 191, 36, 0.75)',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'left',
+                }}
+              >
+                Suggested meal
+              </span>
+            </div>
           </div>
         ) : (
           dayCards.map((card) => {
@@ -102,6 +131,11 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
                       src={resolveAssetUrl(customImg)}
                       alt=""
                       fallbackEmoji={getMealEmoji(card.title)}
+                      fallbackContent={
+                        <span style={{ fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>
+                          {getMealEmoji(card.title)}
+                        </span>
+                      }
                       style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
                     />
                   ) : (
@@ -116,7 +150,7 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
                       minWidth: 0,
                       overflow: 'hidden',
                       flex: 1,
-                      lineHeight: 1.15,
+                      lineHeight: 1.2,
                     }}
                   >
                     <span
@@ -124,9 +158,13 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
                       style={{
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        whiteSpace: 'normal',
                         fontWeight: 600,
                         fontSize: '0.82rem',
+                        lineHeight: 1.25,
                       }}
                     >
                       {card.title}

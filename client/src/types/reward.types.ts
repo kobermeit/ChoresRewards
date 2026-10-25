@@ -9,4 +9,6 @@ export interface Reward {
   completed: boolean;
   date_completed: string | null;
   is_recurring?: boolean;
+  source_url?: string | null;
+  source_name?: string | null;
 }

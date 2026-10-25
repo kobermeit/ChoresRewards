@@ -185,7 +185,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
             ? `linear-gradient(135deg, ${seasonAccent}24 0%, var(--cr-header-bg-2) 100%)`
             : 'linear-gradient(135deg, var(--cr-header-bg-1) 0%, var(--cr-header-bg-2) 100%)',
           padding: '0.4rem 1.1rem',
-          borderRadius: '14px 14px 0 0',
+          borderRadius: 0,
           borderBottom: isThemed
             ? `1px solid ${seasonAccent}55`
             : '1px solid var(--cr-surface-border)',

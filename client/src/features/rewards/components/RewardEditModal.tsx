@@ -55,6 +55,12 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Link import & source states
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [formSourceUrl, setFormSourceUrl] = useState('');
+  const [formSourceName, setFormSourceName] = useState('');
+
   useEffect(() => {
     if (editingReward) {
       setFormTitle(editingReward.title);
@@ -64,8 +70,11 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
       setFormDescription(editingReward.description || '');
       setFormImageUrl(editingReward.image_url || null);
       setImagePreview(editingReward.image_url ? resolveAssetUrl(editingReward.image_url) : null);
+      setFormSourceUrl(editingReward.source_url || '');
+      setFormSourceName(editingReward.source_name || '');
       setFormImageFile(null);
       setFormError(null);
+      setImportUrl('');
     } else {
       setFormTitle('');
       setFormPoints(isCash ? '2' : '10');
@@ -74,8 +83,11 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
       setFormDescription('');
       setFormImageUrl(null);
       setImagePreview(null);
+      setFormSourceUrl('');
+      setFormSourceName('');
       setFormImageFile(null);
       setFormError(null);
+      setImportUrl('');
     }
   }, [editingReward, isCash, open]);
 
@@ -93,6 +105,50 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
     setFormImageFile(file);
     setFormImageUrl(null);
     setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleImportLink = async () => {
+    const raw = importUrl.trim();
+    if (!raw) return;
+    if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+      setFormError('Please enter a valid link starting with http:// or https://');
+      return;
+    }
+
+    setIsImporting(true);
+    setFormError(null);
+
+    try {
+      const res = await apiPost<{
+        success: boolean;
+        title: string;
+        description: string;
+        image_url: string | null;
+        price: number | null;
+        points: number;
+        source_url: string;
+        source_name: string;
+      }>('api/rewards/import_url', { url: raw });
+
+      if (res?.success) {
+        if (res.title) setFormTitle(res.title);
+        if (res.description) setFormDescription(res.description);
+        if (res.points) setFormPoints(String(res.points));
+        if (res.image_url) {
+          setFormImageUrl(res.image_url);
+          setImagePreview(res.image_url);
+          setFormImageFile(null);
+        }
+        setFormSourceUrl(res.source_url || raw);
+        setFormSourceName(res.source_name || '');
+        setImportUrl('');
+        showToast(`Imported details from ${res.source_name || 'link'}!`, { type: 'success' });
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Could not import product details from link');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleSaveModal = async (e: React.FormEvent) => {
@@ -117,6 +173,8 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
         is_recurring: formIsRecurring ? 1 : 0,
         description: formDescription.trim(),
         image_url: formImageUrl || null,
+        source_url: formSourceUrl.trim() || null,
+        source_name: formSourceName.trim() || null,
       };
 
       if (editingReward) {
@@ -177,6 +235,53 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
       <FormGrid onSubmit={handleSaveModal}>
         <FormField colSpan={12}>
           <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+        </FormField>
+
+        {/* Link Importer Bar */}
+        <FormField colSpan={12}>
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 12,
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px dashed rgba(56, 189, 248, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8' }}>
+                <i className="fas fa-magic" style={{ marginRight: 6 }} />
+                Import from Product Link (Amazon, Target, Kmart, LEGO...)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input
+                inputSize="sm"
+                placeholder="Paste Amazon, Target, Kmart link to auto-fill..."
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleImportLink();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                icon="fas fa-file-import"
+                disabled={!importUrl.trim()}
+                isLoading={isImporting}
+                onClick={handleImportLink}
+              >
+                Import
+              </Button>
+            </div>
+          </div>
         </FormField>
 
         {/* Title */}
@@ -251,6 +356,18 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
               </span>
             </label>
           </div>
+        </FormField>
+
+        {/* Source Link (Optional) */}
+        <FormField colSpan={12}>
+          <Input
+            label="Product Link / Store URL (Optional)"
+            type="url"
+            placeholder="https://www.amazon.com.au/..."
+            value={formSourceUrl}
+            onChange={(e) => setFormSourceUrl(e.target.value)}
+            helperText="A link button will appear on the reward card allowing you to open the store page directly."
+          />
         </FormField>
 
         {/* Description */}

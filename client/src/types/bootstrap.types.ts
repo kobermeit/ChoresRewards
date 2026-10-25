@@ -13,6 +13,7 @@ export interface BootstrapData {
   current_date: string;
   timezone: string;
   reward_system: 'points' | 'cash';
+  point_value?: number;
   master_pin_set: boolean;
   auth: {
     authenticated: boolean;

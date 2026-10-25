@@ -491,6 +491,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
         allLibraryRecipes={allLibraryRecipes}
         recipesRecord={recipesRecord}
         mealImages={mealImages}
+        family={data?.family || []}
         onSave={handleSaveMealCard}
       />
     </PageContainer>

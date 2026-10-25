@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal } from '../../../components/common/Modal';
-import { Button, IconButton } from '../../../components/ui';
+import { Button } from '../../../components/ui';
 import { RecipeItem } from '../../../types';
 
 export interface RecipeViewModalProps {
@@ -22,6 +22,14 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
 }) => {
   if (!recipe) return null;
 
+  const dayLabel = useMemo(() => {
+    const iso = (recipe as any)?._dateIso;
+    if (!iso) return 'day';
+    const [y, m, d] = String(iso).split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    return dateObj.toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long' });
+  }, [(recipe as any)?._dateIso]);
+
   return (
     <Modal
       open={Boolean(recipe)}
@@ -41,19 +49,19 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
           </Button>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {(recipe as any)._cardId && (recipe as any)._dateIso && !isChild && onDeleteCard && (
-              <IconButton
+              <Button
                 size="sm"
-                variant="danger"
-                icon="fas fa-trash-alt"
-                aria-label="Remove meal from day"
-                title="Remove meal from this day"
+                variant="secondary"
+                icon="fas fa-calendar-minus"
                 onClick={async () => {
                   const dateIso = (recipe as any)._dateIso;
                   const cardId = (recipe as any)._cardId;
                   onClose();
                   await onDeleteCard(dateIso, cardId);
                 }}
-              />
+              >
+                Remove from {dayLabel}
+              </Button>
             )}
             {!recipe.notion_id && !isChild && (
               <Button
@@ -82,8 +90,8 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
           flexDirection: 'column',
           gap: 12,
           height: 'calc(80vh - 140px)',
-          maxHeight: 600,
-          minHeight: 380,
+          maxHeight: 620,
+          minHeight: 400,
           overflow: 'hidden',
         }}
       >
@@ -115,12 +123,12 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
           </div>
         </div>
 
-        {/* Side-by-side columns: Ingredients & Method */}
+        {/* Side-by-side columns: Ingredients & Method (Flat, Full Height) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(220px, 270px) 1fr',
-            gap: 16,
+            gridTemplateColumns: 'minmax(240px, 300px) 1fr',
+            gap: 20,
             flex: 1,
             minHeight: 0,
             overflow: 'hidden',
@@ -131,16 +139,13 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
             style={{
               display: 'flex',
               flexDirection: 'column',
-              background: 'rgba(15, 23, 42, 0.45)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 12,
-              padding: '12px 14px',
               minHeight: 0,
+              height: '100%',
               overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
-              <strong style={{ fontSize: '0.88rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div style={{ marginBottom: 10, flexShrink: 0 }}>
+              <strong style={{ fontSize: '0.84rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Ingredients ({(recipe.ingredients || []).length})
               </strong>
             </div>
@@ -150,7 +155,7 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                 flex: 1,
                 overflowY: 'auto',
                 minHeight: 0,
-                paddingRight: 4,
+                paddingRight: 6,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
@@ -170,10 +175,10 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: 8,
-                      padding: '6px 8px',
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: 6,
-                      border: '1px solid rgba(255, 255, 255, 0.04)',
+                      padding: '8px 10px',
+                      background: 'rgba(30, 41, 59, 0.55)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
                     }}
                   >
                     <span
@@ -184,7 +189,7 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        maxWidth: 170,
+                        maxWidth: 190,
                       }}
                     >
                       {ing.name}
@@ -213,16 +218,13 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
             style={{
               display: 'flex',
               flexDirection: 'column',
-              background: 'rgba(15, 23, 42, 0.45)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: 12,
-              padding: '12px 16px',
               minHeight: 0,
+              height: '100%',
               overflow: 'hidden',
             }}
           >
-            <div style={{ marginBottom: 8, flexShrink: 0 }}>
-              <strong style={{ fontSize: '0.88rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <div style={{ marginBottom: 10, flexShrink: 0 }}>
+              <strong style={{ fontSize: '0.84rem', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Instructions / Method
               </strong>
             </div>
@@ -233,7 +235,7 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                 flex: 1,
                 overflowY: 'auto',
                 minHeight: 0,
-                paddingRight: 6,
+                paddingRight: 8,
                 fontSize: '0.92rem',
                 lineHeight: 1.6,
                 color: '#e2e8f0',

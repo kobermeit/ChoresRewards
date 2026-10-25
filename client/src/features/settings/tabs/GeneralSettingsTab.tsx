@@ -16,6 +16,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   const [tz, setTz] = useState('Australia/Brisbane');
   const [dailyResetHour, setDailyResetHour] = useState('0');
   const [rewardSys, setRewardSys] = useState<'points' | 'cash'>('points');
+  const [pointValue, setPointValue] = useState('0.50');
   const [weatherLoc, setWeatherLoc] = useState('');
   const [masterPin, setMasterPin] = useState('');
   const [lastDailyReset, setLastDailyReset] = useState<string | null>(null);
@@ -25,6 +26,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
       setTz(initialSettings.timezone || 'Australia/Brisbane');
       setDailyResetHour(String(initialSettings.daily_reset_hour ?? 0));
       setRewardSys(initialSettings.reward_system || 'points');
+      setPointValue(String(initialSettings.point_value ?? (data?.point_value ?? '0.50')));
       setWeatherLoc(initialSettings.weather?.location_name || '');
       setLastDailyReset(initialSettings.last_daily_reset || null);
     } else {
@@ -33,12 +35,13 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
           setTz(res.timezone || 'Australia/Brisbane');
           setDailyResetHour(String(res.daily_reset_hour ?? 0));
           setRewardSys(res.reward_system || 'points');
+          setPointValue(String(res.point_value ?? (data?.point_value ?? '0.50')));
           setWeatherLoc(res.weather?.location_name || '');
           setLastDailyReset(res.last_daily_reset || null);
         }
       }).catch(() => {});
     }
-  }, [initialSettings]);
+  }, [initialSettings, data?.point_value]);
 
   const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +49,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
       await apiPost('save_timezone', { timezone: tz });
       await apiPost('save_reset_hour', { daily_reset_hour: parseInt(dailyResetHour, 10) || 0 });
       await apiPost('save_reward_system', { reward_system: rewardSys });
+      await apiPost('save_settings', { point_value: parseFloat(pointValue) || 0.50 });
       if (weatherLoc.trim()) {
         await apiPost('save_weather_settings', { location_name: weatherLoc.trim() });
       }
@@ -181,6 +185,17 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
           <option value="points">⭐ Points System</option>
           <option value="cash">💵 Cash / Pocket Money ($)</option>
         </Select>
+
+        <Input
+          label="Reward Point Dollar Value ($)"
+          type="number"
+          step="0.05"
+          min="0.01"
+          placeholder="0.50"
+          value={pointValue}
+          onChange={(e) => setPointValue(e.target.value)}
+          helperText="Defines the monetary value of 1 point (e.g. 0.50 means 1 pt = $0.50). When importing rewards from Amazon/web links, points are automatically calculated from price divided by this value."
+        />
 
         <Input
           label="Weather City / Suburb (Open-Meteo)"

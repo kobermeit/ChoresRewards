@@ -8,7 +8,7 @@ interface ChoreTimerCardBackProps {
   chore: Chore;
   person?: Person;
   onFlipBack: () => void;
-  onComplete: () => void;
+  onComplete: (meta?: { actual_seconds?: number; target_seconds?: number; timer_status?: string }) => void;
 }
 
 /**
@@ -39,6 +39,20 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   const secs = remaining % 60;
   const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   const caption = remaining === 0 ? 'Time Up!' : isRunning ? 'Active' : 'Paused';
+
+  const handleDoneClick = () => {
+    const actualSeconds = timer ? Math.max(0, total - remaining) : 0;
+    const status = !timer || actualSeconds === 0
+      ? 'skipped'
+      : (remaining === 0 ? 'timer_expired' : 'completed_early');
+
+    stopChoreTimer(chore.id);
+    onComplete({
+      actual_seconds: actualSeconds,
+      target_seconds: total,
+      timer_status: status,
+    });
+  };
 
   return (
     <CardShell borderColor={timerColor} className="cr-chore-timer-card-back">
@@ -109,10 +123,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
             icon="fas fa-check"
             fullWidth
             className="btn-complete-chore"
-            onClick={() => {
-              stopChoreTimer(chore.id);
-              onComplete();
-            }}
+            onClick={handleDoneClick}
           >
             {isCompletedForAnother ? `Done for ${person?.name}` : 'Done'}
           </Button>

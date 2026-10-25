@@ -91,6 +91,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       completed: Boolean(r.completed),
       date_completed: r.date_completed || null,
       is_recurring: r.is_recurring !== 0 && r.is_recurring !== false,
+      source_url: r.source_url || null,
+      source_name: r.source_name || null,
     }));
 
     const weekStart = getMondayOfWeek(familyToday);
@@ -226,6 +228,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       current_date: familyToday,
       timezone: getAppTimezone(),
       reward_system: AppSetting.getRewardSystem(),
+      point_value: parseFloat(AppSetting.get('point_value') || '0.50') || 0.50,
       master_pin_set: masterPinSet,
       auth: {
         authenticated: !masterPinSet ? true : Boolean(req.session?.authenticated),
@@ -429,6 +432,10 @@ function handleSetupPost(req: Request, res: Response) {
     if (body.daily_reset_hour !== undefined) {
       const hr = Math.max(0, Math.min(23, parseInt(String(body.daily_reset_hour ?? '0'), 10) || 0));
       AppSetting.set('daily_reset_hour', String(hr));
+    }
+    if (body.point_value !== undefined) {
+      const pv = Math.max(0.01, parseFloat(String(body.point_value)) || 0.50);
+      AppSetting.set('point_value', String(pv));
     }
 
     if (req.session) {

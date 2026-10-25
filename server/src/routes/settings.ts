@@ -178,6 +178,7 @@ function handleGetSettings(_req: Request, res: Response) {
   res.json({
     success: true,
     reward_system: AppSetting.getRewardSystem(),
+    point_value: parseFloat(AppSetting.get('point_value') || '0.50') || 0.50,
     master_pin_set: Boolean(AppSetting.get('master_pin')),
     bonus_mode: AppSetting.get('bonus_mode', 'static') || 'static',
     bonus_static: AppSetting.get('bonus_static', '10') || '10',
@@ -246,6 +247,12 @@ function handleSettingsPost(req: Request, res: Response) {
     if ('reward_system' in data) {
       AppSetting.setRewardSystem(String(data.reward_system));
       logActivity('settings_updated', `Reward system changed to ${data.reward_system}`);
+    }
+
+    if ('point_value' in data) {
+      const pv = Math.max(0.01, parseFloat(String(data.point_value)) || 0.50);
+      AppSetting.set('point_value', String(pv));
+      logActivity('settings_updated', `Point value changed to $${pv}`);
     }
 
     if ('bonus_mode' in data) {

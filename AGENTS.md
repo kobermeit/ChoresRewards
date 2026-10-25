@@ -118,6 +118,13 @@ choresrewards/
   4. `server/package.json` (Backend server `version`)
 - **Always build production bundles before push**: Run `npm run build` (`npm run build:client` + `npm run build:server`) before committing.
 
+## Shared Branch Collaboration & Git Pull Protocol
+- **Single-Branch Shared Workstation Protocol**: When multiple workstations (or users) are developing on the same branch (e.g. `main`) without Pull Requests:
+  - **Always Pull Before Starting**: At the start of every session or task, check for incoming remote commits via `git pull --rebase origin main` (or `git fetch origin main`).
+  - **Always Pull Before Pushing**: Right before pushing commits, run `git pull --rebase origin main`. If new commits were integrated, re-run `npm run build` to guarantee zero integration regressions.
+  - **Never Overwrite with Force Push**: Never use `git push --force`. Always use standard `git push`.
+  - **Linear History**: Use `--rebase` to avoid cluttering git history with merge commits. If conflicts occur, resolve them carefully preserving both contributors' changes.
+
 ## Quality Standards & Live Browser Verification
 - **Batch-End Safety Checks Only (Token & Latency Conservation)**:
   - Do NOT run verification audits (`npm run verify`), TypeScript builds (`npm run build`), or test commands between individual incremental edits within a batch.

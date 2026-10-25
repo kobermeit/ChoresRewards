@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { resolveAssetUrl } from '../../api';
 
 export interface CustomDropdownOption {
   value: string;
@@ -95,6 +96,16 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   const renderIcon = (icon?: string | React.ReactNode) => {
     if (!icon) return null;
     if (typeof icon === 'string') {
+      if (icon.startsWith('/') || icon.startsWith('./') || icon.includes('.svg') || icon.includes('.png') || icon.includes('.jpg') || icon.includes('.webp')) {
+        return (
+          <img
+            src={resolveAssetUrl(icon)}
+            alt=""
+            className="shopping-store-icon-img"
+            style={{ width: 18, height: 18, objectFit: 'contain', marginRight: 6, verticalAlign: 'middle', display: 'inline-block' }}
+          />
+        );
+      }
       if (icon.startsWith('fa') || icon.includes(' ')) {
         return <i className={icon} style={{ fontSize: '0.85rem', marginRight: 6 }} />;
       }

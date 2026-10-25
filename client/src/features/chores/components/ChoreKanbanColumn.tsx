@@ -18,7 +18,7 @@ export interface ChoreKanbanColumnProps {
   onEditName: (person: Person) => void;
   onPickExtra: (person: Person) => void;
   onAddChore: (personId: number) => void;
-  onCompleteChore: (chore: Chore, person: Person) => void;
+  onCompleteChore: (chore: Chore, person: Person, meta?: { actual_seconds?: number; target_seconds?: number; timer_status?: string }) => void;
   onUndoChore: (choreId: number) => void;
   onStartTimer: (chore: Chore) => void;
   onToggleFlip: (choreId: number, flip?: boolean) => void;

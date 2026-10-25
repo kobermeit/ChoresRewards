@@ -64,27 +64,62 @@ function personForAssignment(assignedToId?: number | null, assignedTo?: string |
 
 export const choresRouter = Router();
 
-choresRouter.get('/get_chores', (_req: Request, res: Response) => {
-  const rows = db.prepare('SELECT * FROM chore WHERE deleted = 0 ORDER BY due_date, id').all() as Array<any>;
-  const chores = rows.map((c) => ({
-    id: c.id,
-    title: c.title,
-    description: c.description || null,
-    assigned_to_id: c.assigned_to_id,
-    assigned_to: c.assigned_to,
-    points: c.points,
-    completed: Boolean(c.completed),
-    is_daily: Boolean(c.is_daily),
-    days_of_week: c.days_of_week ? String(c.days_of_week).split(',').filter(Boolean) : [],
-    due_date: c.due_date || null,
-    due_datetime: c.due_datetime || null,
-    date_completed: c.date_completed || null,
-    icon: c.icon || null,
-    image_url: c.image_url || null,
-    is_extra: Boolean(c.is_extra),
-    extra_id: c.extra_id || null,
-  }));
-  res.json({ success: true, chores });
+choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Response) => {
+  const targetDate = req.query?.date ? String(req.query.date).trim() : null;
+  const familyToday = getFamilyToday();
+  const isPastDate = Boolean(targetDate && targetDate < familyToday);
+  const effectiveDate = targetDate || familyToday;
+
+  let rows: Array<any>;
+  if (isPastDate) {
+    // Only return chores that existed on or before targetDate
+    rows = db
+      .prepare('SELECT * FROM chore WHERE deleted = 0 AND (created_at IS NULL OR created_at <= ?) ORDER BY due_date, id')
+      .all(`${effectiveDate} 23:59:59`) as Array<any>;
+  } else {
+    rows = db.prepare('SELECT * FROM chore WHERE deleted = 0 ORDER BY due_date, id').all() as Array<any>;
+  }
+
+  // Get chore_log entries for the target date to know completion state for that date
+  const logs = db.prepare('SELECT * FROM chore_log WHERE for_date = ?').all(effectiveDate) as Array<any>;
+  const logByChoreId: Record<number, any> = {};
+  for (const l of logs) {
+    logByChoreId[l.chore_id] = l;
+  }
+
+  const chores = rows
+    .filter((c) => {
+      if (isPastDate && c.is_daily) {
+        return isDayOfWeekScheduled(effectiveDate, c.days_of_week);
+      }
+      return true;
+    })
+    .map((c) => {
+      const logEntry = logByChoreId[c.id];
+      const isCompleted = isPastDate ? Boolean(logEntry) : (Boolean(c.completed) || Boolean(logEntry));
+      return {
+        id: c.id,
+        title: c.title,
+        description: c.description || null,
+        assigned_to_id: c.assigned_to_id,
+        assigned_to: c.assigned_to,
+        points: c.points,
+        completed: isCompleted,
+        is_daily: Boolean(c.is_daily),
+        days_of_week: c.days_of_week ? String(c.days_of_week).split(',').filter(Boolean) : [],
+        due_date: c.due_date || null,
+        due_datetime: c.due_datetime || null,
+        date_completed: logEntry?.completed_at || (isPastDate ? null : (c.date_completed || null)),
+        icon: c.icon || null,
+        image_url: c.image_url || null,
+        is_extra: Boolean(c.is_extra),
+        extra_id: c.extra_id || null,
+        duration_seconds: c.duration_seconds || null,
+        chore_log: logEntry || null,
+      };
+    });
+
+  res.json({ success: true, date: effectiveDate, is_past: isPastDate, chores });
 });
 
 choresRouter.post(
@@ -428,28 +463,53 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
       res.status(404).json({ success: false, error: 'Chore not found' });
       return;
     }
-    if (chore.completed) {
-      res.status(409).json({ success: false, already_completed: true, error: 'This chore is already completed' });
-      return;
-    }
 
     const tz = getAppTimezone();
     const { isoNaive, dateStr, hour, weekdayLower } = getLocalNowNaive(tz);
+    const requestedDate = req.body?.for_date ? String(req.body.for_date).trim() : null;
+    const forDate = requestedDate || dateStr;
+    const isPastDate = forDate < dateStr;
 
-    if (chore.is_daily && !isDayOfWeekScheduled(dateStr, chore.days_of_week)) {
-      res.status(400).json({ success: false, error: 'This recurring chore is not scheduled for today' });
+    // Check if chore was already completed for the target date
+    const existingLog = db.prepare('SELECT id FROM chore_log WHERE chore_id = ? AND for_date = ?').get(choreId, forDate) as any;
+    if (isPastDate ? Boolean(existingLog) : (Boolean(chore.completed) || Boolean(existingLog))) {
+      res.status(409).json({ success: false, already_completed: true, error: 'This chore is already completed for that date' });
       return;
     }
+
+    if (chore.is_daily && !isDayOfWeekScheduled(forDate, chore.days_of_week)) {
+      res.status(400).json({ success: false, error: 'This recurring chore was not scheduled for that date' });
+      return;
+    }
+
     const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
     const completedBy = req.body?.completed_by ? String(req.body.completed_by).trim() : null;
     const isCompletedForAnother = Boolean(completedBy && completedBy.toLowerCase() !== assignedName.toLowerCase());
 
-    db.prepare('UPDATE chore SET completed = 1, date_completed = ?, assigned_to = ? WHERE id = ?').run(
-      isoNaive,
-      assignedName,
-      choreId
-    );
+    // Timer tracking values
+    const targetSeconds = req.body?.target_seconds !== undefined && req.body.target_seconds !== null
+      ? Number(req.body.target_seconds)
+      : (chore.duration_seconds ? Number(chore.duration_seconds) : null);
+    const actualSeconds = req.body?.actual_seconds !== undefined && req.body.actual_seconds !== null
+      ? Math.max(0, Number(req.body.actual_seconds))
+      : 0;
+    const secondsSaved = targetSeconds ? Math.max(0, targetSeconds - actualSeconds) : 0;
+    let timerStatus = req.body?.timer_status || 'untimed';
+    if (targetSeconds && !req.body?.timer_status) {
+      timerStatus = actualSeconds > 0
+        ? (actualSeconds <= targetSeconds ? 'completed_early' : 'completed_overtime')
+        : 'skipped';
+    }
+
+    // Only update chore table completed flag if completed for today
+    if (!isPastDate) {
+      db.prepare('UPDATE chore SET completed = 1, date_completed = ?, assigned_to = ? WHERE id = ?').run(
+        isoNaive,
+        assignedName,
+        choreId
+      );
+    }
 
     let pointsAwarded = 0;
     const bonusAwarded = 0;
@@ -459,7 +519,7 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
     let newPoints = 0;
 
     if (person) {
-      overdue = isChoreOverdue(chore, isoNaive);
+      overdue = !isPastDate && isChoreOverdue(chore, isoNaive);
       if (!overdue) {
         pointsAwarded = roundPoints(chore.points);
         const updatedPts = roundPoints(Number(person.points || 0) + pointsAwarded);
@@ -471,9 +531,16 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
           req.session.celebrate_avatar = person.avatar || 'default_avatar.png';
         }
 
+        const dateNote = isPastDate ? ` (for ${forDate})` : '';
+        const timerNote = targetSeconds
+          ? (actualSeconds > 0
+            ? ` [Finished in ${Math.floor(actualSeconds / 60)}m ${actualSeconds % 60}s]`
+            : ' [Timer skipped]')
+          : '';
+
         const logMsg = isCompletedForAnother
-          ? `Chore '${chore.title}' was completed by ${completedBy} for ${assignedName} and ${pointsAwarded} points were awarded`
-          : `Chore '${chore.title}' was completed and ${pointsAwarded} points were awarded`;
+          ? `Chore '${chore.title}' was completed by ${completedBy} for ${assignedName}${dateNote}${timerNote} and ${pointsAwarded} points were awarded`
+          : `Chore '${chore.title}' was completed${dateNote}${timerNote} and ${pointsAwarded} points were awarded`;
 
         logActivity('chore_completed', logMsg, assignedName);
 
@@ -485,9 +552,11 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
           sendGotifyNotification('Chore Completed', notifMsg).catch(() => {});
         }
 
-        const badgeRes = checkAndAwardBadges(person.id, dateStr, hour, weekdayLower);
-        newBadges = badgeRes.newBadges;
-        currentStreak = badgeRes.currentStreak;
+        if (!isPastDate) {
+          const badgeRes = checkAndAwardBadges(person.id, dateStr, hour, weekdayLower);
+          newBadges = badgeRes.newBadges;
+          currentStreak = badgeRes.currentStreak;
+        }
       } else {
         newPoints = roundPoints(Number(person.points || 0) + Number(person.bonus_points || 0));
         const overdueMsg = isCompletedForAnother
@@ -497,17 +566,47 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
       }
     }
 
+    // Insert structured immutable completion entry in chore_log
+    db.prepare(`
+      INSERT INTO chore_log (
+        chore_id, chore_title, person_id, person_name,
+        completed_by_id, completed_by_name, points_awarded,
+        for_date, completed_at, target_seconds, actual_seconds,
+        seconds_saved, timer_status, was_overdue
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      choreId,
+      chore.title,
+      person ? person.id : null,
+      assignedName,
+      (req.session as any)?.person_id || null,
+      completedBy || assignedName,
+      pointsAwarded,
+      forDate,
+      isoNaive,
+      targetSeconds,
+      actualSeconds,
+      secondsSaved,
+      timerStatus,
+      overdue ? 1 : 0
+    );
+
     const progress = calculateWeeklyProgress(assignedName);
 
     res.json({
       success: true,
       assigned_to: assignedName,
       chore_title: chore.title,
+      for_date: forDate,
       progress,
       new_points: newPoints,
       points_awarded: pointsAwarded,
       bonus_awarded: bonusAwarded,
       overdue,
+      target_seconds: targetSeconds,
+      actual_seconds: actualSeconds,
+      seconds_saved: secondsSaved,
+      timer_status: timerStatus,
       new_badges: newBadges,
       newly_awarded_badges: newBadges,
       current_streak: currentStreak,
@@ -525,35 +624,53 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
       res.status(404).json({ success: false, error: 'Chore not found' });
       return;
     }
-    if (!chore.completed) {
+
+    const tz = getAppTimezone();
+    const { dateStr } = getLocalNowNaive(tz);
+    const forDate = req.body?.for_date ? String(req.body.for_date).trim() : null;
+
+    // Find chore_log entry to undo
+    const choreLog = forDate
+      ? (db.prepare('SELECT * FROM chore_log WHERE chore_id = ? AND for_date = ? ORDER BY id DESC LIMIT 1').get(choreId, forDate) as any)
+      : (db.prepare('SELECT * FROM chore_log WHERE chore_id = ? ORDER BY id DESC LIMIT 1').get(choreId) as any);
+
+    if (!choreLog && !chore.completed) {
       res.status(400).json({ success: false, error: 'Chore is not completed' });
       return;
     }
 
-    const awardedPoints = chore.date_completed ? !isChoreOverdue(chore, String(chore.date_completed)) : true;
+    if (choreLog) {
+      db.prepare('DELETE FROM chore_log WHERE id = ?').run(choreLog.id);
+    }
+
     const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
 
-    db.prepare('UPDATE chore SET completed = 0, date_completed = NULL, assigned_to = ? WHERE id = ?').run(
-      assignedName,
-      choreId
-    );
+    // Only reset chore.completed if undoing for today or no specific past date
+    if (!forDate || forDate === dateStr) {
+      db.prepare('UPDATE chore SET completed = 0, date_completed = NULL, assigned_to = ? WHERE id = ?').run(
+        assignedName,
+        choreId
+      );
+    }
+
+    const pointsToDeduct = choreLog ? Number(choreLog.points_awarded || 0) : Number(chore.points || 0);
 
     let newPoints = 0;
-    if (person && awardedPoints) {
-      const updatedPts = roundPoints(Math.max(0, Number(person.points || 0) - Number(chore.points || 0)));
+    if (person && pointsToDeduct > 0) {
+      const updatedPts = roundPoints(Math.max(0, Number(person.points || 0) - pointsToDeduct));
       db.prepare('UPDATE person SET points = ? WHERE id = ?').run(updatedPts, person.id);
       newPoints = roundPoints(updatedPts + Number(person.bonus_points || 0));
       logActivity(
         'chore_undone',
-        `Chore '${chore.title}' was undone and ${chore.points} points were deducted`,
+        `Chore '${chore.title}' was undone and ${pointsToDeduct} points were deducted`,
         assignedName
       );
     } else if (person) {
       newPoints = roundPoints(Number(person.points || 0) + Number(person.bonus_points || 0));
       logActivity(
         'chore_undone',
-        `Chore '${chore.title}' was undone. No points were deducted because it was completed overdue.`,
+        `Chore '${chore.title}' was undone. No points were deducted.`,
         assignedName
       );
     }
@@ -564,6 +681,7 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
       assigned_to: assignedName,
       chore_id: chore.id,
       chore_title: chore.title,
+      for_date: forDate || dateStr,
       new_points: newPoints,
       progress,
     });

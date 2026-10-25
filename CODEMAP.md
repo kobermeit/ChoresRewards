@@ -35,7 +35,7 @@ choresrewards/
 │   ├── src/
 │   │   ├── db.ts               # SQLite schema, migrations, connection pool (better-sqlite3)
 │   │   ├── routes/             # Express API route handlers
-│   │   └── services/           # Background services (gotify push, seasons/Easter engine)
+│   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper metadata parser)
 │   └── package.json
 ├── config.yaml                 # Home Assistant Add-On manifest (CRITICAL: version must match package.json)
 ├── AGENTS.md                   # Agent working memory, rules, and development guidelines

@@ -27,6 +27,19 @@ function ensureColumn(tableName: string, columnName: string, columnDef: string) 
   }
 }
 
+function ensureTimestampColumns(tableName: string) {
+  const cols = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  if (!cols.some((c) => c.name === 'created_at')) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN "created_at" DATETIME`);
+    db.prepare(`UPDATE ${tableName} SET created_at = ? WHERE created_at IS NULL`).run(nowIso);
+  }
+  if (!cols.some((c) => c.name === 'updated_at')) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN "updated_at" DATETIME`);
+    db.prepare(`UPDATE ${tableName} SET updated_at = ? WHERE updated_at IS NULL`).run(nowIso);
+  }
+}
+
 export function initDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_settings (
@@ -206,6 +219,31 @@ export function initDatabase() {
       notion_id VARCHAR(120),
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS chore_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chore_id INTEGER REFERENCES chore(id),
+      chore_title VARCHAR(100) NOT NULL,
+      person_id INTEGER REFERENCES person(id),
+      person_name VARCHAR(50) NOT NULL,
+      completed_by_id INTEGER REFERENCES person(id),
+      completed_by_name VARCHAR(50) NOT NULL,
+      points_awarded FLOAT NOT NULL DEFAULT 1.0,
+      for_date DATE NOT NULL,
+      completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      target_seconds INTEGER DEFAULT NULL,
+      actual_seconds INTEGER DEFAULT 0,
+      seconds_saved INTEGER DEFAULT 0,
+      timer_status VARCHAR(30) DEFAULT 'untimed',
+      was_overdue BOOLEAN DEFAULT 0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chore_log_for_date ON chore_log(for_date);
+    CREATE INDEX IF NOT EXISTS idx_chore_log_chore_id ON chore_log(chore_id);
+    CREATE INDEX IF NOT EXISTS idx_chore_log_person_id ON chore_log(person_id);
   `);
 
   // Safe migrations for existing databases
@@ -220,6 +258,44 @@ export function initDatabase() {
   ensureColumn('chore', 'duration_seconds', 'INTEGER');
   ensureColumn('chore', 'description', 'TEXT');
   ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');
+  ensureColumn('reward', 'source_url', 'VARCHAR(500)');
+  ensureColumn('reward', 'source_name', 'VARCHAR(100)');
+
+  const allTables = [
+    'app_settings',
+    'seasons',
+    'seasonal_events',
+    'person',
+    'chore',
+    'reward',
+    'activity_log',
+    'chore_log',
+    'person_streak',
+    'person_badge',
+    'organise_item',
+    'vehicle_service',
+    'shopping_catalog',
+    'shopping_purchase_log',
+    'recipes',
+  ];
+  for (const tbl of allTables) {
+    try {
+      ensureTimestampColumns(tbl);
+    } catch (err) {
+      console.warn(`[initDatabase] Error ensuring timestamps for ${tbl}:`, err);
+    }
+  }
+
+  // Ensure historical existing chores have realistic created_at timestamps earlier than today
+  try {
+    db.prepare(`
+      UPDATE chore
+      SET created_at = '2026-10-01 00:00:00'
+      WHERE created_at >= date('now')
+    `).run();
+  } catch {
+    // ignore
+  }
 
   const orgNewCols: Array<[string, string]> = [
     ['photo_filename', 'VARCHAR(255)'],
@@ -382,6 +458,9 @@ export function initDatabase() {
     }
     if (!AppSetting.get('daily_reset_hour')) {
       AppSetting.set('daily_reset_hour', '0');
+    }
+    if (!AppSetting.get('point_value')) {
+      AppSetting.set('point_value', '0.50');
     }
 
     // Seed shopping_catalog with household staples and existing meal ingredients if empty

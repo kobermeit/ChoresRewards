@@ -279,6 +279,35 @@ export const RewardCard: React.FC<RewardCardProps> = React.memo(({
             )}
           </div>
 
+          {reward.source_url && (
+            <div style={{ marginBottom: 6 }}>
+              <a
+                href={reward.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  color: '#38bdf8',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.28)',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+                title={`Open product page on ${reward.source_name || 'external site'}`}
+              >
+                <i className="fas fa-external-link-alt" style={{ fontSize: '0.68rem' }} />
+                <span>{reward.source_name || 'View Product'}</span>
+              </a>
+            </div>
+          )}
+
           {/* Optional description */}
           {reward.description && (
             <p
