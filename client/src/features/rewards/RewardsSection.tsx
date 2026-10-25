@@ -19,8 +19,10 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
   const [showRedeemed, setShowRedeemed] = useState(() => activeView === 'redeemed');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
+  const [initialImportUrl, setInitialImportUrl] = useState<string | null>(null);
   const [redeemPickerReward, setRedeemPickerReward] = useState<Reward | null>(null);
   const [celebratingReward, setCelebratingReward] = useState<{ title: string; personName: string } | null>(null);
+  const [syncingRewardId, setSyncingRewardId] = useState<number | null>(null);
 
   React.useEffect(() => {
     if (activeView === 'redeemed') {
@@ -57,13 +59,40 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
     return redeemedRewards.filter((r) => isGroupEligible(r.assigned_to, selectedPerson));
   }, [redeemedRewards, selectedPerson]);
 
-  const openAddModal = () => {
+  const openAddModal = async () => {
+    let urlFromClipboard: string | null = null;
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        const trimmed = (text || '').trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          const lower = trimmed.toLowerCase();
+          const isRetailer =
+            lower.includes('kmart.') ||
+            lower.includes('amazon.') ||
+            lower.includes('target.') ||
+            lower.includes('bigw.') ||
+            lower.includes('lego.') ||
+            lower.includes('/product') ||
+            lower.includes('/dp/') ||
+            lower.includes('/p/');
+          if (isRetailer) {
+            urlFromClipboard = trimmed;
+          }
+        }
+      }
+    } catch {
+      // Ignore clipboard permission blocks
+    }
+
     setEditingReward(null);
+    setInitialImportUrl(urlFromClipboard);
     setModalOpen(true);
   };
 
   const openEditModal = (r: Reward) => {
     setEditingReward(r);
+    setInitialImportUrl(null);
     setModalOpen(true);
   };
 
@@ -125,6 +154,32 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
       await refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to delete reward', { type: 'error' });
+    }
+  };
+
+  const handleSyncReward = async (reward: Reward) => {
+    if (syncingRewardId) return;
+    setSyncingRewardId(reward.id);
+    try {
+      const res = await apiPost<{
+        success: boolean;
+        old_points: number;
+        new_points: number;
+        price: number;
+        message: string;
+        error?: string;
+      }>('sync_reward', { reward_id: reward.id });
+
+      if (res?.success) {
+        showToast(res.message, { type: 'success' });
+        await refresh();
+      } else {
+        showToast(res?.error || res?.message || 'Failed to sync reward', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to sync reward from store', { type: 'error' });
+    } finally {
+      setSyncingRewardId(null);
     }
   };
 
@@ -257,6 +312,8 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                 onRedeem={handleRedeemReward}
                 onEdit={openEditModal}
                 onDelete={handleDeleteReward}
+                onSyncReward={handleSyncReward}
+                isSyncing={syncingRewardId === reward.id}
               />
             ))}
           </ResponsiveGrid>
@@ -364,9 +421,13 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
       <RewardEditModal
         open={modalOpen}
         editingReward={editingReward}
+        initialImportUrl={initialImportUrl}
         family={family}
         isCash={isCash}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setInitialImportUrl(null);
+        }}
         onSaved={refresh}
       />
 

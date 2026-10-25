@@ -17,8 +17,7 @@ interface DrawerItem {
 const PRIMARY_ITEMS: DrawerItem[] = [
   { id: 'dashboard', label: 'Today (Dashboard)', icon: 'fas fa-gauge-high' },
   { id: 'chores', label: 'Chores Hub', icon: 'fas fa-list-check' },
-  { id: 'rewards', label: 'Rewards Pool', icon: 'fas fa-trophy' },
-  { id: 'redeemed', label: 'Redeemed Rewards', icon: 'fas fa-medal' },
+  { id: 'rewards', label: 'Family Rewards', icon: 'fas fa-trophy' },
   { id: 'meals', label: 'Meal Planner', icon: 'fas fa-utensils' },
   { id: 'shopping', label: 'Shopping List', icon: 'fas fa-cart-shopping' },
   { id: 'library', label: 'Recipe Library', icon: 'fas fa-book-open' },
@@ -37,7 +36,16 @@ const SECONDARY_ITEMS: DrawerItem[] = [
 export const MobileDrawer: React.FC = () => {
   const dispatch = useAppDispatch();
   const open = useAppSelector((state) => state.ui.mobileDrawerOpen);
-  const { isParent, isChild, activeUser, setProfileSwitcherOpen } = useApp();
+  const {
+    isParent,
+    isChild,
+    activeUser,
+    setProfileSwitcherOpen,
+    setVisualTimerOpen,
+    setScreensaverOpen,
+    toggleMute,
+    muted,
+  } = useApp();
   const { activeView, navigate } = useNavigation();
   const seasonInfo = useSeason();
   const activeColor = seasonInfo.enabled && seasonInfo.accent ? seasonInfo.accent : '#38bdf8';
@@ -78,7 +86,7 @@ export const MobileDrawer: React.FC = () => {
       <div
         className="mobile-drawer-panel"
         style={{
-          width: 290,
+          width: 300,
           maxWidth: '85vw',
           height: '100%',
           background: 'var(--cr-header-bg-1, #0f172a)',
@@ -129,7 +137,152 @@ export const MobileDrawer: React.FC = () => {
           </button>
         </div>
 
-        {/* Drawer Body Items */}
+        {/* Profile Card Header */}
+        {activeUser && (
+          <div
+            style={{
+              padding: '12px 14px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(255, 255, 255, 0.02)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+              <img
+                src={resolveAvatarUrl(activeUser.avatar)}
+                alt={activeUser.name}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: `2px solid ${activeUser.color || '#3b82f6'}`,
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {activeUser.name}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: isParent ? '#f59e0b' : isChild ? '#34d399' : '#60a5fa', fontWeight: 600 }}>
+                  {isParent ? 'Parent Mode 🛡️' : isChild ? 'Child View ⭐' : 'Family Kiosk 👨‍👩‍👧‍👦'}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                dispatch(setMobileDrawerOpen(false));
+                setProfileSwitcherOpen(true);
+              }}
+              style={{
+                background: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid rgba(59, 130, 246, 0.35)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                color: '#93c5fd',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Switch
+            </button>
+          </div>
+        )}
+
+        {/* Quick Tools */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 6,
+            padding: '10px 14px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'rgba(255, 255, 255, 0.015)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              dispatch(setMobileDrawerOpen(false));
+              setVisualTimerOpen(true);
+            }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              padding: '8px 4px',
+              borderRadius: 8,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: '#cbd5e1',
+              cursor: 'pointer',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+            }}
+          >
+            <i className="fas fa-stopwatch" style={{ fontSize: '1.05rem', color: '#38bdf8' }} />
+            <span>Timer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              dispatch(setMobileDrawerOpen(false));
+              setScreensaverOpen(true);
+            }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              padding: '8px 4px',
+              borderRadius: 8,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: '#cbd5e1',
+              cursor: 'pointer',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+            }}
+          >
+            <i className="fas fa-tv" style={{ fontSize: '1.05rem', color: '#a855f7' }} />
+            <span>Clock</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleMute}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              padding: '8px 4px',
+              borderRadius: 8,
+              background: muted ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.12)',
+              border: `1px solid ${muted ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.3)'}`,
+              color: muted ? '#f87171' : '#4ade80',
+              cursor: 'pointer',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+            }}
+          >
+            <i className={`fas ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}`} style={{ fontSize: '1.05rem' }} />
+            <span>{muted ? 'Muted' : 'Sound'}</span>
+          </button>
+        </div>
+
+        {/* Drawer Body Navigation */}
         <div
           style={{
             flex: 1,
@@ -147,7 +300,7 @@ export const MobileDrawer: React.FC = () => {
           {PRIMARY_ITEMS.map((item) => {
             if (item.hideForChild && isChild) return null;
             if (item.parentOnly && !isParent) return null;
-            const isActive = activeView === item.id;
+            const isActive = activeView === item.id || (item.id === 'rewards' && activeView === 'redeemed');
 
             return (
               <button
@@ -215,61 +368,6 @@ export const MobileDrawer: React.FC = () => {
             );
           })}
         </div>
-
-        {/* Drawer Footer (Active Profile) */}
-        {activeUser && (
-          <div
-            style={{
-              padding: '12px 14px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(255, 255, 255, 0.02)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img
-                src={resolveAvatarUrl(activeUser.avatar)}
-                alt={activeUser.name}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: `2px solid ${activeUser.color || '#3b82f6'}`,
-                }}
-              />
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
-                  {activeUser.name}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)' }}>
-                  {isParent ? 'Parent Mode' : isChild ? 'Child View' : 'Shared Kiosk'}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                dispatch(setMobileDrawerOpen(false));
-                setProfileSwitcherOpen(true);
-              }}
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 6,
-                padding: '6px 10px',
-                color: '#93c5fd',
-                fontSize: '0.78rem',
-                cursor: 'pointer',
-              }}
-            >
-              Switch
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

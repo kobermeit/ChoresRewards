@@ -49,19 +49,11 @@ export const SideNav: React.FC = () => {
         </button>
         <button
           type="button"
-          className={`side-nav-btn ${activeView === 'rewards' ? 'side-nav-active' : ''}`}
-          title="Available Rewards"
+          className={`side-nav-btn ${activeView === 'rewards' || activeView === 'redeemed' ? 'side-nav-active' : ''}`}
+          title="Family Rewards"
           onClick={() => setActiveView('rewards')}
         >
           <i className="fas fa-trophy" />
-        </button>
-        <button
-          type="button"
-          className={`side-nav-btn ${activeView === 'redeemed' ? 'side-nav-active' : ''}`}
-          title="Redeemed Rewards"
-          onClick={() => setActiveView('redeemed')}
-        >
-          <i className="fas fa-medal" />
         </button>
         <button
           type="button"

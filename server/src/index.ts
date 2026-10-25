@@ -9,7 +9,7 @@ import { authRouter } from './routes/auth';
 import { stateRouter } from './routes/state';
 import { peopleRouter } from './routes/people';
 import { choresRouter } from './routes/chores';
-import { rewardsRouter } from './routes/rewards';
+import { rewardsRouter, runDailyRewardPriceSync } from './routes/rewards';
 import { householdRouter } from './routes/household';
 import { organiseRouter } from './routes/organise';
 import { settingsRouter } from './routes/settings';
@@ -17,6 +17,8 @@ import { mediaRouter } from './routes/media';
 import { seasonalRouter } from './routes/seasonal';
 
 initDatabase();
+
+import { SqliteSessionStore } from './services/sessionStore';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -32,6 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use(
   session({
+    store: new SqliteSessionStore(),
     name: 'choresrewards.sid',
     secret: loadSecretKey(),
     resave: false,
@@ -111,4 +114,13 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[ChoresRewards] Server listening on http://0.0.0.0:${PORT}`);
+
+  // Safe daily reward price sync: Initial run after 2 minutes of uptime, then every 24 hours
+  setTimeout(() => {
+    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Initial run error:', err));
+  }, 120_000);
+
+  setInterval(() => {
+    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Scheduled run error:', err));
+  }, 24 * 60 * 60 * 1000);
 });

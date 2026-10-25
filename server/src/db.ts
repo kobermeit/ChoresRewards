@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { DB_PATH, UPLOADS_DIR } from './config';
+import { cleanTitle, cleanDescription, decodeEntities } from './services/scraper';
 
 export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -42,6 +43,12 @@ function ensureTimestampColumns(tableName: string) {
 
 export function initDatabase() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS session_store (
+      sid TEXT PRIMARY KEY,
+      sess TEXT NOT NULL,
+      expired INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key VARCHAR(100) NOT NULL UNIQUE,
@@ -121,7 +128,11 @@ export function initDatabase() {
       assigned_to VARCHAR(50),
       completed BOOLEAN DEFAULT 0,
       date_completed DATETIME,
-      is_recurring BOOLEAN DEFAULT 1
+      is_recurring BOOLEAN DEFAULT 1,
+      source_url VARCHAR(500),
+      source_name VARCHAR(100),
+      last_synced_at DATETIME,
+      sync_error_count INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS activity_log (
@@ -260,6 +271,8 @@ export function initDatabase() {
   ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');
   ensureColumn('reward', 'source_url', 'VARCHAR(500)');
   ensureColumn('reward', 'source_name', 'VARCHAR(100)');
+  ensureColumn('reward', 'last_synced_at', 'DATETIME');
+  ensureColumn('reward', 'sync_error_count', 'INTEGER DEFAULT 0');
 
   const allTables = [
     'app_settings',
@@ -359,6 +372,32 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[startup] Error checking stale uploads:', err);
+  }
+
+  // Retroactively clean up HTML entities and title/description artifacts in existing rewards
+  try {
+    const existingRewards = db.prepare('SELECT id, title, description, source_name, source_url FROM reward').all() as Array<{
+      id: number;
+      title: string;
+      description: string | null;
+      source_name: string | null;
+      source_url: string | null;
+    }>;
+    const updateStmt = db.prepare('UPDATE reward SET title = ?, description = ? WHERE id = ?');
+    let rewardsCleaned = 0;
+    for (const r of existingRewards) {
+      const cleanT = r.source_url ? cleanTitle(r.title, r.source_name || 'Store') : decodeEntities(r.title);
+      const cleanD = r.description ? cleanDescription(r.description) : r.description;
+      if (cleanT !== r.title || cleanD !== r.description) {
+        updateStmt.run(cleanT, cleanD, r.id);
+        rewardsCleaned++;
+      }
+    }
+    if (rewardsCleaned > 0) {
+      console.log(`[startup] Cleaned HTML entities in ${rewardsCleaned} existing reward record(s).`);
+    }
+  } catch (err) {
+    console.warn('[startup] Warning cleaning HTML entities on existing rewards:', err);
   }
 
   // Auto-seed household data migrated from http://homeassistant.local:8081 if DB is empty

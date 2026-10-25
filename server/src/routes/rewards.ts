@@ -7,7 +7,7 @@ import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
 import { getAppTimezone, getLocalNowNaive, getFamilyToday, formatDateInTz, getConfiguredTimezone } from '../utils/time';
 import { sendGotifyNotification } from '../services/gotify';
-import { scrapeRewardUrl } from '../services/scraper';
+import { scrapeRewardUrl, cleanTitle, cleanDescription, decodeEntities } from '../services/scraper';
 
 const rewardUpload = multer({
   storage: multer.diskStorage({
@@ -37,10 +37,13 @@ rewardsRouter.post(
   (req: Request, res: Response) => {
     try {
       const data = req.body || {};
-      const title = String(data.title || '').trim();
+      const sourceUrl = data.source_url ? String(data.source_url).trim() : null;
+      const sourceName = data.source_name ? String(data.source_name).trim() : null;
+      const rawTitle = String(data.title || '').trim();
+      const title = sourceUrl ? cleanTitle(rawTitle, sourceName || 'Store') : decodeEntities(rawTitle);
       const pointsRequired = roundPoints(data.points_required ?? 1);
       const assignedTo = String(data.assigned_to || '').trim();
-      const description = data.description ? String(data.description).trim() : null;
+      const description = data.description ? cleanDescription(String(data.description)) : null;
       const imageUrlInput = data.image_url ? String(data.image_url).trim() : null;
       const stockImageUrl = data.stock_image_url ? String(data.stock_image_url).trim() : null;
 
@@ -64,8 +67,6 @@ rewardsRouter.post(
       const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any);
       const finalAssignee = isEveryone ? 'Everyone' : (person ? person.name : assignedTo);
       const isRecurring = data.is_recurring === undefined || data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1';
-      const sourceUrl = data.source_url ? String(data.source_url).trim() : null;
-      const sourceName = data.source_name ? String(data.source_name).trim() : null;
 
       const info = db
         .prepare(
@@ -104,43 +105,61 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post(['/edit_reward', '/rewards/edit_reward'], (req: Request, res: Response) => {
-  try {
-    const data = req.body || {};
-    const rewardId = Number(data.reward_id ?? data.id);
-    if (!rewardId) {
-      res.status(400).json({ success: false, error: 'Missing reward_id' });
-      return;
+rewardsRouter.post(
+  ['/edit_reward', '/update_reward', '/rewards/edit_reward', '/rewards/update_reward'],
+  rewardUpload.fields([
+    { name: 'reward_image_file', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+    { name: 'photo', maxCount: 1 },
+  ]),
+  (req: Request, res: Response) => {
+    try {
+      const data = req.body || {};
+      const rewardId = Number(data.reward_id ?? data.id);
+      if (!rewardId) {
+        res.status(400).json({ success: false, error: 'Missing reward_id' });
+        return;
+      }
+      const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+      if (!reward) {
+        res.status(404).json({ success: false, error: 'Reward not found' });
+        return;
+      }
+
+      const rawTitle = data.title !== undefined && String(data.title).trim() ? String(data.title).trim() : reward.title;
+      const sourceUrl = data.source_url !== undefined ? (data.source_url ? String(data.source_url).trim() : null) : reward.source_url;
+      const sourceName = data.source_name !== undefined ? (data.source_name ? String(data.source_name).trim() : null) : reward.source_name;
+      const title = sourceUrl ? cleanTitle(rawTitle, sourceName || 'Store') : decodeEntities(rawTitle);
+      const description = data.description !== undefined ? cleanDescription(String(data.description)) : reward.description;
+      const pointsRequired =
+        data.points_required !== undefined ? roundPoints(data.points_required) : reward.points_required;
+      const rawAssignedTo = data.assigned_to !== undefined ? String(data.assigned_to).trim() : reward.assigned_to;
+      const isEveryone = !rawAssignedTo || rawAssignedTo.toLowerCase() === 'everyone' || rawAssignedTo.toLowerCase() === 'all';
+      const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(rawAssignedTo) as any);
+      const assignedTo = isEveryone ? 'Everyone' : (person ? person.name : rawAssignedTo);
+      const isRecurring = data.is_recurring !== undefined
+        ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1' ? 1 : 0)
+        : (reward.is_recurring !== 0 ? 1 : 0);
+
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const uploadedFile = files?.reward_image_file?.[0] || files?.image?.[0] || files?.photo?.[0];
+      let finalImageUrl = reward.image_url;
+      if (uploadedFile) {
+        finalImageUrl = `/static/uploads/rewards/${uploadedFile.filename}`;
+      } else if (data.image_url !== undefined) {
+        finalImageUrl = data.image_url ? String(data.image_url).trim() : null;
+      }
+
+      db.prepare(
+        'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ?, source_url = ?, source_name = ?, image_url = ? WHERE id = ?'
+      ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, sourceUrl, sourceName, finalImageUrl, rewardId);
+
+      res.json({ success: true, reward_id: rewardId, image_url: finalImageUrl });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err?.message });
     }
-    const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
-    if (!reward) {
-      res.status(404).json({ success: false, error: 'Reward not found' });
-      return;
-    }
-
-    const title = data.title !== undefined && String(data.title).trim() ? String(data.title).trim() : reward.title;
-    const description = data.description !== undefined ? String(data.description).trim() : reward.description;
-    const pointsRequired =
-      data.points_required !== undefined ? roundPoints(data.points_required) : reward.points_required;
-    const rawAssignedTo = data.assigned_to !== undefined ? String(data.assigned_to).trim() : reward.assigned_to;
-    const isEveryone = !rawAssignedTo || rawAssignedTo.toLowerCase() === 'everyone' || rawAssignedTo.toLowerCase() === 'all';
-    const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(rawAssignedTo) as any);
-    const assignedTo = isEveryone ? 'Everyone' : (person ? person.name : rawAssignedTo);
-    const isRecurring = data.is_recurring !== undefined
-      ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1' ? 1 : 0)
-      : (reward.is_recurring !== 0 ? 1 : 0);
-    const sourceUrl = data.source_url !== undefined ? (data.source_url ? String(data.source_url).trim() : null) : reward.source_url;
-    const sourceName = data.source_name !== undefined ? (data.source_name ? String(data.source_name).trim() : null) : reward.source_name;
-
-    db.prepare(
-      'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ?, source_url = ?, source_name = ? WHERE id = ?'
-    ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, sourceUrl, sourceName, rewardId);
-
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message });
   }
-});
+);
 
 rewardsRouter.post(['/import_url', '/rewards/import_url'], async (req: Request, res: Response) => {
   try {
@@ -154,6 +173,150 @@ rewardsRouter.post(['/import_url', '/rewards/import_url'], async (req: Request, 
     res.json({ success: true, ...scraped });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Error importing reward from URL' });
+  }
+});
+
+export async function syncRewardById(rewardId: number): Promise<{
+  success: boolean;
+  reward_id: number;
+  old_points: number;
+  new_points: number;
+  price: number | null;
+  points_required: number;
+  message: string;
+  error?: string;
+}> {
+  const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+  if (!reward) {
+    throw new Error('Reward not found');
+  }
+  if (!reward.source_url) {
+    throw new Error('Reward does not have an external product URL');
+  }
+
+  const pointValue = parseFloat(AppSetting.get('point_value') || '0.50') || 0.50;
+  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  try {
+    const scraped = await scrapeRewardUrl(reward.source_url, pointValue);
+    if (scraped.price && scraped.price > 0) {
+      const oldPoints = roundPoints(reward.points_required);
+      const newPoints = roundPoints(scraped.points);
+
+      db.prepare(`
+        UPDATE reward
+        SET points_required = ?,
+            last_synced_at = ?,
+            sync_error_count = 0,
+            source_name = COALESCE(?, source_name),
+            title = COALESCE(?, title),
+            description = COALESCE(?, description)
+        WHERE id = ?
+      `).run(newPoints, nowIso, scraped.source_name, scraped.title || null, scraped.description || null, reward.id);
+
+      if (oldPoints !== newPoints) {
+        logActivity(
+          'reward_updated',
+          `Reward '${reward.title}' price refreshed from store ($${scraped.price}): ${oldPoints} → ${newPoints} pts`,
+          reward.assigned_to
+        );
+      }
+
+      return {
+        success: true,
+        reward_id: reward.id,
+        old_points: oldPoints,
+        new_points: newPoints,
+        price: scraped.price,
+        points_required: newPoints,
+        message:
+          oldPoints !== newPoints
+            ? `Points updated: ${oldPoints} → ${newPoints} ($${scraped.price})`
+            : `Price confirmed ($${scraped.price} — ${newPoints} pts)`,
+      };
+    } else {
+      // Scraped but no price found
+      db.prepare(`
+        UPDATE reward
+        SET sync_error_count = COALESCE(sync_error_count, 0) + 1,
+            last_synced_at = ?
+        WHERE id = ?
+      `).run(nowIso, reward.id);
+
+      return {
+        success: false,
+        reward_id: reward.id,
+        old_points: roundPoints(reward.points_required),
+        new_points: roundPoints(reward.points_required),
+        price: null,
+        points_required: roundPoints(reward.points_required),
+        message: 'Could not extract current price from store page',
+        error: 'Price not found on page',
+      };
+    }
+  } catch (err: any) {
+    db.prepare(`
+      UPDATE reward
+      SET sync_error_count = COALESCE(sync_error_count, 0) + 1,
+          last_synced_at = ?
+      WHERE id = ?
+    `).run(nowIso, reward.id);
+
+    throw new Error(err?.message || 'Error fetching store page');
+  }
+}
+
+export async function runDailyRewardPriceSync(): Promise<{ total: number; updated: number; failed: number }> {
+  console.log('[RewardSyncCron] Running daily reward price sync...');
+  const rewardsToSync = db
+    .prepare(
+      `
+    SELECT id, title, source_url, sync_error_count
+    FROM reward
+    WHERE source_url IS NOT NULL
+      AND source_url != ''
+      AND (completed = 0 OR is_recurring = 1)
+      AND (sync_error_count IS NULL OR sync_error_count < 3)
+  `
+    )
+    .all() as Array<{ id: number; title: string; source_url: string; sync_error_count: number }>;
+
+  let updated = 0;
+  let failed = 0;
+
+  for (const r of rewardsToSync) {
+    try {
+      const res = await syncRewardById(r.id);
+      if (res.success) {
+        if (res.old_points !== res.new_points) updated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      console.warn(`[RewardSyncCron] Error syncing reward #${r.id} (${r.title}):`, err);
+      failed++;
+    }
+    // Safe throttling delay between store requests (1500ms)
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  console.log(
+    `[RewardSyncCron] Finished daily sync: ${rewardsToSync.length} checked, ${updated} updated, ${failed} failed.`
+  );
+  return { total: rewardsToSync.length, updated, failed };
+}
+
+rewardsRouter.post(['/sync_reward', '/rewards/sync_reward'], async (req: Request, res: Response) => {
+  try {
+    const rewardId = Number(req.body?.reward_id || req.body?.id);
+    if (!rewardId) {
+      res.status(400).json({ success: false, error: 'Reward ID is required' });
+      return;
+    }
+    const result = await syncRewardById(rewardId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'Failed to sync reward' });
   }
 });
 

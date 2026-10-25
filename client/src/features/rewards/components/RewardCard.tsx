@@ -61,6 +61,8 @@ export interface RewardCardProps {
   onRedeem: (r: Reward) => void;
   onEdit: (r: Reward) => void;
   onDelete: (r: Reward) => void;
+  onSyncReward?: (r: Reward) => Promise<void>;
+  isSyncing?: boolean;
 }
 
 export const RewardCard: React.FC<RewardCardProps> = React.memo(({
@@ -72,6 +74,8 @@ export const RewardCard: React.FC<RewardCardProps> = React.memo(({
   onRedeem,
   onEdit,
   onDelete,
+  onSyncReward,
+  isSyncing = false,
 }) => {
   const isEveryone = reward.assigned_to === 'Everyone' || reward.assigned_to === 'All' || !reward.assigned_to;
   const assignedPerson = !isEveryone ? family.find((p) => p.name === reward.assigned_to) : null;
@@ -280,7 +284,7 @@ export const RewardCard: React.FC<RewardCardProps> = React.memo(({
           </div>
 
           {reward.source_url && (
-            <div style={{ marginBottom: 6 }}>
+            <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
               <a
                 href={reward.source_url}
                 target="_blank"
@@ -305,6 +309,49 @@ export const RewardCard: React.FC<RewardCardProps> = React.memo(({
                 <i className="fas fa-external-link-alt" style={{ fontSize: '0.68rem' }} />
                 <span>{reward.source_name || 'View Product'}</span>
               </a>
+
+              {onSyncReward && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isSyncing) onSyncReward(reward);
+                  }}
+                  disabled={isSyncing}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 24,
+                    height: 24,
+                    borderRadius: 6,
+                    background:
+                      (reward.sync_error_count ?? 0) >= 3
+                        ? 'rgba(239, 68, 68, 0.18)'
+                        : 'rgba(255, 255, 255, 0.08)',
+                    border:
+                      (reward.sync_error_count ?? 0) >= 3
+                        ? '1px solid rgba(239, 68, 68, 0.45)'
+                        : '1px solid rgba(255, 255, 255, 0.12)',
+                    color: (reward.sync_error_count ?? 0) >= 3 ? '#f87171' : '#cbd5e1',
+                    cursor: isSyncing ? 'wait' : 'pointer',
+                    pointerEvents: isSyncing ? 'none' : 'auto',
+                    opacity: isSyncing ? 0.7 : 1,
+                    fontSize: '0.72rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title={
+                    isSyncing
+                      ? 'Syncing latest price from store...'
+                      : (reward.sync_error_count ?? 0) >= 3
+                      ? 'Store page has failed to sync 3 times. Click to retry now.'
+                      : `Sync latest price & points from ${reward.source_name || 'store'}`
+                  }
+                  aria-label="Sync latest price from store"
+                >
+                  <i className={`fas ${isSyncing ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'}`} />
+                </button>
+              )}
             </div>
           )}
 

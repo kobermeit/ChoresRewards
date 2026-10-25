@@ -26,6 +26,7 @@ const STOCK_REWARD_IMAGES = [
 export interface RewardEditModalProps {
   open: boolean;
   editingReward: Reward | null;
+  initialImportUrl?: string | null;
   family: Person[];
   isCash: boolean;
   onClose: () => void;
@@ -35,6 +36,7 @@ export interface RewardEditModalProps {
 export const RewardEditModal: React.FC<RewardEditModalProps> = ({
   open,
   editingReward,
+  initialImportUrl,
   family,
   isCash,
   onClose,
@@ -42,6 +44,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
 }) => {
   const { showToast } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
 
   const [formTitle, setFormTitle] = useState('');
   const [formPoints, setFormPoints] = useState('');
@@ -56,10 +59,14 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
 
   // Link import & source states
-  const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [formSourceUrl, setFormSourceUrl] = useState('');
   const [formSourceName, setFormSourceName] = useState('');
+
+  const isEditingSameUrl = Boolean(
+    editingReward?.source_url &&
+    formSourceUrl.trim() === editingReward.source_url.trim()
+  );
 
   useEffect(() => {
     if (editingReward) {
@@ -74,8 +81,8 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
       setFormSourceName(editingReward.source_name || '');
       setFormImageFile(null);
       setFormError(null);
-      setImportUrl('');
     } else {
+      const startUrl = initialImportUrl || '';
       setFormTitle('');
       setFormPoints(isCash ? '2' : '10');
       setFormAssignedTo('Everyone');
@@ -83,13 +90,43 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
       setFormDescription('');
       setFormImageUrl(null);
       setImagePreview(null);
-      setFormSourceUrl('');
+      setFormSourceUrl(startUrl);
       setFormSourceName('');
       setFormImageFile(null);
       setFormError(null);
-      setImportUrl('');
+
+      if (startUrl) {
+        handleImportLink(startUrl);
+      }
     }
-  }, [editingReward, isCash, open]);
+  }, [editingReward, isCash, open, initialImportUrl]);
+
+  const handlePasteClipboard = async () => {
+    if (!navigator.clipboard?.readText) {
+      urlInputRef.current?.focus();
+      showToast('Please paste your link directly into the field (Ctrl+V or long-press)', { type: 'info' });
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      const trimmed = (text || '').trim();
+      if (!trimmed) {
+        urlInputRef.current?.focus();
+        showToast('Clipboard is empty. Copy a product link and paste here.', { type: 'info' });
+        return;
+      }
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        urlInputRef.current?.focus();
+        showToast('Please copy a valid web link starting with http:// or https://', { type: 'warning' });
+        return;
+      }
+      setFormSourceUrl(trimmed);
+      handleImportLink(trimmed);
+    } catch {
+      urlInputRef.current?.focus();
+      showToast('Please paste your link directly into the field (Ctrl+V or long-press)', { type: 'info' });
+    }
+  };
 
   const handleClearImage = () => {
     setFormImageFile(null);
@@ -107,8 +144,10 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
     setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleImportLink = async () => {
-    const raw = importUrl.trim();
+  const handleImportLink = async (overrideUrl?: string) => {
+    if (isImporting) return;
+    const target = typeof overrideUrl === 'string' && overrideUrl ? overrideUrl : formSourceUrl;
+    const raw = target.trim();
     if (!raw) return;
     if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
       setFormError('Please enter a valid link starting with http:// or https://');
@@ -141,8 +180,12 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
         }
         setFormSourceUrl(res.source_url || raw);
         setFormSourceName(res.source_name || '');
-        setImportUrl('');
-        showToast(`Imported details from ${res.source_name || 'link'}!`, { type: 'success' });
+        showToast(
+          isEditingSameUrl
+            ? `Updated details from ${res.source_name || 'store'}!`
+            : `Imported details from ${res.source_name || 'link'}!`,
+          { type: 'success' }
+        );
       }
     } catch (err: any) {
       setFormError(err?.message || 'Could not import product details from link');
@@ -188,7 +231,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
         });
         formData.append('photo', formImageFile);
 
-        const res = await fetch(resolveApiUrl(editingReward ? 'update_reward' : 'add_reward'), {
+        const res = await fetch(resolveApiUrl(editingReward ? 'edit_reward' : 'add_reward'), {
           method: 'POST',
           body: formData,
           credentials: 'include',
@@ -196,7 +239,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Failed to save reward');
       } else {
-        await apiPost(editingReward ? 'update_reward' : 'add_reward', payload);
+        await apiPost(editingReward ? 'edit_reward' : 'add_reward', payload);
       }
 
       showToast(editingReward ? `Updated "${formTitle.trim()}"` : `Added reward "${formTitle.trim()}"`);
@@ -223,7 +266,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
           </Button>
           <Button
             variant="primary"
-            disabled={submitting}
+            disabled={submitting || isImporting}
             isLoading={submitting}
             onClick={handleSaveModal}
           >
@@ -237,50 +280,115 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
           <FormErrorAlert error={formError} onDismiss={() => setFormError(null)} />
         </FormField>
 
-        {/* Link Importer Bar */}
+        {/* Product Link (Optional) */}
         <FormField colSpan={12}>
-          <div
-            style={{
-              padding: '12px 14px',
-              borderRadius: 12,
-              background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px dashed rgba(56, 189, 248, 0.35)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8' }}>
-                <i className="fas fa-magic" style={{ marginRight: 6 }} />
-                Import from Product Link (Amazon, Target, Kmart, LEGO...)
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Input
-                inputSize="sm"
-                placeholder="Paste Amazon, Target, Kmart link to auto-fill..."
-                value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleImportLink();
-                  }
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label
+                htmlFor="form-product-url"
+                style={{
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  color: 'var(--color-text-primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="primary"
-                icon="fas fa-file-import"
-                disabled={!importUrl.trim()}
-                isLoading={isImporting}
-                onClick={handleImportLink}
               >
-                Import
-              </Button>
+                <span>Product Link</span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>
+                  (optional)
+                </span>
+                <span
+                  title="Paste a link from Amazon or Kmart to automatically fill in the title, price, points, and photo."
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    color: 'var(--color-text-secondary)',
+                    fontSize: '0.68rem',
+                    cursor: 'help',
+                  }}
+                >
+                  <i className="fas fa-question" />
+                </span>
+              </label>
             </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  ref={urlInputRef}
+                  id="form-product-url"
+                  type="url"
+                  placeholder="Paste Amazon or Kmart link..."
+                  value={formSourceUrl}
+                  disabled={isImporting}
+                  onChange={(e) => setFormSourceUrl(e.target.value)}
+                  onPaste={(e) => {
+                    const pasted = e.clipboardData?.getData('text')?.trim();
+                    if (pasted && (pasted.startsWith('http://') || pasted.startsWith('https://'))) {
+                      setFormSourceUrl(pasted);
+                      handleImportLink(pasted);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!isImporting && formSourceUrl.trim()) {
+                        handleImportLink();
+                      }
+                    }
+                  }}
+                />
+              </div>
+              {!formSourceUrl.trim() ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="fas fa-paste"
+                  disabled={isImporting}
+                  isLoading={isImporting}
+                  collapseOnMobile={false}
+                  onClick={handlePasteClipboard}
+                  title="Paste link from clipboard and auto-fill"
+                  style={{ flexShrink: 0, height: 42 }}
+                >
+                  Paste
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant={isEditingSameUrl ? 'secondary' : 'primary'}
+                  icon={isEditingSameUrl ? 'fas fa-arrows-rotate' : 'fas fa-file-import'}
+                  disabled={!formSourceUrl.trim() || isImporting}
+                  isLoading={isImporting}
+                  collapseOnMobile={false}
+                  onClick={() => handleImportLink()}
+                  title={isEditingSameUrl ? 'Re-sync latest price and details from store' : 'Import details from product link'}
+                  style={{ flexShrink: 0, height: 42 }}
+                >
+                  {isImporting
+                    ? isEditingSameUrl
+                      ? 'Syncing...'
+                      : 'Importing...'
+                    : isEditingSameUrl
+                    ? 'Re-sync'
+                    : 'Import'}
+                </Button>
+              )}
+            </div>
+
+            {isImporting && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#38bdf8', fontWeight: 600, marginTop: 2 }}>
+                <i className="fas fa-spinner fa-spin" />
+                <span>Reading product title, price, points, and photo from store...</span>
+              </div>
+            )}
           </div>
         </FormField>
 
@@ -291,9 +399,10 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
             type="text"
             placeholder="e.g. 1 hour of iPad, Movie Night, Ice Cream..."
             value={formTitle}
+            disabled={isImporting}
             onChange={(e) => setFormTitle(e.target.value)}
             required
-            autoFocus
+            autoFocus={!formSourceUrl}
           />
         </FormField>
 
@@ -302,6 +411,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
           <AssigneeSelect
             label="Assign To"
             value={formAssignedTo}
+            disabled={isImporting}
             onChange={(val) => setFormAssignedTo(val)}
             family={family}
             allowGroups
@@ -314,6 +424,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
           <NumberStepper
             label={isCash ? 'Cost ($)' : 'Points Required'}
             required
+            disabled={isImporting}
             value={formPoints}
             onChange={(val) => setFormPoints(String(val))}
             min={isCash ? 0.5 : 1}
@@ -337,18 +448,20 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
               borderRadius: 'var(--radius-md)',
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid var(--color-border-subtle)',
+              opacity: isImporting ? 0.6 : 1,
             }}
           >
             <input
               type="checkbox"
               id="form-recurring-toggle"
               checked={formIsRecurring}
+              disabled={isImporting}
               onChange={(e) => setFormIsRecurring(e.target.checked)}
-              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#3b82f6' }}
+              style={{ width: 18, height: 18, cursor: isImporting ? 'not-allowed' : 'pointer', accentColor: '#3b82f6' }}
             />
             <label
               htmlFor="form-recurring-toggle"
-              style={{ cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, userSelect: 'none' }}
+              style={{ cursor: isImporting ? 'not-allowed' : 'pointer', fontSize: '0.88rem', fontWeight: 600, userSelect: 'none' }}
             >
               Repeatable / Recurring Reward
               <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 400 }}>
@@ -356,18 +469,6 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
               </span>
             </label>
           </div>
-        </FormField>
-
-        {/* Source Link (Optional) */}
-        <FormField colSpan={12}>
-          <Input
-            label="Product Link / Store URL (Optional)"
-            type="url"
-            placeholder="https://www.amazon.com.au/..."
-            value={formSourceUrl}
-            onChange={(e) => setFormSourceUrl(e.target.value)}
-            helperText="A link button will appear on the reward card allowing you to open the store page directly."
-          />
         </FormField>
 
         {/* Description */}
@@ -380,6 +481,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
               placeholder="Add details, rules, or fun notes..."
               rows={2}
               value={formDescription}
+              disabled={isImporting}
               onChange={(e) => setFormDescription(e.target.value)}
               className="cr-textarea"
               style={{
@@ -390,6 +492,8 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
                 color: 'var(--color-text-primary)',
                 fontSize: '0.9rem',
                 boxSizing: 'border-box',
+                opacity: isImporting ? 0.6 : 1,
+                cursor: isImporting ? 'not-allowed' : 'auto',
               }}
             />
           </div>
@@ -423,13 +527,15 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
             >
               {/* Photo Box & Upload Trigger */}
               <div
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!isImporting) fileInputRef.current?.click();
+                }}
                 className="chore-upload-box"
                 style={{
                   width: 82,
                   height: 82,
                   borderRadius: 14,
-                  cursor: 'pointer',
+                  cursor: isImporting ? 'not-allowed' : 'pointer',
                   position: 'relative',
                   flexShrink: 0,
                   background: imagePreview ? '#0f172a' : 'rgba(255, 255, 255, 0.05)',
@@ -444,6 +550,8 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
                   padding: '6px 4px',
                   boxSizing: 'border-box',
                   overflow: 'hidden',
+                  opacity: isImporting ? 0.5 : 1,
+                  pointerEvents: isImporting ? 'none' : 'auto',
                 }}
                 title={imagePreview ? 'Click to change photo' : 'Click to upload photo'}
               >
@@ -509,6 +617,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
                   type="button"
                   variant="secondary"
                   icon="fas fa-images"
+                  disabled={isImporting}
                   onClick={() => setStockPickerOpen(true)}
                 >
                   Choose photo
@@ -518,6 +627,7 @@ export const RewardEditModal: React.FC<RewardEditModalProps> = ({
                     type="button"
                     variant="danger"
                     icon="fas fa-trash"
+                    disabled={isImporting}
                     onClick={handleClearImage}
                   >
                     Remove

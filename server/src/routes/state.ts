@@ -93,6 +93,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       is_recurring: r.is_recurring !== 0 && r.is_recurring !== false,
       source_url: r.source_url || null,
       source_name: r.source_name || null,
+      last_synced_at: r.last_synced_at || null,
+      sync_error_count: Number(r.sync_error_count || 0),
     }));
 
     const weekStart = getMondayOfWeek(familyToday);

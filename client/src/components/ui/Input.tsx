@@ -48,11 +48,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {helperText}
           </span>
         )}
-        {!error && helperText && (
-          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-            {helperText}
-          </span>
-        )}
       </div>
     );
   }
@@ -205,11 +200,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {error && (
           <span style={{ fontSize: '0.78rem', color: 'var(--color-danger-border)', fontWeight: 600 }}>
             {error}
-          </span>
-        )}
-        {!error && helperText && (
-          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-            {helperText}
           </span>
         )}
         {!error && helperText && (

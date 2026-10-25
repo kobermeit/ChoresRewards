@@ -3177,7 +3177,10 @@ body.side-nav-body-collapsed { padding-left: 8px; }
     box-sizing: border-box !important;
   }
   .header-mobile-hamburger {
-    display: inline-flex !important;
+    display: none !important;
+  }
+  .header-menu-btn-wrap {
+    display: none !important;
   }
 
   /* Header mobile containment */
@@ -3210,6 +3213,15 @@ body.side-nav-body-collapsed { padding-left: 8px; }
     gap: 6px !important;
   }
   .header-action-inline-collapse {
+    display: none !important;
+  }
+  #user-profile-btn {
+    display: inline-flex !important;
+    padding: 2px !important;
+    border-radius: 50% !important;
+  }
+  #user-profile-btn .user-profile-label,
+  #user-profile-btn .user-profile-chevron {
     display: none !important;
   }
 

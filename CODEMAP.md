@@ -55,7 +55,7 @@ choresrewards/
 | **Meal Planner & Recipes** | `client/src/features/meals/MealPlannerSection.tsx`<br>`features/meals/RecipeLibrarySection.tsx`<br>`features/meals/components/MealDayColumn.tsx`<br>`features/meals/components/RecipeCard.tsx` | `components/MealAndShoppingSection.tsx` | `/api/meals` (`server/src/routes/meals.ts`)<br>Tables: `meal_plan`, `recipe` |
 | **Smart Shopping List** | `client/src/features/shopping/ShoppingListSection.tsx`<br>`features/shopping/components/ShoppingStoreLane.tsx`<br>`features/shopping/components/ShoppingHistoryModal.tsx`<br>`features/shopping/components/ManageCatalogModal.tsx`<br>`features/shopping/components/LaneQuickAddDropdown.tsx` | `components/MealAndShoppingSection.tsx` | `/api/shopping`, `/api/shopping/catalog/delete`<br>Tables: `shopping_catalog`, `shopping_purchase_log` |
 | **Mobile Navigation & Offline** | `client/src/components/MobileBottomNav.tsx`<br>`client/src/components/MobileDrawer.tsx`<br>`client/src/components/OfflineSyncManager.tsx` | - | Redux `uiSlice.ts` (`offlineQueue`, `mobileDrawerOpen`) |
-| **Rewards & Redemption** | `client/src/features/rewards/RewardsSection.tsx`<br>`features/rewards/components/RewardCard.tsx`<br>`features/rewards/components/ClaimRewardModal.tsx` | `components/RewardsSection.tsx` | `/api/rewards` (`server/src/routes/rewards.ts`)<br>Table: `reward` |
+| **Rewards & Redemption** | `client/src/features/rewards/RewardsSection.tsx`<br>`features/rewards/components/RewardCard.tsx`<br>`features/rewards/components/RewardEditModal.tsx`<br>`features/rewards/components/ClaimRewardModal.tsx` | `components/RewardsSection.tsx` | `/api/rewards`, `/api/rewards/import_url`, `/api/rewards/sync_reward`<br>Daily price sync cron (`server/src/routes/rewards.ts`)<br>Table: `reward` |
 | **Family Dashboard** | `client/src/features/dashboard/DashboardSection.tsx`<br>`features/dashboard/widgets/*` (8 memoized widgets) | `components/DashboardSection.tsx` | Aggregated via `/api/data` |
 | **Family Calendar** | `client/src/features/calendar/CalendarView.tsx`<br>`features/calendar/components/CalendarMonthView.tsx`<br>`features/calendar/components/CalendarScheduleView.tsx` | `components/CalendarView.tsx` | `/api/sync_calendar`<br>Table: `google_calendar_settings` |
 | **Household Notes** | `client/src/features/notes/NotesSection.tsx`<br>`features/notes/components/NoteRowCard.tsx`<br>`features/notes/components/NoteEditModal.tsx` | `components/CalendarAndNotesSection.tsx` | `/api/text_pads`<br>Table: `text_pad` |
@@ -88,7 +88,10 @@ All domain types are cleanly separated:
 - **Context API** (`client/src/context/`):
   - `AppContext.tsx`: Household server payload (`data`), session role gating (`isParent`, `isChild`), toasts, and confirmation dialogs.
   - `TimerContext.tsx`: High-precision choreography timer tick engine synced to Redux storage.
+- **Backend Session Persistence** (`server/src/services/sessionStore.ts`):
+  - `SqliteSessionStore`: Custom SQLite-persisted session store (`session_store` table). Ensures parent unlock sessions survive backend restarts, reloads, and multi-device sync without dropping back to kiosk mode.
 - **Rules**:
   - ZERO direct `localStorage` calls.
+  - Mobile Navigation: Thumb-reachable bottom bar (`[ Today | Chores | Rewards | Shopping | ☰ Menu ]`) opens unified `MobileDrawer` containing primary/secondary navigation, quick tools (Timer, Clock, Sound), and active profile card with switcher.
   - Keep components pure; memoize cards and kanban lanes with `React.memo`.
   - Use `useMemo` for derived datasets and `useCallback` for stable handlers.

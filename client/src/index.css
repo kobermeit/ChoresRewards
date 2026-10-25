@@ -167,8 +167,15 @@
   margin: 4px 0;
 }
 
-/* At <= 1400px (Tablets, Chromebooks, Laptops), hide inline actions and show only the Burger Menu */
-@media (max-width: 1400px) {
+/* On Mobile (<= 768px), hide the header burger menu; navigation is unified in the bottom bar + side drawer */
+@media (max-width: 768px) {
+  .header-menu-btn-wrap {
+    display: none !important;
+  }
+}
+
+/* At 769px - 1400px (Tablets, Chromebooks, Laptops), hide inline actions and show the Burger Menu */
+@media (min-width: 769px) and (max-width: 1400px) {
   .header-action-inline-collapse {
     display: none !important;
   }

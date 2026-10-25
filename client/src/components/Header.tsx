@@ -482,7 +482,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
+              <div className="user-profile-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
                 <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
                   {activeUser?.name || 'Family'}
                 </span>
@@ -498,7 +498,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 </span>
               </div>
 
-              <i className="fas fa-chevron-down" style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '2px' }} />
+              <i className="fas fa-chevron-down user-profile-chevron" style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '2px' }} />
             </button>
 
             {/* Quick Actions Burger Menu */}

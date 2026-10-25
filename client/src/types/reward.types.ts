@@ -11,4 +11,6 @@ export interface Reward {
   is_recurring?: boolean;
   source_url?: string | null;
   source_name?: string | null;
+  last_synced_at?: string | null;
+  sync_error_count?: number;
 }
