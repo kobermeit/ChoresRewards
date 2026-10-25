@@ -93,6 +93,38 @@ export const SettingsView: React.FC = () => {
         </Button>
       </div>
 
+      {/* Mobile Category Dropdown Selector (Active on screens <= 768px) */}
+      <div className="settings-mobile-category-picker" style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--cr-text-secondary)', display: 'block', marginBottom: 6 }}>
+          Category:
+        </label>
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value as SettingsTabId)}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 12,
+            background: 'var(--cr-surface-1)',
+            border: '1px solid var(--cr-surface-border)',
+            color: '#f8fafc',
+            fontSize: '0.95rem',
+            fontWeight: 700,
+            outline: 'none',
+          }}
+        >
+          {navGroups.map((g) => (
+            <optgroup key={g.group} label={g.group}>
+              {g.items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label} {item.badge ? `(${item.badge})` : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
       <div
         style={{
           display: 'grid',
@@ -102,8 +134,9 @@ export const SettingsView: React.FC = () => {
         }}
         className="settings-layout-grid"
       >
-        {/* Left Navigation Sidebar */}
+        {/* Left Navigation Sidebar (Hidden on mobile via CSS) */}
         <div
+          className="settings-nav-sidebar"
           style={{
             background: 'var(--cr-surface-1)',
             border: '1px solid var(--cr-surface-border)',
@@ -202,7 +235,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Right Content Column */}
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, width: '100%' }}>
           <WipBanner />
 
           {tab === 'setup' && <SetupWizard embedded />}

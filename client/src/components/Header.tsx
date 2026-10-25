@@ -196,7 +196,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
         {/* Left Zone: Hamburger (Mobile) & Mascot & Title */}
         <div
           className="header-zone-left"
-          style={{ display: 'flex', alignItems: 'center', flex: '1 1 0', minWidth: 'max-content' }}
+          style={{ display: 'flex', alignItems: 'center', flex: '1 1 auto', minWidth: 0 }}
         >
           <button
             type="button"
@@ -211,7 +211,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
             <i className="fas fa-bars" />
           </button>
           <div
-            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', minWidth: 0 }}
             onClick={() => setActiveView('dashboard')}
           >
             <img
@@ -222,10 +222,12 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 width: headerMinimized ? 36 : 48,
                 marginRight: 8,
                 transition: 'height 0.2s, width 0.2s',
+                flexShrink: 0,
               }}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
               <h2
+                className="header-app-title"
                 style={{
                   color: 'var(--cr-text-primary)',
                   margin: 0,
@@ -235,10 +237,11 @@ function getRelativeAge(from: Date | null, to: Date): string {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Chores and Rewards
+                Chores &amp; Rewards
               </h2>
             {data?.app_version && (
               <span
+                className="header-app-version"
                 style={{
                   fontSize: '0.72rem',
                   fontWeight: 600,
@@ -256,6 +259,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
             )}
             {seasonInfo.enabled && seasonInfo.theme && (
               <span
+                className="header-seasonal-badge"
                 style={{
                   fontSize: '0.74rem',
                   fontWeight: 700,
@@ -273,7 +277,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 title={seasonInfo.event ? `Active Event: ${seasonInfo.theme.name}` : `Active Season: ${seasonInfo.theme.name}`}
               >
                 <span>{seasonInfo.emoji}</span>
-                <span>{seasonInfo.theme.name}</span>
+                <span className="header-seasonal-name">{seasonInfo.theme.name}</span>
               </span>
             )}
           </div>
@@ -302,13 +306,13 @@ function getRelativeAge(from: Date | null, to: Date): string {
           <nav
             className="header-nav-actions header-zone-right"
             style={{
-              flex: '1 1 0',
+              flex: '0 0 auto',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
               gap: 8,
               flexWrap: 'nowrap',
-              minWidth: 'max-content',
+              minWidth: 0,
             }}
           >
             {/* Refresh Button */}

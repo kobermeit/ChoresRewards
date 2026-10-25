@@ -810,25 +810,7 @@ householdRouter.post('/api/meal_planner/card/move', (req: Request, res: Response
   }
 });
 
-// Legacy single-slot compatibility endpoint
-householdRouter.post('/api/save_meal_plan', (req: Request, res: Response) => {
-  const dateIso = String(req.body?.date_iso || '').trim();
-  const value = String(req.body?.value || '').trim();
-  const audience = String(req.body?.audience || 'Everyone').trim();
-  const storedPlan = parseJsonSetting<Record<string, any>>('meal_planner_plan_json', {});
-  const cards = normalizeDayCards(storedPlan[dateIso]);
-  if (value) {
-    cards.push({
-      id: `card_${crypto.randomBytes(6).toString('hex')}`,
-      title: value,
-      audience,
-      meal_key: value.toLowerCase().trim(),
-    });
-    storedPlan[dateIso] = cards;
-  }
-  AppSetting.set('meal_planner_plan_json', JSON.stringify(storedPlan));
-  res.json({ success: true });
-});
+
 
 householdRouter.post('/api/add_meal_suggestion', (req: Request, res: Response) => {
   const meal = String(req.body?.meal || '').trim().slice(0, 80);

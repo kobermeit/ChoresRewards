@@ -11,7 +11,12 @@ import { CalendarEventModal } from './components/CalendarEventModal';
 
 export const CalendarView: React.FC = () => {
   const { data, refresh, showToast, isParent, setActiveView } = useApp();
-  const [viewMode, setViewMode] = useState<'month' | 'schedule' | 'embed'>('month');
+  const [viewMode, setViewMode] = useState<'month' | 'schedule' | 'embed'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'schedule';
+    }
+    return 'month';
+  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [personFilter, setPersonFilter] = useState<string>('all');
