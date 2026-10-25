@@ -19,4 +19,6 @@ export * from './CardShell';
 export * from './TimerRing';
 export * from './CustomDropdown';
 export * from './AssigneeSelect';
+export * from './PointsBadge';
+export * from './AssigneeBadge';
 export * from '../FormErrorAlert';

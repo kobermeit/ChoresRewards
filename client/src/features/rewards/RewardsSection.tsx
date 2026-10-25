@@ -4,6 +4,7 @@ import { Reward, Person } from '../../types';
 import { apiPost, resolveAssetUrl, resolveAvatarUrl } from '../../api';
 import { PageContainer, Button, PillButton, ResponsiveGrid, UserAvatar, Badge } from '../../components/ui';
 import { RewardCard } from './components/RewardCard';
+import { ErrorBoundary } from '../../components/common/ErrorBoundary';
 import { RewardEditModal } from './components/RewardEditModal';
 import { ClaimRewardModal } from './components/ClaimRewardModal';
 import { useNavigation } from '../../hooks/useSettings';
@@ -307,7 +308,8 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
 
           <ResponsiveGrid className="rewards-grid-modern" minColWidth="260px">
             {filteredAvailableRewards.map((reward) => (
-              <RewardCard
+              <ErrorBoundary key={reward.id} level="card" title={reward.title}>
+                <RewardCard
                 key={reward.id}
                 reward={reward}
                 family={family}
@@ -319,7 +321,8 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                 onDelete={handleDeleteReward}
                 onSyncReward={handleSyncReward}
                 isSyncing={syncingRewardId === reward.id}
-              />
+                />
+              </ErrorBoundary>
             ))}
           </ResponsiveGrid>
         </>
@@ -340,8 +343,8 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
               const person = family.find((p) => p.name === reward.assigned_to);
               const reqPts = Number(reward.points_required || 0);
               return (
-                <div
-                  key={reward.id}
+                <ErrorBoundary key={reward.id} level="card" title={reward.title}>
+                  <div
                   style={{
                     borderRadius: 'var(--card-radius, 16px)',
                     background: 'var(--cr-surface-1, rgba(30, 41, 59, 0.7))',
@@ -417,6 +420,7 @@ export const RewardsSection: React.FC<RewardsSectionProps> = ({ isStandalonePage
                     )}
                   </div>
                 </div>
+              </ErrorBoundary>
               );
             })}
           </ResponsiveGrid>

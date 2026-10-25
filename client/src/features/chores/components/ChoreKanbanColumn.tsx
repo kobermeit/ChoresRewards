@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { Button, UserAvatar } from '../../../components/ui';
 import { Chore, ExtraChore, Person } from '../../../types';
 import { ChoreCard } from './ChoreCard';
+import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
 
 export interface ChoreKanbanColumnProps {
   person: Person;
@@ -210,22 +211,23 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
       {visibleChores.length > 0 ? (
         <div className="chores-list" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
           {visibleChores.map((chore) => (
-            <ChoreCard
-              key={chore.id}
-              chore={chore}
-              person={person}
-              isCash={isCash}
-              isParent={isParent}
-              isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
-              completeBtnLabel={completeBtnLabel}
-              isFlipped={Boolean(flippedChores[chore.id])}
-              onComplete={onCompleteChore}
-              onUndo={onUndoChore}
-              onStartTimer={onStartTimer}
-              onToggleFlip={onToggleFlip}
-              onEdit={onEditChore}
-              onDelete={onDeleteChore}
-            />
+            <ErrorBoundary key={chore.id} level="card" title={chore.title || 'Chore Card'}>
+              <ChoreCard
+                chore={chore}
+                person={person}
+                isCash={isCash}
+                isParent={isParent}
+                isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
+                completeBtnLabel={completeBtnLabel}
+                isFlipped={Boolean(flippedChores[chore.id])}
+                onComplete={onCompleteChore}
+                onUndo={onUndoChore}
+                onStartTimer={onStartTimer}
+                onToggleFlip={onToggleFlip}
+                onEdit={onEditChore}
+                onDelete={onDeleteChore}
+              />
+            </ErrorBoundary>
           ))}
         </div>
       ) : isLoading ? (

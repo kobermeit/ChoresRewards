@@ -1,7 +1,7 @@
 import React from 'react';
 import { Reward, Person } from '../../../types';
 import { resolveAssetUrl, resolveAvatarUrl } from '../../../api';
-import { Button, IconButton } from '../../../components/ui';
+import { Button, IconButton, PointsBadge, AssigneeBadge } from '../../../components/ui';
 
 function getRewardIconClass(title: string): string {
   const lower = (title || '').toLowerCase();
@@ -148,91 +148,13 @@ export const RewardCard: React.FC<RewardCardProps> = React.memo(({
         />
 
         {/* Points Currency Floating Pill */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            background: 'rgba(0, 0, 0, 0.8)',
-            backdropFilter: 'blur(8px)',
-            border: `1.5px solid ${isCash ? '#4ade80' : '#fbbf24'}`,
-            color: isCash ? '#4ade80' : '#fbbf24',
-            padding: '4px 10px',
-            borderRadius: 10,
-            fontWeight: 900,
-            fontSize: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          }}
-          title="Required Currency"
-        >
-          {isCash ? (
-            <>
-              <i className="fas fa-money-bill-wave" />
-              <span>${reqPts.toFixed(2)}</span>
-            </>
-          ) : (
-            <>
-              <span>⭐</span>
-              <span>{reqPts} pts</span>
-            </>
-          )}
+        <div style={{ position: 'absolute', top: 10, right: 10 }}>
+          <PointsBadge amount={reqPts} isCash={isCash} />
         </div>
 
         {/* Assignee Badge in Hero */}
         <div style={{ position: 'absolute', top: 10, left: 10 }}>
-          {isEveryone ? (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 8px',
-                borderRadius: 8,
-                background: 'rgba(168, 85, 247, 0.85)',
-                backdropFilter: 'blur(6px)',
-                color: '#ffffff',
-                fontWeight: 800,
-                fontSize: '0.74rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              }}
-            >
-              🌟 Everyone
-            </span>
-          ) : (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(6px)',
-                padding: '3px 8px',
-                borderRadius: 999,
-                border: '1px solid rgba(255,255,255,0.2)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              }}
-            >
-              <img
-                src={resolveAvatarUrl(assignedPerson?.avatar)}
-                alt={reward.assigned_to}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = resolveAvatarUrl(null);
-                }}
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                }}
-              />
-              <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.78rem' }}>
-                {reward.assigned_to}
-              </span>
-            </div>
-          )}
+          <AssigneeBadge assignee={reward.assigned_to} person={assignedPerson} />
         </div>
       </div>
 

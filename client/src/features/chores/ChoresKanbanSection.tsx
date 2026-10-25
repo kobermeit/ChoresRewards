@@ -9,6 +9,7 @@ import { useTimer } from '../../context/TimerContext';
 import { fireCelebrationFireworks, fireChoreConfetti } from '../../services/celebrationService';
 import { BODY_CHALLENGES, detectChoreIcon, isChoreScheduledForDate } from './choreUtils';
 import { ChoreCard } from './components/ChoreCard';
+import { ErrorBoundary } from '../../components/common/ErrorBoundary';
 import { ChoreKanbanColumn } from './components/ChoreKanbanColumn';
 import { ChoreCelebrationModal } from './components/ChoreCelebrationModal';
 
@@ -560,7 +561,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
             return (
               <ResponsiveGrid minColWidth="240px" gap="18px">
                 {visible.map((chore) => (
-                  <ChoreCard
+                  <ErrorBoundary key={chore.id} level="card" title={chore.title}>
+                    <ChoreCard
                     key={chore.id}
                     chore={chore}
                     person={selectedPerson}
@@ -575,7 +577,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                     onToggleFlip={toggleChoreFlip}
                     onEdit={(c) => openEditChoreModal(c)}
                     onDelete={(c) => setChoreToDelete(c)}
-                  />
+                    />
+                  </ErrorBoundary>
                 ))}
               </ResponsiveGrid>
             );

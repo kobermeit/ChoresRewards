@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Chore, Person } from '../../../types';
-import { ItemCard, Button, IconButton, FlipCard, Badge } from '../../../components/ui';
+import { ItemCard, Button, IconButton, FlipCard, Badge, PointsBadge } from '../../../components/ui';
 import { ChoreTimerCardBack } from '../../../components/ChoreTimerCardBack';
 import { detectChoreIcon, formatDaysTag } from '../choreUtils';
 
@@ -41,32 +41,12 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
   const daysLabel = formatDaysTag(chore.days_of_week, chore.is_daily);
   const memberColor = person.color || '#fbbf24';
 
-  const pointsPill = (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        background: 'rgba(251, 191, 36, 0.15)',
-        border: '1px solid rgba(251, 191, 36, 0.35)',
-        color: '#fbbf24',
-        padding: '2px 8px',
-        borderRadius: 'var(--radius-pill, 999px)',
-        fontSize: '0.82rem',
-        fontWeight: 800,
-      }}
-    >
-      <span>⭐</span>
-      <span>{isCash ? `$${chore.points.toFixed(2)}` : `${chore.points} pt`}</span>
-    </div>
-  );
-
   const isTimed = Boolean(chore.duration_seconds && chore.duration_seconds > 0);
   const mins = isTimed ? Math.round((chore.duration_seconds || 0) / 60) : 0;
 
   const metadataBadges = (
     <>
-      {pointsPill}
+      <PointsBadge amount={chore.points} isCash={isCash} />
       {isTimed && (
         <Badge variant="info">
           <i className="fas fa-stopwatch" style={{ marginRight: 4 }} />
@@ -138,7 +118,10 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
         icon="fas fa-play"
         fullWidth
         className="btn-start-timer"
-        onClick={() => onStartTimer(chore)}
+        onClick={() => {
+          onStartTimer(chore);
+          onToggleFlip(chore.id, true);
+        }}
       >
         Start ({mins}m)
       </Button>
