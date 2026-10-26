@@ -5,10 +5,13 @@ import { PersistGate } from 'redux-persist/integration/react';
 import App from './App';
 import { store, persistor } from './store';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { registerServiceWorker } from './services/serviceWorker';
 import './styles/tokens.css';
 import './styles/components.css';
 import './styles/screensaver.css';
 import './index.css';
+
+registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

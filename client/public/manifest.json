@@ -1,0 +1,25 @@
+{
+  "name": "ChoresRewards Family Hub",
+  "short_name": "ChoresRewards",
+  "description": "Family chores, rewards, meals and shopping list hub",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "./static/images/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./static/images/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

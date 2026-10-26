@@ -21,6 +21,8 @@ export interface PersistedChoreTimer {
 
 export interface QueuedOfflineMutation {
   id: string;
+  /** Idempotency key sent as X-Client-Mutation-Id so replays never double-apply. */
+  mutationId: string;
   endpoint: string;
   body: any;
   timestamp: number;
@@ -37,7 +39,18 @@ export interface UiState {
   parentManageMode: boolean;
   activeTimers: Record<number, PersistedChoreTimer>;
   offlineQueue: QueuedOfflineMutation[];
+  /** User collapsed the offline banner down to the compact pill. Reset on reconnect. */
+  offlineBannerDismissed: boolean;
+  /**
+   * Shopping ticks applied locally but not yet confirmed by the server.
+   * Persisted so ticks survive tab navigation, reloads and offline restarts.
+   */
+  shoppingCheckedOverrides: Record<string, boolean>;
 }
+
+/** Stable, collision-free idempotency key for an offline-replayable mutation. */
+export const generateMutationId = (): string =>
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
 const getInitialActiveView = (): ActiveView => {
   const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#\/?/, '').toLowerCase() : '';
@@ -68,6 +81,8 @@ const initialState: UiState = {
   parentManageMode: true,
   activeTimers: {},
   offlineQueue: [],
+  offlineBannerDismissed: false,
+  shoppingCheckedOverrides: {},
 };
 
 const uiSlice = createSlice({
@@ -104,19 +119,55 @@ const uiSlice = createSlice({
     setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
       state.activeTimers = action.payload;
     },
-    enqueueOfflineMutation(state, action: PayloadAction<{ endpoint: string; body: any }>) {
-      state.offlineQueue.push({
-        id: `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        endpoint: action.payload.endpoint,
-        body: action.payload.body,
-        timestamp: Date.now(),
-      });
+    enqueueOfflineMutation(
+      state,
+      action: PayloadAction<{ endpoint: string; body: any; mutationId?: string }>
+    ) {
+      const { endpoint, body, mutationId } = action.payload;
+      const id = mutationId || generateMutationId();
+
+      // Merge repeated writes for the same shopping item into a single queued call
+      // (e.g. a qty edit followed by a tick) instead of replaying them separately.
+      if (endpoint === 'update_shopping_item' && body && typeof body.key === 'string') {
+        const existing = state.offlineQueue.find(
+          (m) => m.endpoint === endpoint && m.body && m.body.key === body.key
+        );
+        if (existing) {
+          existing.body = { ...existing.body, ...body };
+          existing.timestamp = Date.now();
+          // Fresh idempotency key: the merged payload may contain data the earlier
+          // attempt never sent, so it must not be swallowed by the dedupe ledger.
+          existing.id = id;
+          existing.mutationId = id;
+          return;
+        }
+      }
+
+      state.offlineQueue.push({ id, mutationId: id, endpoint, body, timestamp: Date.now() });
     },
     dequeueOfflineMutation(state, action: PayloadAction<string>) {
       state.offlineQueue = state.offlineQueue.filter((m) => m.id !== action.payload);
     },
     clearOfflineQueue(state) {
       state.offlineQueue = [];
+    },
+    setOfflineBannerDismissed(state, action: PayloadAction<boolean>) {
+      state.offlineBannerDismissed = action.payload;
+    },
+    setShoppingCheckedOverride(state, action: PayloadAction<{ key: string; checked: boolean }>) {
+      state.shoppingCheckedOverrides[action.payload.key] = action.payload.checked;
+    },
+    clearShoppingCheckedOverride(state, action: PayloadAction<string>) {
+      delete state.shoppingCheckedOverrides[action.payload];
+    },
+    /** Drop local overrides the server now agrees with (they are no longer pending). */
+    pruneShoppingCheckedOverrides(state, action: PayloadAction<Record<string, boolean> | undefined>) {
+      const serverChecked = action.payload || {};
+      for (const key of Object.keys(state.shoppingCheckedOverrides)) {
+        if (serverChecked[key] === state.shoppingCheckedOverrides[key]) {
+          delete state.shoppingCheckedOverrides[key];
+        }
+      }
     },
   },
 });
@@ -135,5 +186,9 @@ export const {
   enqueueOfflineMutation,
   dequeueOfflineMutation,
   clearOfflineQueue,
+  setOfflineBannerDismissed,
+  setShoppingCheckedOverride,
+  clearShoppingCheckedOverride,
+  pruneShoppingCheckedOverrides,
 } = uiSlice.actions;
 export default uiSlice.reducer;

@@ -4,6 +4,53 @@
  * Using './api/...' and './static/...' ensures all requests resolve inside the Ingress prefix.
  */
 
+import { store } from './store';
+import { enqueueOfflineMutation, generateMutationId } from './store/uiSlice';
+import { markServedFromCache, reportNetworkFailure, reportNetworkSuccess } from './store/connectivitySlice';
+
+/** Header set by the service worker when it replays a cached GET while offline. */
+const CACHE_MARKER_HEADER = 'X-CR-From-Cache';
+const CACHE_TIMESTAMP_HEADER = 'X-CR-Cached-At';
+/** Idempotency header consumed by server/services/mutationDedupe.ts */
+const MUTATION_ID_HEADER = 'X-Client-Mutation-Id';
+
+/**
+ * Endpoints that must never enter the offline queue: they gate access (PIN /
+ * login / household setup), so replaying a stale attempt could lock people out
+ * or undo setup. Everything else is queued and replayed idempotently.
+ *
+ * NOTE: do NOT go back to a bare `endpointIncludes('pin')` test — the word
+ * "shopping" contains "pin", which silently dropped every shopping-list tick
+ * from the offline queue (found by the headless E2E test).
+ */
+const NON_REPLAYABLE_ENDPOINTS = new Set([
+  'login',
+  'logout',
+  'adult_login',
+  'adult_logout',
+  'setup',
+  'clear_pin',
+  'save_pin_settings',
+  'save_person_pin',
+  'verify_pin',
+  'verify_person_pin',
+  'set_pin',
+  'switch_user',
+]);
+
+function isNonReplayableEndpoint(endpoint: string): boolean {
+  const name = endpoint.replace(/^\.?\/?api\//i, '').toLowerCase();
+  if (NON_REPLAYABLE_ENDPOINTS.has(name)) return true;
+  if (/(^|[/_])(auth|login|logout|setup)([/_]|$)/.test(name)) return true;
+  // Token-boundary pin match: matches `clear_pin` / `pin_settings`, never `shopping`.
+  return /(^|[/_])pin([/_]|$)/.test(name);
+}
+
+function isReplayableRequest(endpoint: string, body: any): boolean {
+  if (body instanceof FormData) return false;
+  return !isNonReplayableEndpoint(endpoint);
+}
+
 export function resolveAssetUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
@@ -59,17 +106,33 @@ export function dispatchGlobalToast(message: string, type: 'error' | 'warning' |
 }
 
 
-let networkErrorCount = 0;
-
+/**
+ * Connectivity is tracked in the `connectivity` Redux slice so that the banner,
+ * the sync manager and the reconnect probe all share one answer.
+ */
 export function notifyNetworkFailure() {
-  networkErrorCount++;
-  if (networkErrorCount >= 2 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('cr:connection_lost'));
+  try {
+    store.dispatch(reportNetworkFailure());
+  } catch {
+    // store may be unavailable during very early boot
   }
 }
 
 export function notifyNetworkSuccess() {
-  networkErrorCount = 0;
+  try {
+    store.dispatch(reportNetworkSuccess());
+  } catch {
+    // ignore
+  }
+}
+
+/** True once the app has established that we are cut off from Home Assistant. */
+export function isKnownOffline(): boolean {
+  try {
+    return store.getState().connectivity.status === 'offline';
+  } catch {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
 }
 
 function getFetchSignal(timeoutMs = 2000): AbortSignal {
@@ -98,68 +161,100 @@ async function handleResponse<T>(res: Response): Promise<T> {
         : res.status === 401
         ? 'Authentication required — please sign in'
         : `Request failed (HTTP ${res.status})`);
-    dispatchGlobalToast(errorMsg, 'error');
+    if (!isKnownOffline()) {
+      dispatchGlobalToast(errorMsg, 'error');
+    }
     throw new ApiError(errorMsg, res.status, data);
   }
 
-  notifyNetworkSuccess();
+  if (res.headers.get(CACHE_MARKER_HEADER) === '1') {
+    // The service worker answered from its offline snapshot: we are actually offline.
+    const cachedAt = Number(res.headers.get(CACHE_TIMESTAMP_HEADER) || 0) || null;
+    try {
+      store.dispatch(markServedFromCache(cachedAt));
+    } catch {
+      // ignore
+    }
+  } else {
+    notifyNetworkSuccess();
+  }
+
   return (data !== null ? data : { success: true }) as T;
 }
 
-export async function apiGet<T = any>(endpoint: string): Promise<T> {
+export async function apiGet<T = any>(endpoint: string, timeoutMs = 2000): Promise<T> {
   try {
     const res = await fetch(resolveApiUrl(endpoint), {
       method: 'GET',
       credentials: 'include',
       headers: { Accept: 'application/json' },
-      signal: getFetchSignal(2000),
+      signal: getFetchSignal(timeoutMs),
     });
     return await handleResponse<T>(res);
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
       notifyNetworkFailure();
-      const msg = err?.message || 'Network request failed';
-      dispatchGlobalToast(msg, 'error');
+      // While we already know we are offline the banner owns the messaging:
+      // do not stack a red toast on top of it every poll tick.
+      if (!isKnownOffline()) {
+        dispatchGlobalToast(err?.message || 'Network request failed', 'error');
+      }
     }
     throw err;
   }
 }
 
-import { store } from './store';
-import { enqueueOfflineMutation } from './store/uiSlice';
+export interface ApiPostOptions {
+  /** Idempotency key — see server/services/mutationDedupe.ts */
+  mutationId?: string;
+  timeoutMs?: number;
+}
 
-export async function apiPostDirect<T = any>(endpoint: string, body?: any): Promise<T> {
+export async function apiPostDirect<T = any>(
+  endpoint: string,
+  body?: any,
+  options: ApiPostOptions = {}
+): Promise<T> {
   const isFormData = body instanceof FormData;
+  const headers: Record<string, string> = isFormData
+    ? { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    : { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+
+  if (options.mutationId) {
+    headers[MUTATION_ID_HEADER] = options.mutationId;
+  }
+
   const res = await fetch(resolveApiUrl(endpoint), {
     method: 'POST',
     credentials: 'include',
-    headers: isFormData
-      ? { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-      : { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    headers,
     body: isFormData ? body : JSON.stringify(body ?? {}),
-    signal: isFormData ? undefined : getFetchSignal(2000),
+    signal: isFormData ? undefined : getFetchSignal(options.timeoutMs ?? 2000),
   });
   return handleResponse<T>(res);
 }
 
 export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T> {
-  const isFormData = body instanceof FormData;
   const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+  const isReplayable = isReplayableRequest(endpoint, body);
+  // Generate the idempotency key BEFORE the first attempt: if the server commits the
+  // write but the response times out, the queued replay is recognised as already applied.
+  const mutationId = isReplayable ? generateMutationId() : undefined;
 
   // If explicitly offline and mutation is not auth/pin or FormData, queue immediately
-  if (!isOnline && !isFormData && !endpoint.includes('pin') && !endpoint.includes('auth')) {
+  if (!isOnline && isReplayable) {
     try {
-      store.dispatch(enqueueOfflineMutation({ endpoint, body }));
+      store.dispatch(enqueueOfflineMutation({ endpoint, body, mutationId }));
     } catch {
-      // ignore
+      // never block the UI because the queue could not be written
     }
     return { success: true, offline: true } as T;
   }
 
   try {
-    return await apiPostDirect<T>(endpoint, body);
+    return await apiPostDirect<T>(endpoint, body, { mutationId });
   } catch (err: any) {
-    if (!isFormData && !endpoint.includes('pin') && !endpoint.includes('auth')) {
+    if (isReplayable) {
       const isNetworkFail =
         (typeof navigator !== 'undefined' && !navigator.onLine) ||
         err?.name === 'TypeError' ||
@@ -172,9 +267,9 @@ export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T>
       if (isNetworkFail) {
         notifyNetworkFailure();
         try {
-          store.dispatch(enqueueOfflineMutation({ endpoint, body }));
+          store.dispatch(enqueueOfflineMutation({ endpoint, body, mutationId }));
         } catch {
-          // ignore
+          // never block the UI because the queue could not be written
         }
         return { success: true, offline: true } as T;
       }
@@ -199,8 +294,9 @@ export async function apiPut<T = any>(endpoint: string, body?: any): Promise<T> 
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
       notifyNetworkFailure();
-      const msg = err?.message || 'Network request failed';
-      dispatchGlobalToast(msg, 'error');
+      if (!isKnownOffline()) {
+        dispatchGlobalToast(err?.message || 'Network request failed', 'error');
+      }
     }
     throw err;
   }
@@ -218,8 +314,9 @@ export async function apiDelete<T = any>(endpoint: string): Promise<T> {
   } catch (err: any) {
     if (!(err instanceof ApiError)) {
       notifyNetworkFailure();
-      const msg = err?.message || 'Network request failed';
-      dispatchGlobalToast(msg, 'error');
+      if (!isKnownOffline()) {
+        dispatchGlobalToast(err?.message || 'Network request failed', 'error');
+      }
     }
     throw err;
   }

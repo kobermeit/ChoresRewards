@@ -1,109 +1,90 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useAppSelector, useAppDispatch } from '../store';
 import { dequeueOfflineMutation } from '../store/uiSlice';
-import { apiPostDirect } from '../api';
+import { ApiError, apiPostDirect, notifyNetworkFailure } from '../api';
 import { useApp } from '../context/AppContext';
 
+/**
+ * Headless replay engine for the persisted offline queue.
+ *
+ * Every replayed mutation carries its idempotency key (`X-Client-Mutation-Id`),
+ * so a write the server already committed before the client timed out is never
+ * applied twice (recurring reward redemptions were the dangerous case).
+ * The visible status lives in `features/offline/OfflineStatusBanner.tsx`.
+ */
 export const OfflineSyncManager: React.FC = () => {
   const dispatch = useAppDispatch();
   const queue = useAppSelector((state) => state.ui.offlineQueue || []);
+  const status = useAppSelector((state) => state.connectivity.status);
   const { refresh, showToast } = useApp();
-  const [isOnline, setIsOnline] = useState<boolean>(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
   const isFlushingRef = useRef(false);
 
-  // Monitor browser online/offline events
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+  const flushQueue = useCallback(async () => {
+    if (isFlushingRef.current || status === 'offline' || queue.length === 0) return;
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    isFlushingRef.current = true;
+    let syncedCount = 0;
+
+    for (const item of queue) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) break;
+
+      try {
+        await apiPostDirect(item.endpoint, item.body, { mutationId: item.mutationId || item.id });
+        dispatch(dequeueOfflineMutation(item.id));
+        syncedCount += 1;
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          if (err.status === 401 || err.status === 403) {
+            // Ingress session expired while we were away — the monitor reloads the app.
+            window.dispatchEvent(new Event('cr:probe_connection'));
+            break;
+          }
+          // Rejected payload (validation / duplicate / already applied): drop it so
+          // one bad item can never block the rest of the queue.
+          dispatch(dequeueOfflineMutation(item.id));
+          continue;
+        }
+
+        // Still offline or a wake-up timeout: keep the queue and wait for the next attempt.
+        notifyNetworkFailure();
+        break;
+      }
+    }
+
+    isFlushingRef.current = false;
+
+    if (syncedCount > 0) {
+      showToast(`Back online — synced ${syncedCount} offline change${syncedCount > 1 ? 's' : ''}!`);
+      await refresh();
+    }
+  }, [queue, status, dispatch, refresh, showToast]);
+
+  // Flush as soon as the connectivity slice reports online with pending work
+  useEffect(() => {
+    void flushQueue();
+  }, [flushQueue]);
+
+  // Safety net: periodic retry + immediate attempt when the tab wakes / regains focus
+  useEffect(() => {
+    if (status !== 'online' || queue.length === 0) return;
+
+    const interval = window.setInterval(() => void flushQueue(), 30000);
+    const handleWake = () => {
+      if (!document.hidden) void flushQueue();
+    };
+
+    window.addEventListener('focus', handleWake);
+    window.addEventListener('pageshow', handleWake);
+    document.addEventListener('visibilitychange', handleWake);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleWake);
+      window.removeEventListener('pageshow', handleWake);
+      document.removeEventListener('visibilitychange', handleWake);
     };
-  }, []);
+  }, [status, queue.length, flushQueue]);
 
-  // Flush queued mutations sequentially when online
-  useEffect(() => {
-    if (!isOnline || queue.length === 0 || isFlushingRef.current) return;
-
-    const flushQueue = async () => {
-      isFlushingRef.current = true;
-      let syncedCount = 0;
-
-      for (const item of queue) {
-        if (!navigator.onLine) break;
-        try {
-          await apiPostDirect(item.endpoint, item.body);
-          dispatch(dequeueOfflineMutation(item.id));
-          syncedCount++;
-        } catch (err: any) {
-          // If still offline/network error, stop flushing and wait for reconnect
-          const isNet =
-            !navigator.onLine ||
-            err?.name === 'TypeError' ||
-            String(err?.message || '').toLowerCase().includes('failed to fetch');
-          if (isNet) {
-            break;
-          } else {
-            // Bad payload or 4xx, remove from queue so it does not block the pipeline
-            dispatch(dequeueOfflineMutation(item.id));
-          }
-        }
-      }
-
-      if (syncedCount > 0) {
-        showToast(`Back online — synced ${syncedCount} offline change${syncedCount > 1 ? 's' : ''}!`);
-        await refresh();
-      }
-
-      isFlushingRef.current = false;
-    };
-
-    flushQueue();
-  }, [isOnline, queue, dispatch, refresh, showToast]);
-
-  // If online and queue is empty, render nothing
-  if (isOnline && queue.length === 0) return null;
-
-  return (
-    <div
-      className="offline-status-pill"
-      style={{
-        position: 'fixed',
-        bottom: 'calc(var(--mobile-nav-height, 58px) + 12px)',
-        left: 16,
-        zIndex: 9990,
-        background: 'rgba(15, 23, 42, 0.94)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(245, 158, 11, 0.4)',
-        borderRadius: 20,
-        padding: '6px 14px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(245, 158, 11, 0.2)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: '0.8rem',
-        fontWeight: 600,
-        color: '#fef3c7',
-        pointerEvents: 'none',
-        animation: 'crDrawerFadeIn 0.2s ease-out',
-      }}
-    >
-      <i
-        className={isOnline ? 'fas fa-rotate fa-spin' : 'fas fa-wifi-slash'}
-        style={{ color: '#f59e0b', fontSize: '0.85rem' }}
-      />
-      <span>
-        {!isOnline
-          ? `Working offline${queue.length > 0 ? ` (${queue.length} saved)` : ''}`
-          : `Syncing ${queue.length} offline change${queue.length > 1 ? 's' : ''}…`}
-      </span>
-    </div>
-  );
+  return null;
 };
+

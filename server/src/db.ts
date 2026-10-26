@@ -49,6 +49,13 @@ export function initDatabase() {
       expired INTEGER NOT NULL
     );
 
+    /* Idempotency ledger for replayed offline mutations (see services/mutationDedupe.ts) */
+    CREATE TABLE IF NOT EXISTS applied_mutation (
+      mutation_id TEXT PRIMARY KEY,
+      endpoint TEXT,
+      applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key VARCHAR(100) NOT NULL UNIQUE,
@@ -252,6 +259,22 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dedupe_key VARCHAR(120) NOT NULL UNIQUE,
+      kind VARCHAR(40) NOT NULL,
+      severity VARCHAR(16) NOT NULL DEFAULT 'due_soon',
+      days INTEGER NOT NULL DEFAULT 0,
+      title VARCHAR(200) NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      target VARCHAR(40) NOT NULL DEFAULT 'kanban',
+      admin_only BOOLEAN NOT NULL DEFAULT 0,
+      read_at DATETIME,
+      dismissed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_chore_log_for_date ON chore_log(for_date);
     CREATE INDEX IF NOT EXISTS idx_chore_log_chore_id ON chore_log(chore_id);
     CREATE INDEX IF NOT EXISTS idx_chore_log_person_id ON chore_log(person_id);
@@ -273,6 +296,9 @@ export function initDatabase() {
   ensureColumn('reward', 'source_name', 'VARCHAR(100)');
   ensureColumn('reward', 'last_synced_at', 'DATETIME');
   ensureColumn('reward', 'sync_error_count', 'INTEGER DEFAULT 0');
+  ensureColumn('notifications', 'dismissed_at', 'DATETIME');
+  ensureColumn('notifications', 'read_at', 'DATETIME');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(read_at, dismissed_at)');
 
   const allTables = [
     'app_settings',
@@ -283,6 +309,7 @@ export function initDatabase() {
     'reward',
     'activity_log',
     'chore_log',
+    'notifications',
     'person_streak',
     'person_badge',
     'organise_item',

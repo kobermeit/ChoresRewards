@@ -18,6 +18,8 @@ import { Overlays } from './components/Overlays';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileDrawer } from './components/MobileDrawer';
 import { OfflineSyncManager } from './components/OfflineSyncManager';
+import { ConnectivityMonitor } from './features/offline/ConnectivityMonitor';
+import { OfflineStatusBanner } from './features/offline/OfflineStatusBanner';
 import { Container, Button } from './components/ui';
 
 const MainShell: React.FC<{
@@ -202,6 +204,8 @@ const MainShell: React.FC<{
       <MobileBottomNav />
       <MobileDrawer />
       <OfflineSyncManager />
+      <ConnectivityMonitor />
+      <OfflineStatusBanner />
 
       {/* Slack / Discord style seamless fast-sync toast indicator */}
       {isSyncing && (

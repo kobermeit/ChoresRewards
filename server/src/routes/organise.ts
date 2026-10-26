@@ -116,6 +116,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     const days = diffDays(String(item.due_date), today);
     if (days <= 7) {
       alerts.push({
+        id: `organise:${item.id}`,
         kind: 'organise',
         severity: days < 0 ? 'overdue' : 'due_soon',
         days,
@@ -145,6 +146,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     const days = diffDays(String(svc.next_service_date), today);
     if (days <= 7) {
       alerts.push({
+        id: `service:${svc.id}`,
         kind: 'service',
         severity: days < 0 ? 'overdue' : 'due_soon',
         days,
@@ -166,6 +168,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     if (days <= 7) {
       const overdue = days < 0 || isChoreOverdue(c);
       alerts.push({
+        id: `chore:${c.id}`,
         kind: 'chore',
         severity: overdue ? 'overdue' : 'due_soon',
         days,
@@ -184,6 +187,87 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     return a.days - b.days;
   });
 
+  // Persist unread alerts (idempotent upsert by dedupe key, preserving read state)
+  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const insertAlertStmt = db.prepare(
+    `INSERT INTO notifications (dedupe_key, kind, severity, days, title, detail, target, admin_only)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const updateAlertStmt = db.prepare(
+    `UPDATE notifications
+     SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?
+     WHERE dedupe_key = ? AND read_at IS NULL AND dismissed_at IS NULL`
+  );
+  const reviveAlertStmt = db.prepare(
+    `UPDATE notifications
+     SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?, read_at = NULL, dismissed_at = NULL
+     WHERE dedupe_key = ?`
+  );
+  const selectAlertStmt = db.prepare(
+    'SELECT id, read_at, dismissed_at, severity, days, title, detail FROM notifications WHERE dedupe_key = ?'
+  );
+
+  for (const alert of alerts) {
+    const payload = [
+      alert.kind,
+      alert.severity,
+      alert.days,
+      alert.title,
+      alert.detail,
+      alert.target,
+      alert.admin_only ? 1 : 0,
+    ];
+    const existing = selectAlertStmt.get(alert.id) as any;
+    if (!existing) {
+      insertAlertStmt.run(alert.id, ...payload);
+      continue;
+    }
+    const changed =
+      existing.severity !== alert.severity ||
+      Number(existing.days) !== Number(alert.days) ||
+      existing.title !== alert.title ||
+      existing.detail !== alert.detail;
+
+    // Dismissed alerts stay hidden until the underlying alert meaningfully changes
+    if (existing.dismissed_at != null) {
+      if (changed) {
+        reviveAlertStmt.run(...payload, alert.id, nowIso);
+      }
+      continue;
+    }
+    if (existing.read_at == null) {
+      updateAlertStmt.run(...payload, alert.id, nowIso);
+    }
+  }
+
+  // Drop stale notifications that no longer have a live backing item
+  const liveKeys = new Set(alerts.map((a) => a.id));
+  const storedRows = db.prepare('SELECT dedupe_key FROM notifications').all() as Array<{ dedupe_key: string }>;
+  const staleKeys = storedRows.filter((r) => !liveKeys.has(r.dedupe_key)).map((r) => r.dedupe_key);
+  const deleteAlertStmt = db.prepare('DELETE FROM notifications WHERE dedupe_key = ?');
+  const removeStale = db.transaction((keys: string[]) => {
+    for (const key of keys) {
+      deleteAlertStmt.run(key);
+    }
+  });
+  if (staleKeys.length) {
+    removeStale(staleKeys);
+  }
+
+  const rows = db
+    .prepare('SELECT * FROM notifications WHERE read_at IS NULL AND dismissed_at IS NULL ORDER BY created_at DESC')
+    .all() as Array<any>;
+  const notifAlerts = rows.map((r) => ({
+    id: r.dedupe_key,
+    kind: r.kind,
+    severity: r.severity,
+    days: r.days,
+    title: r.title,
+    detail: r.detail,
+    target: r.target,
+    admin_only: !!r.admin_only,
+  }));
+
   const recentLogs = db.prepare('SELECT * FROM activity_log ORDER BY date DESC, id DESC LIMIT 12').all() as Array<any>;
   const recent = recentLogs.map((l) => ({
     id: l.id,
@@ -193,14 +277,67 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     date_label: String(l.date).slice(0, 16),
   }));
 
-  const overdueCount = alerts.filter((a) => a.severity === 'overdue').length;
+  const overdueCount = notifAlerts.filter((a) => a.severity === 'overdue').length;
   res.json({
     success: true,
-    alerts,
+    alerts: notifAlerts,
     recent,
-    alert_count: alerts.length,
+    alert_count: notifAlerts.length,
     overdue_count: overdueCount,
   });
+});
+
+organiseRouter.post('/api/notifications/mark_read', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const ids: string[] = Array.isArray(body.ids) ? body.ids.map((v: any) => String(v)) : [];
+    const markStmt = db.prepare('UPDATE notifications SET read_at = ? WHERE dedupe_key = ? AND read_at IS NULL');
+
+    const keys =
+      ids.length > 0
+        ? ids
+        : ((db.prepare('SELECT dedupe_key FROM notifications WHERE read_at IS NULL').all() as Array<{ dedupe_key: string }>).map((r) => r.dedupe_key));
+
+    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    let updated = 0;
+    const runUpdates = db.transaction((keysToUpdate: string[]) => {
+      for (const key of keysToUpdate) {
+        if (Number(markStmt.run(nowIso, key).changes) > 0) {
+          updated++;
+        }
+      }
+    });
+    runUpdates(keys);
+    res.json({ success: true, updated, ids: keys });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+organiseRouter.post('/api/notifications/delete', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const ids: string[] = Array.isArray(body.ids) ? body.ids.map((v: any) => String(v)) : [];
+    if (!ids.length) {
+      return res.status(400).json({ success: false, error: 'No notification ids supplied' });
+    }
+    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const delStmt = db.prepare(
+      'UPDATE notifications SET read_at = COALESCE(read_at, ?), dismissed_at = ?, updated_at = ? WHERE dedupe_key = ?'
+    );
+    let deleted = 0;
+    const runDeletes = db.transaction((keys: string[]) => {
+      for (const key of keys) {
+        if (Number(delStmt.run(nowIso, nowIso, nowIso, key).changes) > 0) {
+          deleted++;
+        }
+      }
+    });
+    runDeletes(ids);
+    res.json({ success: true, deleted });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message });
+  }
 });
 
 organiseRouter.get(['/api/organise', '/api/organise/items'], (_req: Request, res: Response) => {

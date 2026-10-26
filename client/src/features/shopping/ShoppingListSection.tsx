@@ -1,5 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAppDispatch, useAppSelector } from '../../store';
+import { pruneShoppingCheckedOverrides, setShoppingCheckedOverride } from '../../store/uiSlice';
 import { apiPost } from '../../api';
 import { ShoppingStore, ShoppingCatalogItem, MealIngredient } from '../../types';
 import { PageContainer, Button, IconButton, CustomDropdown, WheelPickerOverlay } from '../../components/ui';
@@ -18,6 +20,9 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   isStandalonePage = false,
 }) => {
   const { data, refresh, showToast, confirm } = useApp();
+  const dispatch = useAppDispatch();
+  // Ticks are kept in the persisted ui slice so they survive navigation, reloads and offline restarts
+  const optimisticChecked = useAppSelector((state) => state.ui.shoppingCheckedOverrides);
 
   const [shoppingSearch, setShoppingSearch] = useState('');
   const [shoppingStore, setShoppingStore] = useState('');
@@ -28,7 +33,6 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   const [recentlyPurchasedOpen, setRecentlyPurchasedOpen] = useState(false);
   const [manageCatalogModalOpen, setManageCatalogModalOpen] = useState(false);
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
-  const [optimisticChecked, setOptimisticChecked] = useState<Record<string, boolean>>({});
   const [quantityPickerTarget, setQuantityPickerTarget] = useState<{
     key: string;
     name: string;
@@ -49,6 +53,15 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   }, []);
 
   const shop = data?.shopping || data?.shopping_list;
+  const serverShopChecked = shop?.checked;
+
+  // Once the server agrees with a local tick the override is redundant — drop it so
+  // another device's later change is not masked forever.
+  useEffect(() => {
+    if (!serverShopChecked) return;
+    dispatch(pruneShoppingCheckedOverrides(serverShopChecked));
+  }, [serverShopChecked, dispatch]);
+
   const intel = data?.shopping_intelligence || shop?.intelligence || {
     suggested: [],
     frequently_added: [],
@@ -227,8 +240,8 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
 
   const handleToggleShopCheck = async (itemKey: string, currentChecked: boolean) => {
     const nextState = !currentChecked;
-    // Optimistic instantaneous UI update (0ms lag, works offline)
-    setOptimisticChecked((prev) => ({ ...prev, [itemKey]: nextState }));
+    // Optimistic instantaneous UI update (0ms lag, works offline, survives navigation)
+    dispatch(setShoppingCheckedOverride({ key: itemKey, checked: nextState }));
     try {
       await apiPost('update_shopping_item', {
         key: itemKey,
@@ -236,8 +249,8 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
       });
       await refresh();
     } catch {
-      // Revert if explicitly failed
-      setOptimisticChecked((prev) => ({ ...prev, [itemKey]: currentChecked }));
+      // Revert if explicitly rejected by the server
+      dispatch(setShoppingCheckedOverride({ key: itemKey, checked: currentChecked }));
     }
   };
 

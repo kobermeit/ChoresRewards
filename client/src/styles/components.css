@@ -550,6 +550,9 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+    /* Positioning context for the notification panel, which is a direct child
+       so it stays reachable when the bell is swapped for the burger menu. */
+    position: relative;
 }
 .header-nav-actions a {
     display: inline-flex;
@@ -3487,7 +3490,7 @@ body.side-nav-body-collapsed { padding-left: 8px; }
     right: 0;
     width: min(380px, calc(100vw - 24px));
     max-height: min(70vh, 520px);
-    display: none;
+    display: flex;
     flex-direction: column;
     background: var(--cr-modal-surface);
     border: 1px solid var(--cr-surface-border);
@@ -3496,7 +3499,9 @@ body.side-nav-body-collapsed { padding-left: 8px; }
     z-index: 10010;
     overflow: hidden;
 }
-.header-notif-wrap.is-open .header-notif-panel { display: flex; }
+/* The panel is rendered as a direct child of .header-nav-actions (not inside
+   .header-notif-wrap) so it remains visible at 769–1400px, where the bell wrap
+   collapses into the burger menu. It is mounted conditionally by React. */
 .header-notif-head {
     display: flex;
     align-items: center;
@@ -3533,6 +3538,50 @@ body.side-nav-body-collapsed { padding-left: 8px; }
     text-decoration: none;
 }
 .header-notif-footer:hover { color: var(--cr-text-primary); background: rgba(148,163,184,0.08); }
+
+.header-notif-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 2px 14px 10px;
+}
+.header-notif-mark-read {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(52, 211, 153, 0.14);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    color: #6ee7b7;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.header-notif-mark-read:hover { background: rgba(52, 211, 153, 0.26); border-color: rgba(52, 211, 153, 0.55); }
+.header-notif-delete {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.header-notif-delete:hover { background: rgba(239, 68, 68, 0.24); }
+
+[data-theme="light"] .header-notif-mark-read { color: #047857; border-color: rgba(5, 150, 105, 0.4); background: rgba(5, 150, 105, 0.08); }
+[data-theme="light"] .header-notif-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.4); background: rgba(185, 28, 28, 0.06); }
 
 [data-theme="light"] .header-notif-btn.has-overdue { color: #b91c1c; }
 
@@ -5673,4 +5722,144 @@ body.cr-modal-open {
 }
 
 
+
+
+/* ==========================================================================
+   Offline Status Banner (non-blocking; replaces the old full-screen modal)
+   ========================================================================== */
+.cr-offline-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--mobile-nav-height, 58px) + 16px);
+  transform: translateX(-50%);
+  z-index: 9990;
+  width: min(620px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-medium);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-lg);
+  animation: crOfflineBannerIn 0.22s ease-out;
+}
+
+.cr-offline-banner--offline {
+  border-color: var(--color-warning-border);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.16), rgba(15, 23, 42, 0.96));
+}
+
+.cr-offline-banner--syncing {
+  border-color: var(--color-primary-border);
+  background: linear-gradient(180deg, rgba(2, 132, 199, 0.2), rgba(15, 23, 42, 0.96));
+}
+
+.cr-offline-banner__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-warning-border);
+}
+
+.cr-offline-banner--syncing .cr-offline-banner__icon {
+  color: var(--color-primary-highlight);
+}
+
+.cr-offline-banner__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cr-offline-banner__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.cr-offline-banner__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--badge-radius);
+  background: var(--color-warning-light);
+  color: var(--color-warning-border);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.cr-offline-banner__subtitle {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.cr-offline-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* Collapsed pill shown after the user dismisses the banner */
+.cr-offline-pill {
+  position: fixed;
+  left: 16px;
+  bottom: calc(var(--mobile-nav-height, 58px) + 16px);
+  z-index: 9990;
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-warning-border) !important;
+  animation: crOfflinePillIn 0.2s ease-out;
+}
+
+@keyframes crOfflineBannerIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes crOfflinePillIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .cr-offline-banner {
+    bottom: calc(var(--mobile-nav-height, 58px) + 12px);
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .cr-offline-banner__title {
+    font-size: 0.85rem;
+  }
+
+  .cr-offline-banner__subtitle {
+    font-size: 0.74rem;
+  }
+}
 

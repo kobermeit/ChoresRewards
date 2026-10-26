@@ -20,22 +20,24 @@ choresrewards/
 │   │   │   ├── notes/          # Rich text sticky notes, Reddit-style note feed, view/edit modal
 │   │   │   ├── settings/       # Settings tabs (General, Family, Chores, Seasonal, Sounds, etc.)
 │   │   │   ├── overlays/       # Screensaver ambient clock, visual timer modal, kids play games, sync splash
+│   │   │   ├── offline/        # Connectivity monitor (wake/reconnect probe) + non-blocking offline banner
 │   │   │   └── header/         # Weather widget, clock widget, forecast modal
 │   │   ├── components/         # Top-level coordinators, legacy backward-compat shims, & shared UI
 │   │   │   ├── ui/             # Design system primitives: Button, Card, CardShell, TimerRing, Input, Select, AssigneeSelect, CustomDropdown, Badge
 │   │   │   └── common/         # Common dialogs, Modal, ColorPicker
 │   │   ├── context/            # Global React contexts (AppContext, TimerContext)
-│   │   ├── store/              # Redux Toolkit, RTK Query (api.ts), uiSlice.ts (with redux-persist)
+│   │   ├── store/              # Redux Toolkit, RTK Query (api.ts), uiSlice.ts (redux-persist), connectivitySlice.ts (runtime)
 │   │   ├── hooks/              # Custom hooks (useSettings, useNavigation, useBodyScrollLock)
 │   │   ├── types/              # Domain TypeScript types (*.types.ts)
-│   │   ├── services/           # Procedural Web Audio synthesizer (soundService.ts)
+│   │   ├── services/           # Web Audio synth (soundService.ts), service worker registration (serviceWorker.ts)
 │   │   └── styles/             # Design tokens (tokens.css) & global styles (components.css)
+│   ├── public/                 # Copied verbatim into dist: sw.js (offline shell/snapshot cache), manifest.json
 │   └── package.json
 ├── server/                     # Node.js + Express + TypeScript Backend
 │   ├── src/
 │   │   ├── db.ts               # SQLite schema, migrations, connection pool (better-sqlite3)
-│   │   ├── routes/             # Express API route handlers
-│   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper metadata parser)
+│   │   ├── routes/             # Express API route handlers (health.ts = /api/ping probe)
+│   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper, mutationDedupe)
 │   └── package.json
 ├── config.yaml                 # Home Assistant Add-On manifest (CRITICAL: version must match package.json)
 ├── AGENTS.md                   # Agent working memory, rules, and development guidelines
@@ -54,14 +56,16 @@ choresrewards/
 | **Add / Edit Chore Modal** | `client/src/components/ChoreModal.tsx` | - | `/api/add_chore`, `/api/update_chore` |
 | **Meal Planner & Recipes** | `client/src/features/meals/MealPlannerSection.tsx`<br>`features/meals/RecipeLibrarySection.tsx`<br>`features/meals/components/MealDayColumn.tsx`<br>`features/meals/components/RecipeCard.tsx` | `components/MealAndShoppingSection.tsx` | `/api/meals` (`server/src/routes/meals.ts`)<br>Tables: `meal_plan`, `recipe` |
 | **Smart Shopping List** | `client/src/features/shopping/ShoppingListSection.tsx`<br>`features/shopping/components/ShoppingStoreLane.tsx`<br>`features/shopping/components/ShoppingHistoryModal.tsx`<br>`features/shopping/components/ManageCatalogModal.tsx`<br>`features/shopping/components/LaneQuickAddDropdown.tsx` | `components/MealAndShoppingSection.tsx` | `/api/shopping`, `/api/shopping/catalog/delete`<br>Tables: `shopping_catalog`, `shopping_purchase_log` |
-| **Mobile Navigation & Offline** | `client/src/components/MobileBottomNav.tsx`<br>`client/src/components/MobileDrawer.tsx`<br>`client/src/components/OfflineSyncManager.tsx` | - | Redux `uiSlice.ts` (`offlineQueue`, `mobileDrawerOpen`) |
+| **Mobile Navigation** | `client/src/components/MobileBottomNav.tsx`<br>`client/src/components/MobileDrawer.tsx` | - | Redux `uiSlice.ts` (`mobileDrawerOpen`) |
+| **Offline Mode, Reconnect & PWA** | `client/src/features/offline/ConnectivityMonitor.tsx` (wake / visibility / backoff probe, ingress-token reload)<br>`client/src/features/offline/OfflineStatusBanner.tsx` (non-blocking banner + dismissable pill)<br>`client/src/components/OfflineSyncManager.tsx` (headless replay engine)<br>`client/public/sw.js` (app-shell + bootstrap snapshot cache)<br>`client/public/manifest.json`<br>`client/src/services/serviceWorker.ts` | - | `/api/ping` (`server/src/routes/health.ts`)<br>Replay dedupe: `server/src/services/mutationDedupe.ts` — table `applied_mutation`<br>Client state: `connectivitySlice.ts` + `uiSlice.ts` (`offlineQueue`, `shoppingCheckedOverrides`, `offlineBannerDismissed`) |
 | **Rewards & Redemption** | `client/src/features/rewards/RewardsSection.tsx`<br>`features/rewards/components/RewardCard.tsx`<br>`features/rewards/components/RewardEditModal.tsx`<br>`features/rewards/components/ClaimRewardModal.tsx` | `components/RewardsSection.tsx` | `/api/rewards`, `/api/rewards/import_url`, `/api/rewards/sync_reward`<br>Daily price sync cron (`server/src/routes/rewards.ts`)<br>Table: `reward` |
 | **Family Dashboard** | `client/src/features/dashboard/DashboardSection.tsx`<br>`features/dashboard/widgets/*` (8 memoized widgets) | `components/DashboardSection.tsx` | Aggregated via `/api/data` |
 | **Family Calendar** | `client/src/features/calendar/CalendarView.tsx`<br>`features/calendar/components/CalendarMonthView.tsx`<br>`features/calendar/components/CalendarScheduleView.tsx` | `components/CalendarView.tsx` | `/api/sync_calendar`<br>Table: `google_calendar_settings` |
 | **Household Notes** | `client/src/features/notes/NotesSection.tsx`<br>`features/notes/components/NoteRowCard.tsx`<br>`features/notes/components/NoteEditModal.tsx` | `components/CalendarAndNotesSection.tsx` | `/api/text_pads`<br>Table: `text_pad` |
 | **System Settings** | `client/src/features/settings/*` (12 tabs: General, Family, Chores, Seasonal, Sounds, etc.) | `components/SettingsAndLogsViews.tsx` | `/api/prefs`, `/api/seasonal`, `/api/settings` |
-| **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx`<br>`components/ConnectionLostOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
+| **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
 | **Header, Weather & Clock** | `client/src/features/header/WeatherWidget.tsx`<br>`features/header/ClockWidget.tsx`<br>`features/header/WeatherForecastModal.tsx` | `components/Header.tsx` | Open-Meteo API + device clock |
+| **Notification Bell (Alerts)** | `client/src/components/Header.tsx` (`header-notif-*`, mark read / dismiss; panel is a direct child of `.header-nav-actions` so the tablet burger menu can open it at 769–1400px) | - | `/api/notifications`, `/api/notifications/mark_read`, `/api/notifications/delete` (`server/src/routes/organise.ts`)<br>Table: `notifications` (`dedupe_key`, `read_at`, `dismissed_at`) |
 
 ---
 
@@ -83,8 +87,10 @@ All domain types are cleanly separated:
 ## 4. State Management Architecture
 
 - **Redux Toolkit & Persistence** (`client/src/store/`):
-  - `uiSlice.ts`: Fast local device preferences (`activeView`, `sideNavCollapsed`, `parentManageMode`, `activeTimers`). Changes here do NOT re-render the monolithic app context.
+  - `uiSlice.ts`: Fast local device preferences (`activeView`, `sideNavCollapsed`, `parentManageMode`, `activeTimers`). Also owns the persisted `offlineQueue` (each entry carries a `mutationId` idempotency key) and `shoppingCheckedOverrides` (ticks that survive navigation / reload / offline). Changes here do NOT re-render the monolithic app context.
+  - `connectivitySlice.ts`: Runtime-only (never persisted) connectivity truth (`status`, failure count, cached-snapshot timestamp) shared by the banner, sync manager and probe.
   - `api.ts`: RTK Query for caching and invalidating household preferences and seasonal themes.
+  - `client/src/api.ts`: fetch wrapper — dispatches connectivity results, attaches `X-Client-Mutation-Id`, suppresses duplicate offline toasts, and detects service-worker cache replays (`X-CR-From-Cache`).
 - **Context API** (`client/src/context/`):
   - `AppContext.tsx`: Household server payload (`data`), session role gating (`isParent`, `isChild`), toasts, and confirmation dialogs.
   - `TimerContext.tsx`: High-precision choreography timer tick engine synced to Redux storage.

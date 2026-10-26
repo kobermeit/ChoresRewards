@@ -14,15 +14,17 @@ import {
 import storage from 'redux-persist/lib/storage';
 import { api } from './api';
 import uiReducer from './uiSlice';
+import connectivityReducer from './connectivitySlice';
 
 const rootReducer = combineReducers({
   ui: uiReducer,
+  connectivity: connectivityReducer,
   [api.reducerPath]: api.reducer,
 });
 
 /**
  * Only the `ui` slice is persisted. Server data (RTK Query cache) always comes from the API,
- * so the database remains the single source of truth.
+ * so the database remains the single source of truth. `connectivity` is runtime-only.
  */
 const persistedReducer = persistReducer({ key: 'choresrewards', version: 1, storage, whitelist: ['ui'] }, rootReducer);
 

@@ -15,6 +15,8 @@ import { organiseRouter } from './routes/organise';
 import { settingsRouter } from './routes/settings';
 import { mediaRouter } from './routes/media';
 import { seasonalRouter } from './routes/seasonal';
+import { healthRouter } from './routes/health';
+import { mutationDedupeMiddleware } from './services/mutationDedupe';
 
 initDatabase();
 
@@ -59,8 +61,12 @@ app.use('/static', express.static(STATIC_DIR, staticCacheOptions));
 app.use('/api/static/uploads', express.static(UPLOADS_DIR, uploadsCacheOptions));
 app.use('/api/static', express.static(STATIC_DIR, staticCacheOptions));
 
+// Replay protection for queued offline mutations (idempotency ledger)
+app.use(mutationDedupeMiddleware);
+
 // Mount API & application routes at both root and /api so relative calls work under HA Ingress
 const routers = [
+  healthRouter,
   authRouter,
   stateRouter,
   peopleRouter,

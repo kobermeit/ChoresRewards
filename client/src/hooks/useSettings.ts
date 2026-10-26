@@ -50,7 +50,7 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
   const value = useAppSelector((s) => s.ui[key]);
   const setter = useCallback(
     (v: UiState[K]) => {
-      const actions: { [P in keyof UiState]: (v: any) => any } = {
+      const actions: Partial<{ [P in keyof UiState]: (v: any) => any }> = {
         activeView: setActiveView,
         sideNavCollapsed: setSideNavCollapsed,
         headerMinimized: setHeaderMinimized,
@@ -59,7 +59,8 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
         activePersonId: setActivePersonId,
         parentManageMode: setParentManageMode,
       };
-      dispatch(actions[key](v));
+      const action = actions[key];
+      if (action) dispatch(action(v));
     },
     [dispatch, key]
   );

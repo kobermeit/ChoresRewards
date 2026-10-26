@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { BootstrapData, Person } from '../types';
-import { apiGet, apiPost, resolveAssetUrl } from '../api';
+import { apiGet, apiPost, resolveAssetUrl, isKnownOffline } from '../api';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
 import { FamilyMemberModal } from '../components/FamilyMemberModal';
@@ -260,7 +260,10 @@ export const AppProvider: React.FC<{
       syncTimer = setTimeout(() => setIsSyncing(false), 2000);
     }
     try {
-      const res = await apiGet<BootstrapData>('bootstrap');
+      // Generous timeout: on wake from sleep / weak mobile signal the radio can take
+      // several seconds, and the service worker needs ~3.5s to fall back to its
+      // offline snapshot. Aborting at 2s threw away a perfectly recoverable load.
+      const res = await apiGet<BootstrapData>('bootstrap', 8000);
       if (res && res.success) {
         setData(res);
         const fetchDate = new Date();
@@ -277,7 +280,10 @@ export const AppProvider: React.FC<{
         activeDateRef.current = new Date().toISOString().slice(0, 10);
       }
     } catch (err) {
-      console.error('Failed to load bootstrap data:', err);
+      // Expected while offline: the banner already tells the story.
+      if (!isKnownOffline()) {
+        console.error('Failed to load bootstrap data:', err);
+      }
     } finally {
       setLoading(false);
       if (showOverlay) {

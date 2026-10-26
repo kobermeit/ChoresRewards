@@ -131,13 +131,54 @@ function getRelativeAge(from: Date | null, to: Date): string {
 
   const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
   const notifWrapRef = useRef<HTMLDivElement | null>(null);
+  const notifPanelRef = useRef<HTMLDivElement | null>(null);
+
+  const applyAlertRemoval = (removedIds: string[]) => {
+    const removed = new Set(removedIds);
+    setNotifs((prev) => {
+      const alerts = prev.alerts.filter((a) => !removed.has(a.id));
+      return {
+        ...prev,
+        alerts,
+        alert_count: alerts.length,
+        overdue_count: alerts.filter((a) => a.severity === 'overdue').length,
+      };
+    });
+  };
+
+  const handleMarkAllRead = async () => {
+    const ids = visibleAlerts.map((a) => a.id);
+    if (ids.length === 0) return;
+    try {
+      const res = await apiPost<{ success: boolean; updated?: number }>('notifications/mark_read', { ids });
+      if (res?.success) {
+        applyAlertRemoval(ids);
+        showToast('Notifications marked as read ✅', { type: 'success' });
+      }
+    } catch {
+      showToast('Could not mark notifications as read', { type: 'error' });
+    }
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    try {
+      const res = await apiPost<{ success: boolean }>('notifications/delete', { ids: [alertId] });
+      if (res?.success) {
+        applyAlertRemoval([alertId]);
+        showToast('Notification deleted', { type: 'info' });
+      }
+    } catch {
+      showToast('Could not delete notification', { type: 'error' });
+    }
+  };
 
   useEffect(() => {
     if (!notifOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (notifWrapRef.current && !notifWrapRef.current.contains(e.target as Node)) {
-        setNotifOpen(false);
-      }
+      const target = e.target as Node;
+      if (notifWrapRef.current?.contains(target)) return;
+      if (notifPanelRef.current?.contains(target)) return;
+      setNotifOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -328,7 +369,11 @@ function getRelativeAge(from: Date | null, to: Date): string {
             </button>
 
             {/* Notification Bell */}
-            <div className="header-notif-wrap header-action-inline-collapse" id="header-notif-wrap" ref={notifWrapRef}>
+            <div
+              className={`header-notif-wrap header-action-inline-collapse ${notifOpen ? 'is-open' : ''}`}
+              id="header-notif-wrap"
+              ref={notifWrapRef}
+            >
               <button
                 type="button"
                 className="header-notif-btn"
@@ -345,66 +390,92 @@ function getRelativeAge(from: Date | null, to: Date): string {
                   </span>
                 )}
               </button>
-              {notifOpen && (
-                <div className="header-notif-panel" id="header-notif-panel">
-                  <div className="header-notif-head">
-                    <span>Notifications</span>
-                    <span className="header-notif-head-meta">{visibleAlerts.length} alerts</span>
-                  </div>
-                  <div className="header-notif-body">
-                    {visibleAlerts.map((a, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => {
-                          setNotifOpen(false);
-                          if (a.target) scrollToSection(a.target);
-                        }}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: 10,
-                          background:
-                            a.severity === 'overdue' ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.16)',
-                          border: `1px solid ${a.severity === 'overdue' ? '#ef4444' : '#f59e0b'}`,
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                          marginBottom: 6,
-                        }}
-                      >
-                        <div style={{ fontWeight: 700 }}>{a.title}</div>
-                        <div style={{ opacity: 0.8 }}>{a.detail}</div>
-                      </div>
-                    ))}
-                    {notifs.recent.slice(0, 6).map((r) => (
-                      <div
-                        key={r.id}
-                        style={{
-                          padding: '6px 8px',
-                          borderBottom: '1px solid var(--cr-surface-border)',
-                          fontSize: '0.82rem',
-                        }}
-                      >
-                        <div>{r.description}</div>
-                        <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>{r.date_label}</div>
-                      </div>
-                    ))}
-                    {visibleAlerts.length === 0 && notifs.recent.length === 0 && (
-                      <p className="header-notif-empty">No notifications</p>
-                    )}
-                  </div>
-                  <a
-                    href="#activity"
-                    className="header-notif-footer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setNotifOpen(false);
-                      setActiveView('activity_log');
-                    }}
-                  >
-                    View activity log <i className="fas fa-chevron-right" />
-                  </a>
-                </div>
-              )}
             </div>
+
+            {/* Notification panel — kept OUTSIDE the bell wrap: the wrap is
+                display:none at 769–1400px (tablet burger-menu mode), which used to
+                swallow the panel when opened from the burger menu. Anchored to
+                .header-nav-actions instead so it works in every breakpoint. */}
+            {notifOpen && (
+              <div className="header-notif-panel" id="header-notif-panel" ref={notifPanelRef}>
+                <div className="header-notif-head">
+                  <span>Notifications</span>
+                  <span className="header-notif-head-meta">
+                    {visibleAlerts.length} alert{visibleAlerts.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {visibleAlerts.length > 0 && (
+                  <div className="header-notif-actions">
+                    <button type="button" className="header-notif-mark-read" onClick={handleMarkAllRead}>
+                      <i className="fas fa-check" /> Mark all read
+                    </button>
+                  </div>
+                )}
+                <div className="header-notif-body">
+                  {visibleAlerts.map((a) => (
+                    <div
+                      key={a.id}
+                      onClick={() => {
+                        setNotifOpen(false);
+                        if (a.target) scrollToSection(a.target);
+                      }}
+                      style={{
+                        position: 'relative',
+                        padding: '8px 34px 8px 10px',
+                        borderRadius: 10,
+                        background:
+                          a.severity === 'overdue' ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.16)',
+                        border: `1px solid ${a.severity === 'overdue' ? '#ef4444' : '#f59e0b'}`,
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        marginBottom: 6,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{a.title}</div>
+                      <div style={{ opacity: 0.8 }}>{a.detail}</div>
+                      <button
+                        type="button"
+                        className="header-notif-delete"
+                        aria-label={`Delete notification: ${a.title}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAlert(a.id);
+                        }}
+                      >
+                        <i className="fas fa-trash" />
+                      </button>
+                    </div>
+                  ))}
+                  {notifs.recent.slice(0, 6).map((r) => (
+                    <div
+                      key={r.id}
+                      style={{
+                        padding: '6px 8px',
+                        borderBottom: '1px solid var(--cr-surface-border)',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <div>{r.description}</div>
+                      <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>{r.date_label}</div>
+                    </div>
+                  ))}
+                  {visibleAlerts.length === 0 && notifs.recent.length === 0 && (
+                    <p className="header-notif-empty">No notifications</p>
+                  )}
+                </div>
+                <a
+                  href="#activity"
+                  className="header-notif-footer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setNotifOpen(false);
+                    setActiveView('activity_log');
+                  }}
+                >
+                  View activity log <i className="fas fa-chevron-right" />
+                </a>
+              </div>
+            )}
 
             {/* User Profile Switcher */}
             <button
@@ -507,7 +578,10 @@ function getRelativeAge(from: Date | null, to: Date): string {
                 type="button"
                 id="header-menu-btn"
                 className={`header-menu-btn ${menuOpen ? 'is-open' : ''}`}
-                onClick={() => setMenuOpen((p) => !p)}
+                onClick={() => {
+                  setNotifOpen(false);
+                  setMenuOpen((p) => !p);
+                }}
                 title="Quick Menu & Actions"
                 aria-label="Quick Menu"
                 aria-haspopup="true"
