@@ -70,7 +70,7 @@ const getInitialActiveView = (): ActiveView => {
   return 'dashboard';
 };
 
-const initialState: UiState = {
+export const initialUiState: UiState = {
   activeView: getInitialActiveView(),
   sideNavCollapsed: false,
   mobileDrawerOpen: false,
@@ -85,9 +85,73 @@ const initialState: UiState = {
   shoppingCheckedOverrides: {},
 };
 
+/** Every routable view. Used to reject a bogus `activeView` coming from storage. */
+export const UI_VIEWS: readonly ActiveView[] = [
+  'dashboard',
+  'chores',
+  'rewards',
+  'redeemed',
+  'meals',
+  'shopping',
+  'library',
+  'calendar',
+  'notes',
+  'organise',
+  'settings',
+  'help',
+  'activity_log',
+  'chore_history',
+];
+
+/**
+ * Repairs a `ui` state object IN PLACE so every reducer below is safe to run.
+ *
+ * Why this exists: redux-persist stores whatever shape the app had on the day it
+ * was last used. A field added in a later release is simply absent (or, worse,
+ * `null` if a write was interrupted), and touching it then throws
+ * "Cannot convert undefined or null to object" — which used to take down the
+ * whole app on load with no way out but clearing site storage.
+ *
+ * Call this at the top of any reducer that reads a record/array field, and from
+ * the persist migration. It must never throw.
+ */
+export function repairUiState<T extends Partial<UiState>>(state: T): T & UiState {
+  if (!state || typeof state !== 'object') {
+    return { ...initialUiState } as T & UiState;
+  }
+
+  // Records: must be plain objects (null / array / string are all unsafe).
+  const asRecord = (value: unknown): value is Record<string, any> =>
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+  if (!asRecord(state.shoppingCheckedOverrides)) state.shoppingCheckedOverrides = {};
+  if (!asRecord(state.activeTimers)) state.activeTimers = {};
+  if (!Array.isArray(state.offlineQueue)) state.offlineQueue = [];
+
+  // Primitives
+  if (typeof state.offlineBannerDismissed !== 'boolean') state.offlineBannerDismissed = false;
+  if (typeof state.sideNavCollapsed !== 'boolean') state.sideNavCollapsed = false;
+  if (typeof state.headerMinimized !== 'boolean') state.headerMinimized = false;
+  if (typeof state.hideCompletedChores !== 'boolean') state.hideCompletedChores = false;
+  if (typeof state.parentManageMode !== 'boolean') state.parentManageMode = true;
+  if (state.plannerViewMode !== '1week' && state.plannerViewMode !== '2weeks') {
+    state.plannerViewMode = '2weeks';
+  }
+  if (state.activePersonId !== null && typeof state.activePersonId !== 'number') {
+    state.activePersonId = null;
+  }
+
+  // A view name that no longer exists (or was corrupted) renders a blank page.
+  if (!state.activeView || !UI_VIEWS.includes(state.activeView as ActiveView)) {
+    state.activeView = getInitialActiveView();
+  }
+
+  return state as T & UiState;
+}
+
 const uiSlice = createSlice({
   name: 'ui',
-  initialState,
+  initialState: initialUiState,
   reducers: {
     setActiveView(state, action: PayloadAction<ActiveView>) {
       state.activeView = action.payload;
@@ -117,12 +181,14 @@ const uiSlice = createSlice({
       state.parentManageMode = action.payload;
     },
     setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
-      state.activeTimers = action.payload;
+      repairUiState(state);
+      state.activeTimers = action.payload || {};
     },
     enqueueOfflineMutation(
       state,
       action: PayloadAction<{ endpoint: string; body: any; mutationId?: string }>
     ) {
+      repairUiState(state);
       const { endpoint, body, mutationId } = action.payload;
       const id = mutationId || generateMutationId();
 
@@ -146,6 +212,7 @@ const uiSlice = createSlice({
       state.offlineQueue.push({ id, mutationId: id, endpoint, body, timestamp: Date.now() });
     },
     dequeueOfflineMutation(state, action: PayloadAction<string>) {
+      repairUiState(state);
       state.offlineQueue = state.offlineQueue.filter((m) => m.id !== action.payload);
     },
     clearOfflineQueue(state) {
@@ -155,13 +222,16 @@ const uiSlice = createSlice({
       state.offlineBannerDismissed = action.payload;
     },
     setShoppingCheckedOverride(state, action: PayloadAction<{ key: string; checked: boolean }>) {
+      repairUiState(state);
       state.shoppingCheckedOverrides[action.payload.key] = action.payload.checked;
     },
     clearShoppingCheckedOverride(state, action: PayloadAction<string>) {
+      repairUiState(state);
       delete state.shoppingCheckedOverrides[action.payload];
     },
     /** Drop local overrides the server now agrees with (they are no longer pending). */
     pruneShoppingCheckedOverrides(state, action: PayloadAction<Record<string, boolean> | undefined>) {
+      repairUiState(state);
       const serverChecked = action.payload || {};
       for (const key of Object.keys(state.shoppingCheckedOverrides)) {
         if (serverChecked[key] === state.shoppingCheckedOverrides[key]) {

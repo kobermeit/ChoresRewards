@@ -12,6 +12,9 @@ import { ShoppingPopularModal } from './components/ShoppingPopularModal';
 import { ShoppingSuggestedModal } from './components/ShoppingSuggestedModal';
 import { ManageCatalogModal } from './components/ManageCatalogModal';
 
+/** Shared empty fallback so a missing/repaired field never creates a new object identity each render. */
+const EMPTY_CHECKS: Record<string, boolean> = {};
+
 export interface ShoppingListSectionProps {
   isStandalonePage?: boolean;
 }
@@ -22,7 +25,9 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   const { data, refresh, showToast, confirm } = useApp();
   const dispatch = useAppDispatch();
   // Ticks are kept in the persisted ui slice so they survive navigation, reloads and offline restarts
-  const optimisticChecked = useAppSelector((state) => state.ui.shoppingCheckedOverrides);
+  const optimisticChecked = useAppSelector(
+    (state) => state.ui.shoppingCheckedOverrides || EMPTY_CHECKS
+  );
 
   const [shoppingSearch, setShoppingSearch] = useState('');
   const [shoppingStore, setShoppingStore] = useState('');
@@ -53,7 +58,9 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
   }, []);
 
   const shop = data?.shopping || data?.shopping_list;
-  const serverShopChecked = shop?.checked;
+  // Defensive: an older/partial bootstrap payload must not reach Object.entries() below.
+  const serverShopChecked =
+    shop?.checked && typeof shop.checked === 'object' ? shop.checked : undefined;
 
   // Once the server agrees with a local tick the override is redundant — drop it so
   // another device's later change is not masked forever.

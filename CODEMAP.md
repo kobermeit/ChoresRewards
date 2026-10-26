@@ -90,6 +90,12 @@ All domain types are cleanly separated:
   - `uiSlice.ts`: Fast local device preferences (`activeView`, `sideNavCollapsed`, `parentManageMode`, `activeTimers`). Also owns the persisted `offlineQueue` (each entry carries a `mutationId` idempotency key) and `shoppingCheckedOverrides` (ticks that survive navigation / reload / offline). Changes here do NOT re-render the monolithic app context.
   - `connectivitySlice.ts`: Runtime-only (never persisted) connectivity truth (`status`, failure count, cached-snapshot timestamp) shared by the banner, sync manager and probe.
   - `api.ts`: RTK Query for caching and invalidating household preferences and seasonal themes.
+  - `persistReconciler.ts`: Typed `mergePersistedDefaults` reconciler (equivalent of `autoMergeLevel2`) used as the redux-persist `stateReconciler`. Deep-merges the persisted payload over `initialUiState` so slices shipped after a device last saved its state cannot arrive as `undefined`. Bump `persistConfig.version` + add a `createMigrate` step whenever the persisted shape changes.
+  - **Persistence guard rails**: every `uiSlice` reducer that touches a record/array runs through `repairUiState()`; `initialUiState` and `UI_VIEWS` are exported for migration/reconciliation; an unknown persisted `activeView` falls back to a valid view instead of rendering nothing.
+- **Resilience & Recovery** (`client/src/services/`):
+  - `deviceReset.ts`: `clearDeviceCache()` / `resetDeviceAndReload()` — removes only app-local storage (`persist:choresrewards`, `cr:`, `cr-`) and `cr-` service-worker caches. Never blanket-clears localStorage (HA Ingress shares the origin with `hassTokens`/Lovelace).
+  - `globalErrorLog.ts`: `installGlobalErrorHandlers()` (window `error` + `unhandledrejection`), `recordLastError()`, `readLastError()`, `clearLastError()` on the `cr:lastError` key, surfaced by `ErrorBoundary`'s "Technical details".
+  - `components/common/ErrorBoundary.tsx`: two levels — `level="section"` (per-view, keeps shell/nav alive) and root (full-screen fallback with Try Again / Reload Page / Clear device cache & reload).
   - `client/src/api.ts`: fetch wrapper — dispatches connectivity results, attaches `X-Client-Mutation-Id`, suppresses duplicate offline toasts, and detects service-worker cache replays (`X-CR-From-Cache`).
 - **Context API** (`client/src/context/`):
   - `AppContext.tsx`: Household server payload (`data`), session role gating (`isParent`, `isChild`), toasts, and confirmation dialogs.

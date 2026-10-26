@@ -127,6 +127,11 @@ choresrewards/
   - **Linear History**: Use `--rebase` to avoid cluttering git history with merge commits. If conflicts occur, resolve them carefully preserving both contributors' changes.
 
 ## Quality Standards & Live Browser Verification
+- **Test Effort Proportionality (Match Effort to Risk)**: See [TESTING.md](file:///d:/projects/choresrewards/TESTING.md) for the full verification ladder. In short:
+  - **Tier 1 – Cosmetic / copy / docs / CSS-only change**: read the diff, run `npm run build:client` once. No browser harness, no scripts.
+  - **Tier 2 – Single-view UI logic**: `npm run build` + a quick manual click-through of the affected view on `:8099`.
+  - **Tier 3 – Shared state, store/slice, reducers, persistence, routing, auth, or cross-view primitives**: `npm run verify` + `npm run build` + a temporary scripted browser check (see TESTING.md) covering the touched flow *and* its neighbours.
+  - Never build a bespoke harness for a Tier 1 change; never ship a Tier 3 change on a build alone.
 - **Batch-End Safety Checks Only (Token & Latency Conservation)**:
   - Do NOT run verification audits (`npm run verify`), TypeScript builds (`npm run build`), or test commands between individual incremental edits within a batch.
   - Run verification and build commands **ONLY ONCE at the end of the entire batch** when all planned edits are finished, right before reporting completion to the user.

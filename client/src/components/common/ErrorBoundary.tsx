@@ -1,4 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { resetDeviceAndReload } from '../../services/deviceReset';
+import { readLastError, recordLastError } from '../../services/globalErrorLog';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -23,12 +25,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     error: null,
   };
 
-  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  public static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error(`[ErrorBoundary:${this.props.level || 'generic'}] Caught error:`, error, errorInfo);
+    const level = this.props.level || 'generic';
+    console.error(`[ErrorBoundary:${level}] Caught error:`, error, errorInfo);
+    recordLastError({ message: error?.message || 'Render error', stack: error?.stack, source: `boundary:${level}` });
   }
 
   private handleReset = () => {
@@ -36,6 +40,23 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.props.onReset) {
       this.props.onReset();
     }
+  };
+
+  private handleClearCache = () => {
+    // Irreversible device-local reset: drop persisted UI state + offline caches, then reboot.
+    void resetDeviceAndReload();
+  };
+
+  private handleCopyDetails = () => {
+    const detail = [
+      `Message: ${this.state.error?.message || 'unknown'}`,
+      `Stack: ${this.state.error?.stack || 'n/a'}`,
+      `Last captured: ${JSON.stringify(readLastError())}`,
+      `View: ${typeof window !== 'undefined' ? window.location.hash || '#/' : ''}`,
+      `Version: ${typeof window !== 'undefined' ? window.location.pathname : ''}`,
+      `UA: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
+    ].join('\n');
+    void navigator?.clipboard?.writeText(detail).catch(() => undefined);
   };
 
   public render() {
@@ -118,6 +139,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: '#94a3b8' }}>
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
+            <p style={{ margin: '0 0 14px', fontSize: '0.78rem', color: '#64748b' }}>
+              The rest of the app still works — use the menu to keep going.
+            </p>
             <button
               type="button"
               onClick={this.handleReset}
@@ -172,10 +196,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <h1 style={{ margin: '0 0 8px', fontSize: '1.4rem', fontWeight: 800 }}>
             {this.props.title || 'ChoresRewards encountered an issue'}
           </h1>
-          <p style={{ margin: '0 0 20px', maxWidth: 440, fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1.4 }}>
+          <p style={{ margin: '0 0 6px', maxWidth: 460, fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1.4 }}>
             {this.state.error?.message || 'A component failed to render. You can reload or retry to resume.'}
           </p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <p style={{ margin: '0 0 20px', maxWidth: 460, fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
+            Your chores, points and lists are stored on the family hub and are safe. Clearing the cache
+            only resets this device&rsquo;s local settings.
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
             <button
               type="button"
               onClick={this.handleReset}
@@ -197,6 +225,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               style={{
                 padding: '8px 18px',
                 borderRadius: 'var(--btn-radius, 10px)',
+                background: 'rgba(56, 189, 248, 0.18)',
+                border: '1px solid rgba(56, 189, 248, 0.5)',
+                color: '#38bdf8',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Reload Page
+            </button>
+            <button
+              type="button"
+              onClick={this.handleClearCache}
+              style={{
+                padding: '8px 18px',
+                borderRadius: 'var(--btn-radius, 10px)',
                 background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
                 border: 'none',
                 color: '#ffffff',
@@ -204,9 +247,65 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 cursor: 'pointer',
               }}
             >
-              Reload Page
+              Clear device cache &amp; reload
             </button>
           </div>
+
+          {/* Technical details stay collapsed so a child or parent never sees a stack trace by accident. */}
+          <details
+            style={{
+              marginTop: 22,
+              maxWidth: 640,
+              width: '100%',
+              textAlign: 'left',
+              color: '#94a3b8',
+              fontSize: '0.75rem',
+            }}
+          >
+            <summary style={{ cursor: 'pointer', fontWeight: 700, color: '#cbd5e1' }}>
+              Technical details
+            </summary>
+            <pre
+              style={{
+                margin: '10px 0 0',
+                padding: 12,
+                maxHeight: 200,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid rgba(148, 163, 184, 0.25)',
+                borderRadius: 10,
+                fontSize: '0.7rem',
+                lineHeight: 1.5,
+              }}
+            >
+              {[
+                `message: ${this.state.error?.message || 'unknown'}`,
+                this.state.error?.stack ? `stack:\n${this.state.error.stack}` : '',
+                readLastError() ? `last error: ${JSON.stringify(readLastError(), null, 2)}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n\n')}
+            </pre>
+            <button
+              type="button"
+              onClick={this.handleCopyDetails}
+              style={{
+                marginTop: 8,
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-pill, 999px)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#e2e8f0',
+                cursor: 'pointer',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+              }}
+            >
+              Copy details
+            </button>
+          </details>
         </div>
       );
     }

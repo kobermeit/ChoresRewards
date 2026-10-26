@@ -20,6 +20,7 @@ import { MobileDrawer } from './components/MobileDrawer';
 import { OfflineSyncManager } from './components/OfflineSyncManager';
 import { ConnectivityMonitor } from './features/offline/ConnectivityMonitor';
 import { OfflineStatusBanner } from './features/offline/OfflineStatusBanner';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Container, Button } from './components/ui';
 
 const MainShell: React.FC<{
@@ -71,55 +72,73 @@ const MainShell: React.FC<{
         {/* Cached Views for Instant 0ms Tab Transitions */}
         {visitedViews['dashboard'] && (
           <div style={{ display: activeView === 'dashboard' ? 'block' : 'none' }}>
-            <DashboardSection />
+            <ErrorBoundary level="section" title="Dashboard">
+              <DashboardSection />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['chores'] && (
           <div style={{ display: activeView === 'chores' ? 'block' : 'none' }}>
-            <ChoresKanbanSection isStandalonePage />
+            <ErrorBoundary level="section" title="Chores">
+              <ChoresKanbanSection isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {(visitedViews['rewards'] || visitedViews['redeemed']) && (
           <div style={{ display: activeView === 'rewards' || activeView === 'redeemed' ? 'block' : 'none' }}>
-            <RewardsSection isStandalonePage />
+            <ErrorBoundary level="section" title="Rewards">
+              <RewardsSection isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['meals'] && (
           <div style={{ display: activeView === 'meals' ? 'block' : 'none' }}>
-            <MealAndShoppingSection subView="meals" isStandalonePage />
+            <ErrorBoundary level="section" title="Meal Planner">
+              <MealAndShoppingSection subView="meals" isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['shopping'] && (
           <div style={{ display: activeView === 'shopping' ? 'block' : 'none' }}>
-            <MealAndShoppingSection subView="shopping" isStandalonePage />
+            <ErrorBoundary level="section" title="Shopping List">
+              <MealAndShoppingSection subView="shopping" isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['library'] && (
           <div style={{ display: activeView === 'library' ? 'block' : 'none' }}>
-            <MealAndShoppingSection subView="library" isStandalonePage />
+            <ErrorBoundary level="section" title="Meal Library">
+              <MealAndShoppingSection subView="library" isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['notes'] && (
           <div style={{ display: activeView === 'notes' ? 'block' : 'none' }}>
-            <NotesSection isStandalonePage />
+            <ErrorBoundary level="section" title="Notes">
+              <NotesSection isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['calendar'] && (
           <div style={{ display: activeView === 'calendar' ? 'block' : 'none' }}>
-            <CalendarView />
+            <ErrorBoundary level="section" title="Calendar">
+              <CalendarView />
+            </ErrorBoundary>
           </div>
         )}
 
         {visitedViews['organise'] && (
           <div style={{ display: activeView === 'organise' ? 'block' : 'none' }}>
-            <OrganiseSection isStandalonePage />
+            <ErrorBoundary level="section" title="Organise">
+              <OrganiseSection isStandalonePage />
+            </ErrorBoundary>
           </div>
         )}
 
@@ -127,7 +146,9 @@ const MainShell: React.FC<{
           <div style={{ display: activeView === 'settings' ? 'block' : 'none' }}>
             <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
               {isParent ? (
-                <SettingsView />
+                <ErrorBoundary level="section" title="Settings">
+                  <SettingsView />
+                </ErrorBoundary>
               ) : (
                 <div
                   style={{
@@ -171,7 +192,9 @@ const MainShell: React.FC<{
         {visitedViews['activity_log'] && (
           <div style={{ display: activeView === 'activity_log' ? 'block' : 'none' }}>
             <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-              <ActivityLogView />
+              <ErrorBoundary level="section" title="Activity Log">
+                <ActivityLogView />
+              </ErrorBoundary>
             </Container>
           </div>
         )}
@@ -179,7 +202,9 @@ const MainShell: React.FC<{
         {visitedViews['chore_history'] && (
           <div style={{ display: activeView === 'chore_history' ? 'block' : 'none' }}>
             <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-              <ChoreHistoryView />
+              <ErrorBoundary level="section" title="Chore History">
+                <ChoreHistoryView />
+              </ErrorBoundary>
             </Container>
           </div>
         )}
@@ -187,7 +212,9 @@ const MainShell: React.FC<{
         {visitedViews['help'] && (
           <div style={{ display: activeView === 'help' ? 'block' : 'none' }}>
             <Container maxWidth={1200} style={{ paddingBottom: 64 }}>
-              <HelpView />
+              <ErrorBoundary level="section" title="Help">
+                <HelpView />
+              </ErrorBoundary>
             </Container>
           </div>
         )}
