@@ -6,11 +6,23 @@ instance
 *.db
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
 .git
+.gitignore
 .github
+.cursor
 __pycache__
 *.pyc
 venv
 .venv
+# Never bake local secrets or runtime env into the image
 .env
+.env.*
+!.env.example
+# Uploaded user media is not part of the image, except the bundled default avatar
 static/uploads/*
+!static/uploads/default_avatar.png
+# Local scratch files from scripted smoke tests
+_tmp*
+scripts/_tmp*

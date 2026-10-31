@@ -16,6 +16,7 @@ import { settingsRouter } from './routes/settings';
 import { mediaRouter } from './routes/media';
 import { seasonalRouter } from './routes/seasonal';
 import { healthRouter } from './routes/health';
+import { backupRouter } from './routes/backup';
 import { mutationDedupeMiddleware } from './services/mutationDedupe';
 
 initDatabase();
@@ -77,6 +78,7 @@ const routers = [
   settingsRouter,
   mediaRouter,
   seasonalRouter,
+  backupRouter,
 ];
 
 for (const router of routers) {
@@ -103,7 +105,12 @@ if (fs.existsSync(CLIENT_DIST_DIR)) {
 }
 
 // Multer & general error handler
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  // A response already in flight (e.g. the backup restore path) must not be re-answered
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
   if (err?.code === 'LIMIT_FILE_SIZE') {
     res.status(413).json({
       success: false,

@@ -13,7 +13,7 @@
   - Audio Engine: Zero-latency procedural Web Audio synthesis (`soundService.ts`) with theme support (Zelda Fantasy, Christmas Bells, Spooky, Zen Chimes, Fanfare) + bundled fallback audio clips.
   - Visuals & Celebrations: Canvas-confetti + custom celebration fireworks.
   - **Code Map Maintenance**: Always consult and keep [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md) updated whenever components, features, or routes are added or refactored.
-- **Deployment Targets**: Runs standalone on port `8099` AND inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`).
+- **Deployment Targets**: Primary target is a **single Docker container deployed by Coolify** (root `Dockerfile`, port `8099`, persistent volume at `/data`). Also runs standalone on port `8099` and inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`). SQLite stays the database for now; a future Postgres migration is planned but out of scope.
 
 ---
 
@@ -37,6 +37,8 @@
 | **Extra Bonus Chores Pool** | `client/src/components/SettingsAndLogsViews.tsx` (`tab === 'extra'`) | `server/src/routes/chores.ts` (`is_extra = 1`) |
 | **App Bar, Clock, Weather** | `client/src/components/Header.tsx`, `SideNav.tsx` | Open-Meteo API + device clock |
 | **Household Settings & Prefs** | `client/src/components/SettingsAndLogsViews.tsx`, `hooks/useSettings.ts` | `server/src/routes/seasonal.ts` (`/api/prefs`), `settings.ts` |
+| **Backup & Restore** | `client/src/features/settings/tabs/BackupSettingsTab.tsx` (`tab === 'backup'`) | `server/src/routes/backup.ts` → `server/src/services/backup.ts` (`/api/backup/info`, `/export`, `/import`) |
+| **Health Probes** | - | `server/src/routes/health.ts` (`/api/health` for containers, `/api/ping` for client reconnect) |
 
 ---
 
@@ -98,6 +100,12 @@ choresrewards/
   - Supports dynamic dates (e.g. Easter calculated via Gregorian algorithm) and fixed holidays (Halloween, Christmas, New Year's) with active celebration windows (typically ±7 days).
   - Hemisphere toggle adjusts meteorological season dates (Southern Hemisphere default: Dec–Feb Summer, Sep–Nov Spring).
 - **Sound Themes**: Configurable in Settings (`auto`, `default`, `fantasy` [Zelda-style secret chime], `christmas` [bell chime chords], `spooky` [Halloween theremin arpeggio], `chimes` [zen wind chimes], `fanfare` [royal brass]). Synthesized purely via Web Audio API (zero external assets required).
+
+### 4. Backup & Restore (household migration)
+- **Export** (`GET /api/backup/export?media=1`, parent-only) streams one `.tar.gz`: `manifest.json` + `database.db` (a `db.backup()` online snapshot, so the live DB is never locked) + `secret_key` + `uploads/**`.
+- **Import** (`POST /api/backup/import`, parent-only) accepts *only* archives this app wrote. The tar is extracted against a strict whitelist (`manifest.json`, `database.db`, `secret_key`, `uploads/…`); symlinks, absolute paths, `..` traversal, unknown files, foreign manifests, non-SQLite payloads and a failing `PRAGMA quick_check` are all rejected. **The archive is never parsed or executed as SQL** — only validated files are swapped in.
+- Restore writes a safety copy to `DATA_DIR/backups/pre-restore-<ts>.db`, closes the DB handle, removes `-wal`/`-shm`, copies the restored files in and then exits the process so the container restarts with the new database. Therefore **the container needs a restart policy** (`unless-stopped`); while the handle is closed the SQLite session store no-ops instead of throwing.
+- Keep the in-app export as the supported migration path between HAOS, Docker and Coolify — it carries `secret_key`, so existing device logins and the PIN survive the move.
 
 ---
 
@@ -163,6 +171,19 @@ choresrewards/
 - **Pure Rendering & Memoization**: Use `React.memo` on list cards, kanban lanes, and dashboard widgets to eliminate cascading re-renders when parent states update. Use `useMemo` for derived data filters/groupings and `useCallback` for event handlers passed down to child components.
 - **Decoupled Local UI State**: Keep navigation (`activeView`), panel toggles, and view options in Redux `uiSlice.ts` to avoid re-rendering unrelated pages.
 - **Always Update Code Map**: Whenever files or features are added or rearranged, update [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md).
+
+## Docker & Coolify Deployment Contract
+- **One production build path**: the root `Dockerfile` (capital D — Coolify's default Dockerfile location). `npm run verify` + client/server builds run *inside* the build stage, so a failing build never replaces the running container. Do not add a second prod Dockerfile for Coolify.
+- **Base image must stay Debian slim** (`node:22-bookworm-slim`). `better-sqlite3` is a native module; Alpine/musl would force a full toolchain into the runtime image.
+- **Port `8099`** is what Coolify exposes (`Ports Exposes = 8099`). `NODE_ENV`, `PORT` and `DATA_DIR` are image `ENV`s and may be overridden by Coolify environment variables.
+- **All household state lives in `DATA_DIR`** (`/data` in containers): `database.db`, `secret_key`, `uploads/`. Never write state into the image, `client/dist`, or `server/`. Coolify always mounts a volume at `/data`; losing it loses the household.
+- **Healthcheck** is `/api/health` (`server/src/routes/health.ts`, `200` healthy / `503` when SQLite cannot be opened). `/ping` (`204`) remains the client's lightweight reconnect probe — do not merge the two, and keep the health payload free of filesystem paths and household data.
+- **Runtime runs as `USER node`** (uid 1000). Any new persistent directory must be created and `chown`ed to `node` in the Dockerfile, otherwise SQLite/uploads fail with EACCES.
+- **Config template**: `.env.example` is committed (`.gitignore` and `.dockerignore` both re-include it). Add every new `process.env.*` variable there with a comment, and wire it into `docker-compose.yml` for local runs.
+- `docker-compose.yml` is for **local / self-hosted Docker only**; production is Coolify and does not use it.
+- The optional HAOS add-on (`choresrewards/`) builds from the public GitHub repo, so it stays independent of the Coolify image. `choresrewards/config.yaml` is still the version source for both (bundled into the image for `APP_VERSION`).
+
+---
 
 ## Production Resource & Ingress Path Safety (CRITICAL)
 - **Home Assistant Ingress Path Routing**: In production, Home Assistant serves the application behind a dynamic path prefix (e.g. `/api/hassio_ingress/<token>/`).

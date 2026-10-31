@@ -1,8 +1,21 @@
 import session from 'express-session';
 import { db } from '../db';
 
+/**
+ * The handle is briefly closed while a backup restore swaps the database file
+ * (see services/backup.ts) and the process is about to restart. Session writes
+ * must not throw during that window.
+ */
+function databaseIsOpen(): boolean {
+  return Boolean((db as unknown as { open?: boolean }).open);
+}
+
 export class SqliteSessionStore extends session.Store {
   get(sid: string, callback: (err?: any, session?: session.SessionData | null) => void): void {
+    if (!databaseIsOpen()) {
+      callback(null, null);
+      return;
+    }
     try {
       const row = db
         .prepare('SELECT sess FROM session_store WHERE sid = ? AND expired > ?')
@@ -19,6 +32,10 @@ export class SqliteSessionStore extends session.Store {
   }
 
   set(sid: string, sessionData: session.SessionData, callback?: (err?: any) => void): void {
+    if (!databaseIsOpen()) {
+      callback?.(null);
+      return;
+    }
     try {
       const maxAge = sessionData.cookie?.maxAge || 30 * 24 * 60 * 60 * 1000;
       const expired = Date.now() + maxAge;
@@ -34,6 +51,10 @@ export class SqliteSessionStore extends session.Store {
   }
 
   destroy(sid: string, callback?: (err?: any) => void): void {
+    if (!databaseIsOpen()) {
+      callback?.(null);
+      return;
+    }
     try {
       db.prepare('DELETE FROM session_store WHERE sid = ?').run(sid);
       callback?.(null);
@@ -43,6 +64,10 @@ export class SqliteSessionStore extends session.Store {
   }
 
   touch(sid: string, sessionData: session.SessionData, callback?: (err?: any) => void): void {
+    if (!databaseIsOpen()) {
+      callback?.(null);
+      return;
+    }
     try {
       const maxAge = sessionData.cookie?.maxAge || 30 * 24 * 60 * 60 * 1000;
       const expired = Date.now() + maxAge;

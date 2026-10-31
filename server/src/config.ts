@@ -3,6 +3,13 @@ import path from 'path';
 import crypto from 'crypto';
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
+/**
+ * Deployment detection for the persistent data directory:
+ *   - Home Assistant OS add-on: Supervisor sets SUPERVISOR_TOKEN and mounts /data
+ *   - Coolify / plain Docker:   DATA_DIR=/data with a mounted volume (see Dockerfile)
+ *   - Local development:        ./instance inside the repo
+ * An explicit DATA_DIR environment variable always wins (see .env.example).
+ */
 const IS_HA_ADDON = Boolean(process.env.SUPERVISOR_TOKEN) || fs.existsSync('/data');
 
 export const PORT = Number(process.env.PORT || 8099);
@@ -27,7 +34,11 @@ export const APP_VERSION = readYamlVersion();
 export const DATA_DIR = process.env.DATA_DIR || (IS_HA_ADDON ? '/data' : path.join(REPO_ROOT, 'instance'));
 export const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'database.db');
 export const STATIC_DIR = path.join(REPO_ROOT, 'static');
-export const UPLOADS_DIR = process.env.UPLOADS_DIR || (IS_HA_ADDON ? path.join(DATA_DIR, 'uploads') : path.join(STATIC_DIR, 'uploads'));
+// Uploads follow DATA_DIR (Coolify/Docker volume) instead of the image's static folder
+const USES_DATA_DIR = Boolean(process.env.DATA_DIR) || IS_HA_ADDON;
+export const UPLOADS_DIR =
+  process.env.UPLOADS_DIR ||
+  (USES_DATA_DIR ? path.join(DATA_DIR, 'uploads') : path.join(STATIC_DIR, 'uploads'));
 export const CLIENT_DIST_DIR = path.join(REPO_ROOT, 'client', 'dist');
 
 // Ensure persistent directories exist

@@ -28,6 +28,9 @@ instance/
 .env.*
 *.env
 
+# ...but the documented template is committed on purpose
+!.env.example
+
 # Upload folders (user content, not code)
 static/uploads/
 

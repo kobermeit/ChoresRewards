@@ -35,11 +35,17 @@ choresrewards/
 │   └── package.json
 ├── server/                     # Node.js + Express + TypeScript Backend
 │   ├── src/
+│   │   ├── config.ts           # Port/paths/version resolution (PORT, DATA_DIR, DB_PATH, UPLOADS_DIR, CR_SECRET_KEY)
 │   │   ├── db.ts               # SQLite schema, migrations, connection pool (better-sqlite3)
-│   │   ├── routes/             # Express API route handlers (health.ts = /api/ping probe)
-│   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper, mutationDedupe)
+│   │   ├── routes/             # Express API route handlers (health.ts = /api/health + /api/ping probes, backup.ts = export/import)
+│   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper, mutationDedupe, backup/restore archives)
 │   └── package.json
-├── config.yaml                 # Home Assistant Add-On manifest (CRITICAL: version must match package.json)
+├── choresrewards/              # Optional Home Assistant add-on (config.yaml = version source of truth + add-on Dockerfile)
+├── static/                     # Bundled images & audio clips; static/uploads is the local-dev upload target
+├── scripts/verify_ingress.js   # Ingress/path-safety audit (npm run verify — also runs inside the Docker build)
+├── Dockerfile                  # Production image for Coolify/Docker: port 8099, state volume /data, HEALTHCHECK /api/health
+├── docker-compose.yml          # Local / self-hosted Docker run (production is Coolify, not compose)
+├── .env.example                # Documented runtime env vars (TZ, DATA_DIR, CR_SECRET_KEY, ENABLE_GOOGLE_CALENDAR)
 ├── AGENTS.md                   # Agent working memory, rules, and development guidelines
 ├── DESIGN_SYSTEM.md            # Tokens, UI primitives, and styling constraints
 └── CODEMAP.md                  # This file
@@ -65,6 +71,8 @@ choresrewards/
 | **System Settings** | `client/src/features/settings/*` (12 tabs: General, Family, Chores, Seasonal, Sounds, etc.) | `components/SettingsAndLogsViews.tsx` | `/api/prefs`, `/api/seasonal`, `/api/settings` |
 | **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
 | **Header, Weather & Clock** | `client/src/features/header/WeatherWidget.tsx`<br>`features/header/ClockWidget.tsx`<br>`features/header/WeatherForecastModal.tsx` | `components/Header.tsx` | Open-Meteo API + device clock |
+| **Health Probes (containers & offline)** | - | - | `server/src/routes/health.ts` — `/api/health` (`200`/`503` + version + DB status, used by the Docker `HEALTHCHECK` and Coolify) and `/api/ping` (`204`, the client's reconnect/wake probe) |
+| **Backup & Restore (household export/import)** | `client/src/features/settings/tabs/BackupSettingsTab.tsx` | `features/settings/SettingsView.tsx` (`tab === 'backup'`) | `/api/backup/info`, `/api/backup/export`, `/api/backup/import` (`server/src/routes/backup.ts` → `server/src/services/backup.ts`)<br>Archive = `manifest.json` + `database.db` (online backup snapshot) + `secret_key` + `uploads/**`<br>Restore: whitelist-validated tar → `quick_check` → safety copy in `backups/` → swap files → exit so the container restarts |
 | **Notification Bell (Alerts)** | `client/src/components/Header.tsx` (`header-notif-*`, mark read / dismiss; panel is a direct child of `.header-nav-actions` so the tablet burger menu can open it at 769–1400px) | - | `/api/notifications`, `/api/notifications/mark_read`, `/api/notifications/delete` (`server/src/routes/organise.ts`)<br>Table: `notifications` (`dedupe_key`, `read_at`, `dismissed_at`) |
 
 ---

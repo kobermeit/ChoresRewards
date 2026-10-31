@@ -14,6 +14,7 @@ import { CalendarSettingsTab } from './tabs/CalendarSettingsTab';
 import { ScreensaverSettingsTab } from './tabs/ScreensaverSettingsTab';
 import { QuizSettingsTab } from './tabs/QuizSettingsTab';
 import { NotionSettingsTab } from './tabs/NotionSettingsTab';
+import { BackupSettingsTab } from './tabs/BackupSettingsTab';
 
 export type SettingsTabId =
   | 'general'
@@ -27,7 +28,8 @@ export type SettingsTabId =
   | 'calendar'
   | 'screensaver'
   | 'quiz'
-  | 'notion';
+  | 'notion'
+  | 'backup';
 
 export const SettingsView: React.FC = () => {
   const { data } = useApp();
@@ -52,6 +54,7 @@ export const SettingsView: React.FC = () => {
         { id: 'seasonal', label: 'Seasonal Themes', icon: 'fas fa-wand-magic-sparkles', badge: null },
         { id: 'screensaver', label: 'Screensaver', icon: 'fas fa-image', badge: null },
         { id: 'sounds', label: 'Sound FX', icon: 'fas fa-volume-high', badge: null },
+        { id: 'backup', label: 'Backup & Restore', icon: 'fas fa-hard-drive', badge: null },
       ],
     },
     {
@@ -238,6 +241,7 @@ export const SettingsView: React.FC = () => {
           {tab === 'screensaver' && <ScreensaverSettingsTab />}
           {tab === 'quiz' && <QuizSettingsTab />}
           {tab === 'notion' && <NotionSettingsTab />}
+          {tab === 'backup' && <BackupSettingsTab />}
         </div>
       </div>
     </div>
