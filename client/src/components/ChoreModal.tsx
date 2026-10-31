@@ -73,6 +73,7 @@ export const ChoreModal: React.FC = () => {
     data,
     refresh,
     showToast,
+    confirm,
     editingChoreModalItem,
     closeEditChoreModal,
     activeUser,
@@ -153,10 +154,11 @@ export const ChoreModal: React.FC = () => {
       setIsRepeating(Boolean(chore.is_daily));
 
       let daysArr: string[] = [];
-      if (chore.days_of_week) {
-        daysArr = chore.days_of_week
-          .split(',')
-          .map((d) => d.trim().toLowerCase())
+      // days_of_week is normally a CSV string, but older/past-date payloads could be an array
+      const rawDays: any = (chore as any).days_of_week;
+      if (rawDays) {
+        daysArr = (Array.isArray(rawDays) ? rawDays : String(rawDays).split(','))
+          .map((d: any) => String(d).trim().toLowerCase())
           .filter(Boolean);
       }
       setSelectedDays(daysArr);
@@ -366,6 +368,28 @@ export const ChoreModal: React.FC = () => {
   const assignedPerson = family.find((p) => p.name === assignedTo);
   const memberColor = assignedPerson?.color || '#3b82f6';
 
+  const handleDeleteChore = async () => {
+    if (!isEditing || !chore) return;
+    const ok = await confirm({
+      title: 'Delete Chore',
+      message: `Are you sure you want to permanently delete "${chore.title}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setSubmitting(true);
+      await apiPost('delete_chore', { chore_id: chore.id, permanent: true });
+      showToast(`Deleted chore "${chore.title}"`);
+      closeEditChoreModal();
+      await refresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Could not delete chore', { type: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <>
       <Modal
@@ -375,7 +399,18 @@ export const ChoreModal: React.FC = () => {
       icon={isEditing ? 'fas fa-pencil-alt' : 'fas fa-plus-circle'}
       maxWidth={560}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+          {isEditing && (
+            <Button
+              variant="danger"
+              icon="fas fa-trash-alt"
+              onClick={handleDeleteChore}
+              disabled={submitting}
+            >
+              Delete
+            </Button>
+          )}
+          <span style={{ flex: 1 }} />
           <Button variant="secondary" onClick={closeEditChoreModal} disabled={submitting}>
             Cancel
           </Button>

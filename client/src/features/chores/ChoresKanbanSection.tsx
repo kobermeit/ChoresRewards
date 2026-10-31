@@ -12,6 +12,7 @@ import { ChoreCard } from './components/ChoreCard';
 import { ErrorBoundary } from '../../components/common/ErrorBoundary';
 import { ChoreKanbanColumn } from './components/ChoreKanbanColumn';
 import { ChoreCelebrationModal } from './components/ChoreCelebrationModal';
+import { ChoreDetailModal } from './components/ChoreDetailModal';
 
 export interface ChoresKanbanSectionProps {
   isStandalonePage?: boolean;
@@ -48,6 +49,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const [editingPersonModal, setEditingPersonModal] = useState<Person | null>(null);
   const [editingNameVal, setEditingNameVal] = useState('');
   const [choreToDelete, setChoreToDelete] = useState<Chore | null>(null);
+  const [detailChore, setDetailChore] = useState<Chore | null>(null);
   const [extraModalPerson, setExtraModalPerson] = useState<Person | null>(null);
   const [profileModalPerson, setProfileModalPerson] = useState<Person | null>(null);
   const [profileDetails, setProfileDetails] = useState<any>(null);
@@ -67,19 +69,34 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const isCash = Boolean(data?.config?.is_cash_mode);
 
   // Day Navigation state (past days completion support)
-  const todayDateStr = data?.current_date || new Date().toISOString().slice(0, 10);
+  // Local fallback uses the *local* calendar day (not UTC), so the first paint can never
+  // land on "yesterday" for households east/west of UTC. The server's household date wins
+  // as soon as the bootstrap payload arrives.
+  const localDay = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  const todayDateStr = data?.current_date || localDay();
   const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
   const [displayedDate, setDisplayedDate] = useState<string>(todayDateStr);
   const [pastChoresCache, setPastChoresCache] = useState<Record<string, Chore[]>>({});
   const [isLoadingPast, setIsLoadingPast] = useState(false);
   const prevActiveChoresRef = useRef<Chore[]>(chores);
+  /** True while the user is parked on "today" — those users follow the day rollover. */
+  const followTodayRef = useRef(true);
 
+  // Follow the household clock: when "today" changes (midnight rollover, or the first
+  // authoritative date from the server) anyone parked on today moves with it. Comparing
+  // against a ref rather than the freshly-derived todayDateStr is what makes this work —
+  // the previous version compared two values that had already moved together.
   useEffect(() => {
-    if (data?.current_date && selectedDate === todayDateStr) {
-      setSelectedDate(data.current_date);
-      setDisplayedDate(data.current_date);
+    const serverToday = data?.current_date;
+    if (!serverToday) return;
+    if (followTodayRef.current && selectedDate !== serverToday) {
+      setSelectedDate(serverToday);
+      setDisplayedDate(serverToday);
     }
-  }, [data?.current_date]);
+  }, [data?.current_date, selectedDate]);
 
   const shiftDate = (baseIso: string, offsetDays: number): string => {
     const [y, m, d] = baseIso.split('-').map(Number);
@@ -107,6 +124,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     if (direction === 1 && isToday) return;
     const newDate = shiftDate(selectedDate, direction);
     if (direction === 1 && newDate > todayDateStr) return;
+    // Only stay in "follow today" mode when the user lands back on today.
+    followTodayRef.current = newDate === todayDateStr;
     setSelectedDate(newDate);
   };
 
@@ -395,7 +414,10 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => setSelectedDate(todayDateStr)}
+                  onClick={() => {
+                  followTodayRef.current = true;
+                  setSelectedDate(todayDateStr);
+                }}
                   style={{ fontSize: '0.72rem', padding: '1px 8px', height: 22, borderRadius: 999, marginLeft: 2 }}
                 >
                   Today
@@ -577,6 +599,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                     onToggleFlip={toggleChoreFlip}
                     onEdit={(c) => openEditChoreModal(c)}
                     onDelete={(c) => setChoreToDelete(c)}
+                    onShowDetails={setDetailChore}
                     />
                   </ErrorBoundary>
                 ))}
@@ -622,6 +645,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 onToggleFlip={toggleChoreFlip}
                 onEditChore={(c) => openEditChoreModal(c)}
                 onDeleteChore={(c) => setChoreToDelete(c)}
+                onShowChoreDetails={setDetailChore}
                 onDropColumn={() => {}}
               />
             );
@@ -847,6 +871,34 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
           );
         })()}
       </Modal>
+
+      {/* Tap a chore card → read-only detail modal (kids/family) */}
+      <ChoreDetailModal
+        chore={detailChore}
+        person={
+          detailChore
+            ? family.find(
+                (p) =>
+                  p.id === detailChore.assigned_to_id || p.name === detailChore.assigned_to
+              ) || null
+            : null
+        }
+        isCash={isCash}
+        onClose={() => setDetailChore(null)}
+        onComplete={(chore, person) => {
+          setDetailChore(null);
+          handleCompleteChore(chore, person);
+        }}
+        onUndo={(choreId) => {
+          setDetailChore(null);
+          handleUndoChore(choreId);
+        }}
+        onStartTimer={(chore) => {
+          setDetailChore(null);
+          startChoreTimer(chore);
+          toggleChoreFlip(chore.id, true);
+        }}
+      />
 
       {/* All-Done Multi-step Celebration Modal */}
       <ChoreCelebrationModal

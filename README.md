@@ -94,7 +94,7 @@ Add these in the app's **Environment Variables** panel — the commented templat
 | :--- | :--- | :--- |
 | `DATA_DIR` | `/data` | Points the DB, secret and uploads at the volume |
 | `TZ` | e.g. `Australia/Brisbane` | Fallback timezone until one is saved in Settings → General |
-| `CR_SECRET_KEY` | 64-char hex | Stable session-cookie key across rebuilds: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `CR_SECRET_KEY` | *leave empty* | Session-cookie signing key. Empty = auto-generated into `/data/secret_key`. **When migrating, keep it empty** — the backup already carries the old `secret_key`, and an explicit value here overrides it (forcing every device to log in again). To pin your own: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `ENABLE_GOOGLE_CALENDAR` | `true` / `false` | Google Calendar integration toggle |
 
 Optional: `DB_PATH`, `UPLOADS_DIR` (fine-grained paths) and `APP_VERSION` (overrides the version shown in the header, which otherwise comes from `choresrewards/config.yaml`).

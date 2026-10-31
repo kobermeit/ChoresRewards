@@ -26,6 +26,7 @@ export interface ChoreKanbanColumnProps {
   onToggleFlip: (choreId: number, flip?: boolean) => void;
   onEditChore: (chore: Chore) => void;
   onDeleteChore: (chore: Chore) => void;
+  onShowChoreDetails: (chore: Chore) => void;
   onDropColumn: (person: Person) => void;
 }
 
@@ -51,6 +52,7 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
   onToggleFlip,
   onEditChore,
   onDeleteChore,
+  onShowChoreDetails,
   onDropColumn,
 }) => {
   const pendingChores = chores.filter((c) => !c.completed);
@@ -226,6 +228,7 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
                 onToggleFlip={onToggleFlip}
                 onEdit={onEditChore}
                 onDelete={onDeleteChore}
+                onShowDetails={onShowChoreDetails}
               />
             </ErrorBoundary>
           ))}

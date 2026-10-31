@@ -17,6 +17,8 @@ export interface Chore {
   is_extra: boolean;
   extra_id: string | null;
   duration_seconds?: number | null;
+  /** Consecutive days this chore has been completed (from chore_log), 0 when none. */
+  streak?: number;
   is_overdue?: boolean;
 }
 

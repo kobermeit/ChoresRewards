@@ -106,6 +106,7 @@ choresrewards/
 - **Import** (`POST /api/backup/import`, parent-only) accepts *only* archives this app wrote. The tar is extracted against a strict whitelist (`manifest.json`, `database.db`, `secret_key`, `uploads/…`); symlinks, absolute paths, `..` traversal, unknown files, foreign manifests, non-SQLite payloads and a failing `PRAGMA quick_check` are all rejected. **The archive is never parsed or executed as SQL** — only validated files are swapped in.
 - Restore writes a safety copy to `DATA_DIR/backups/pre-restore-<ts>.db`, closes the DB handle, removes `-wal`/`-shm`, copies the restored files in and then exits the process so the container restarts with the new database. Therefore **the container needs a restart policy** (`unless-stopped`); while the handle is closed the SQLite session store no-ops instead of throwing.
 - Keep the in-app export as the supported migration path between HAOS, Docker and Coolify — it carries `secret_key`, so existing device logins and the PIN survive the move.
+- **Never set `CR_SECRET_KEY` when restoring a backup**: the env var overrides `DATA_DIR/secret_key`, so an explicit value there makes the restored key inert and logs every device out.
 
 ---
 

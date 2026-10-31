@@ -1,41 +1,100 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { apiPost, resolveAssetUrl } from '../../../api';
-import { Button } from '../../../components/ui';
+import { apiGet, apiPost, resolveAssetUrl } from '../../../api';
+import { Button, Select } from '../../../components/ui';
+
+/** Human-readable schedule label; tolerates a CSV string or an array (older payloads). */
+const daysToText = (raw: string | string[] | null | undefined, isDaily: boolean): string => {
+  const days = (Array.isArray(raw) ? raw : raw ? String(raw).split(',') : [])
+    .map((d) => String(d).trim().toLowerCase())
+    .filter(Boolean);
+  if (days.length >= 7) return 'Every day';
+  if (days.length === 5 && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].every((d) => days.includes(d))) {
+    return 'Mon – Fri';
+  }
+  if (days.length === 2 && ['saturday', 'sunday'].every((d) => days.includes(d))) return 'Weekends';
+  if (days.length > 0) {
+    const mapDay: Record<string, string> = {
+      monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+    };
+    return days.map((d) => mapDay[d] || d.slice(0, 3)).join(', ');
+  }
+  return isDaily ? 'Every day' : 'Once-off';
+};
 
 export const ChoresSettingsTab: React.FC = () => {
   const { data, refresh, showToast, confirm, openEditChoreModal } = useApp();
+  // The bootstrap payload only carries chores scheduled for today, so the catalog
+  // loads every chore (?all=1) and filters by member on the client.
+  const [allChores, setAllChores] = useState<any[] | null>(null);
+  const [memberFilter, setMemberFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
+
+  const loadAllChores = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<any>('get_chores?all=1', 8000);
+      if (res?.success && Array.isArray(res.chores)) setAllChores(res.chores);
+    } catch {
+      // fall back to the today-only bootstrap list
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllChores();
+  }, [loadAllChores]);
+
+  const source: any[] = allChores || data?.chores || [];
+  const family: any[] = data?.family || [];
+  const filtered = useMemo(
+    () => (memberFilter === 'all' ? source : source.filter((c) => c.assigned_to === memberFilter)),
+    [source, memberFilter]
+  );
 
   return (
     <div className="card" style={{ padding: 24, borderRadius: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>🧹 All Household Chores ({data?.chores?.length || 0})</h3>
-        <Button
-          variant="primary"
-          size="sm"
-          icon="fas fa-plus"
-          onClick={() => openEditChoreModal(null)}
-        >
-          Add Chore
-        </Button>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <h3 style={{ margin: 0 }}>
+          🧹 All Household Chores ({filtered.length}
+          {memberFilter !== 'all' ? ` of ${source.length}` : ''})
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 190 }}>
+            <Select
+              value={memberFilter}
+              onChange={(e) => setMemberFilter(e.target.value)}
+              aria-label="Filter chores by family member"
+            >
+              <option value="all">👨‍👩‍👧‍👦 All family</option>
+              {family.map((p) => (
+                <option key={p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Button variant="primary" size="sm" icon="fas fa-plus" onClick={() => openEditChoreModal(null)}>
+            Add Chore
+          </Button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {(data?.chores || []).map((c) => {
+        {filtered.map((c) => {
           const assignedPerson = (data?.family || []).find((p) => p.name === c.assigned_to);
           const memberColor = assignedPerson?.color || '#3b82f6';
-          const rawDays = c.days_of_week ? c.days_of_week.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean) : [];
-          let daysText = c.is_daily ? 'Every day' : 'Once-off';
-          if (rawDays.length >= 7) {
-            daysText = 'Every day';
-          } else if (rawDays.length === 5 && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].every((d) => rawDays.includes(d))) {
-            daysText = 'Mon – Fri';
-          } else if (rawDays.length === 2 && ['saturday', 'sunday'].every((d) => rawDays.includes(d))) {
-            daysText = 'Weekends';
-          } else if (rawDays.length > 0) {
-            const mapDay: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
-            daysText = rawDays.map((d) => mapDay[d] || d.slice(0, 3)).join(', ');
-          }
+          const daysText = daysToText(c.days_of_week, Boolean(c.is_daily));
 
           return (
             <div
@@ -143,6 +202,7 @@ export const ChoresSettingsTab: React.FC = () => {
                       await apiPost('delete_chore', { chore_id: c.id, permanent: true });
                       showToast(`Deleted chore "${c.title}"`);
                       await refresh();
+                      await loadAllChores();
                     }
                   }}
                 >
@@ -152,9 +212,13 @@ export const ChoresSettingsTab: React.FC = () => {
             </div>
           );
         })}
-        {(data?.chores || []).length === 0 && (
+        {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px 16px', opacity: 0.6 }}>
-            No chores found. Tap &quot;Add Chore&quot; to create your first household chore!
+            {loading
+              ? 'Loading chores…'
+              : memberFilter === 'all'
+                ? 'No chores found. Tap "Add Chore" to create your first household chore!'
+                : `${memberFilter} has no chores yet.`}
           </div>
         )}
       </div>

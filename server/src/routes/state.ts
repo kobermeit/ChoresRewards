@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { db, AppSetting, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
 import { UPLOADS_DIR, APP_VERSION } from '../config';
 import { hashPin } from './auth';
-import { getAppTimezone, getMondayOfWeek, isChoreOverdue, isDayOfWeekScheduled } from '../utils/time';
+import { getAppTimezone, getMondayOfWeek, isChoreOverdue, isDayOfWeekScheduled, addDays } from '../utils/time';
 import { ensureDailyReset, getExtraChores, loadQuizQuestions } from '../services/chores';
 import {
   getWeekDaysList,
@@ -53,6 +53,29 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     ).filter((c) => !c.is_daily || isDayOfWeekScheduled(familyToday, c.days_of_week));
 
     const overdueChoreIds: number[] = [];
+    // Per-chore current streak (consecutive days with a completion) — powers the 🔥 chip on the card
+    const streakRows = db
+      .prepare(
+        "SELECT chore_id, for_date FROM chore_log WHERE for_date >= date(?, '-60 day') GROUP BY chore_id, for_date"
+      )
+      .all(familyToday) as Array<{ chore_id: number; for_date: string }>;
+    const streakDaysByChore: Record<number, Set<string>> = {};
+    for (const row of streakRows) {
+      const key = Number(row.chore_id);
+      if (!streakDaysByChore[key]) streakDaysByChore[key] = new Set();
+      streakDaysByChore[key].add(String(row.for_date).slice(0, 10));
+    }
+    const streakForChore = (choreId: number): number => {
+      const daySet = streakDaysByChore[choreId];
+      if (!daySet) return 0;
+      let cursor = daySet.has(familyToday) ? familyToday : addDays(familyToday, -1);
+      let streak = 0;
+      while (daySet.has(cursor)) {
+        streak += 1;
+        cursor = addDays(cursor, -1);
+      }
+      return streak;
+    };
     const chores = choresRows.map((c) => {
       const overdue = Boolean(c.due_datetime && !c.completed && isChoreOverdue(c));
       if (overdue) overdueChoreIds.push(c.id);
@@ -75,6 +98,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         is_extra: Boolean(c.is_extra),
         extra_id: c.extra_id || null,
         duration_seconds: c.duration_seconds !== null && c.duration_seconds !== undefined ? Number(c.duration_seconds) : null,
+        streak: streakForChore(c.id),
         is_overdue: overdue,
       };
     });

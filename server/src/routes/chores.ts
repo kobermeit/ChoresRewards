@@ -66,6 +66,8 @@ export const choresRouter = Router();
 
 choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Response) => {
   const targetDate = req.query?.date ? String(req.query.date).trim() : null;
+  // ?all=1 → every non-deleted chore regardless of today's schedule (used by Settings → All Chores Catalog)
+  const includeAll = String(req.query?.all || '') === '1';
   const familyToday = getFamilyToday();
   const isPastDate = Boolean(targetDate && targetDate < familyToday);
   const effectiveDate = targetDate || familyToday;
@@ -87,8 +89,34 @@ choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Resp
     logByChoreId[l.chore_id] = l;
   }
 
+  // Per-chore current streak (consecutive days with a completion, counting back from today)
+  const streakRows = db
+    .prepare(
+      "SELECT chore_id, for_date FROM chore_log WHERE for_date >= date(?, '-60 day') GROUP BY chore_id, for_date"
+    )
+    .all(familyToday) as Array<{ chore_id: number; for_date: string }>;
+  const daysByChore: Record<number, Set<string>> = {};
+  for (const row of streakRows) {
+    const key = Number(row.chore_id);
+    const day = String(row.for_date).slice(0, 10);
+    if (!daysByChore[key]) daysByChore[key] = new Set();
+    daysByChore[key].add(day);
+  }
+  const streakForChore = (choreId: number): number => {
+    const daySet = daysByChore[choreId];
+    if (!daySet) return 0;
+    let cursor = daySet.has(familyToday) ? familyToday : addDays(familyToday, -1);
+    let streak = 0;
+    while (daySet.has(cursor)) {
+      streak += 1;
+      cursor = addDays(cursor, -1);
+    }
+    return streak;
+  };
+
   const chores = rows
     .filter((c) => {
+      if (includeAll) return true;
       if (isPastDate && c.is_daily) {
         return isDayOfWeekScheduled(effectiveDate, c.days_of_week);
       }
@@ -106,7 +134,7 @@ choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Resp
         points: c.points,
         completed: isCompleted,
         is_daily: Boolean(c.is_daily),
-        days_of_week: c.days_of_week ? String(c.days_of_week).split(',').filter(Boolean) : [],
+        days_of_week: c.days_of_week || null,
         due_date: c.due_date || null,
         due_datetime: c.due_datetime || null,
         date_completed: logEntry?.completed_at || (isPastDate ? null : (c.date_completed || null)),
@@ -115,6 +143,7 @@ choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Resp
         is_extra: Boolean(c.is_extra),
         extra_id: c.extra_id || null,
         duration_seconds: c.duration_seconds || null,
+        streak: streakForChore(c.id),
         chore_log: logEntry || null,
       };
     });

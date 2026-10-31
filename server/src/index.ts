@@ -17,6 +17,7 @@ import { mediaRouter } from './routes/media';
 import { seasonalRouter } from './routes/seasonal';
 import { healthRouter } from './routes/health';
 import { backupRouter } from './routes/backup';
+import { choreHistoryRouter } from './routes/choreHistory';
 import { mutationDedupeMiddleware } from './services/mutationDedupe';
 
 initDatabase();
@@ -79,6 +80,7 @@ const routers = [
   mediaRouter,
   seasonalRouter,
   backupRouter,
+  choreHistoryRouter,
 ];
 
 for (const router of routers) {

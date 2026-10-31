@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { Chore, Person } from '../../../types';
-import { ItemCard, Button, IconButton, FlipCard, Badge, PointsBadge } from '../../../components/ui';
+import { Button, FlipCard, PointsBadge } from '../../../components/ui';
 import { ChoreTimerCardBack } from '../../../components/ChoreTimerCardBack';
+import { ChoreCardFace } from './ChoreCardFace';
 import { detectChoreIcon, formatDaysTag } from '../choreUtils';
 
 export interface ChoreCardProps {
@@ -19,6 +20,8 @@ export interface ChoreCardProps {
   onToggleFlip: (choreId: number, flip?: boolean) => void;
   onEdit: (chore: Chore) => void;
   onDelete: (chore: Chore) => void;
+  /** Tap on the card body when the user is not a parent (read-only detail modal). */
+  onShowDetails: (chore: Chore) => void;
 }
 
 export const ChoreCard: React.FC<ChoreCardProps> = memo(({
@@ -35,7 +38,8 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
   onStartTimer,
   onToggleFlip,
   onEdit,
-  onDelete,
+  onDelete: _onDelete,
+  onShowDetails,
 }) => {
   const isDone = Boolean(chore.completed);
   const daysLabel = formatDaysTag(chore.days_of_week, chore.is_daily);
@@ -43,50 +47,6 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
 
   const isTimed = Boolean(chore.duration_seconds && chore.duration_seconds > 0);
   const mins = isTimed ? Math.round((chore.duration_seconds || 0) / 60) : 0;
-
-  const metadataBadges = (
-    <>
-      <PointsBadge amount={chore.points} isCash={isCash} />
-      {isTimed && (
-        <Badge variant="info">
-          <i className="fas fa-stopwatch" style={{ marginRight: 4 }} />
-          {mins}m
-        </Badge>
-      )}
-      {daysLabel && <Badge variant="neutral">{daysLabel}</Badge>}
-      {chore.due_datetime && (
-        <Badge variant={isOverdue ? 'danger' : 'neutral'}>
-          <i className="fas fa-clock" style={{ marginRight: 4 }} />
-          {new Date(chore.due_datetime.replace(' ', 'T')).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Badge>
-      )}
-    </>
-  );
-
-  const headerActions = isParent ? (
-    <div style={{ display: 'flex', gap: 4 }}>
-      <IconButton
-        size="sm"
-        variant="ghost"
-        icon="fas fa-pen"
-        title="Edit chore"
-        aria-label="Edit chore"
-        onClick={() => onEdit(chore)}
-      />
-      <IconButton
-        size="sm"
-        variant="ghost"
-        icon="fas fa-trash-alt"
-        title="Delete chore"
-        aria-label="Delete chore"
-        style={{ color: '#ef4444' }}
-        onClick={() => onDelete(chore)}
-      />
-    </div>
-  ) : null;
 
   const cardActions = isDone ? (
     <Button
@@ -140,20 +100,24 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
   );
 
   const frontCard = (
-    <ItemCard
+    <ChoreCardFace
       title={chore.title}
-      description={chore.description}
-      icon={chore.icon || detectChoreIcon(chore.title)}
       imageUrl={chore.image_url}
-      statusBadges={metadataBadges}
-      metadata={metadataBadges}
+      fallbackIcon={chore.icon || detectChoreIcon(chore.title)}
+      pointsBadge={<PointsBadge amount={chore.points} isCash={isCash} />}
+      minutes={isTimed ? mins : null}
+      streak={chore.streak}
+      meta={[person.name, daysLabel].filter(Boolean).join(' · ')}
       accentColor={memberColor}
-      secondaryActions={headerActions}
-      headerAction={headerActions}
-      primaryAction={cardActions}
-      actions={cardActions}
+      isDone={isDone}
       isOverdue={isOverdue}
-      isCompleted={isDone}
+      cta={
+        // The CTA keeps its own action; taps must not bubble up and open the modal
+        <div className="cr-chore-face__cta" onClick={(e) => e.stopPropagation()}>
+          {cardActions}
+        </div>
+      }
+      onOpen={() => (isParent ? onEdit(chore) : onShowDetails(chore))}
     />
   );
 
@@ -179,3 +143,5 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
 });
 
 ChoreCard.displayName = 'ChoreCard';
+
+export default ChoreCard;
