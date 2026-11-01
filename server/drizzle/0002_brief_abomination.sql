@@ -1,0 +1,46 @@
+ALTER TABLE "activity_log" ALTER COLUMN "type" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "activity_log" ALTER COLUMN "user_name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "app_settings" ALTER COLUMN "key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore" ALTER COLUMN "title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore" ALTER COLUMN "assigned_to" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore" ALTER COLUMN "days_of_week" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore" ALTER COLUMN "extra_id" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore_log" ALTER COLUMN "chore_title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore_log" ALTER COLUMN "person_name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "chore_log" ALTER COLUMN "completed_by_name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "notifications" ALTER COLUMN "dedupe_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "notifications" ALTER COLUMN "kind" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "notifications" ALTER COLUMN "title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "notifications" ALTER COLUMN "target" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "notifications" ALTER COLUMN "target" SET DEFAULT 'kanban';--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "category" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "provider" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "vehicle_make" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "vehicle_model" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "organise_item" ALTER COLUMN "vehicle_rego" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "person" ALTER COLUMN "name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "person" ALTER COLUMN "avatar" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "person" ALTER COLUMN "avatar" SET DEFAULT 'default_avatar.png';--> statement-breakpoint
+ALTER TABLE "person_badge" ALTER COLUMN "badge_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "recipes" ALTER COLUMN "meal_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "recipes" ALTER COLUMN "title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "recipes" ALTER COLUMN "servings" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "recipes" ALTER COLUMN "prep_time" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "recipes" ALTER COLUMN "notion_id" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "reward" ALTER COLUMN "title" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "reward" ALTER COLUMN "assigned_to" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "reward" ALTER COLUMN "source_name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasonal_events" ALTER COLUMN "key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasonal_events" ALTER COLUMN "name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasonal_events" ALTER COLUMN "sound_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasons" ALTER COLUMN "key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasons" ALTER COLUMN "name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "seasons" ALTER COLUMN "sound_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "shopping_catalog" ALTER COLUMN "name" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "shopping_catalog" ALTER COLUMN "normalized_key" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "shopping_catalog" ALTER COLUMN "default_store" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "shopping_purchase_log" ALTER COLUMN "store" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "shopping_purchase_log" ALTER COLUMN "qty" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "vehicle_service" ALTER COLUMN "service_type" SET DATA TYPE varchar(255);--> statement-breakpoint
+ALTER TABLE "vehicle_service" ALTER COLUMN "provider" SET DATA TYPE varchar(255);

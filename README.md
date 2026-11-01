@@ -8,7 +8,7 @@ A modern, self-hosted family hub for chores, rewards, weekly meal planning, smar
 
 - **Frontend:** React 19 + TypeScript + Vite (`/client`)
 - **Backend:** Node.js + Express + `better-sqlite3` (`/server`)
-- **Database:** SQLite, kept in `DATA_DIR` (`/data/database.db` in Docker, `./instance/database.db` in local dev)
+- **Database:** **Postgres via Drizzle ORM** (target state — `DATABASE_URL`, migrations in `server/drizzle/`). SQLite (`/data/database.db`, `./instance/database.db` in dev) is the legacy store still serving requests while the route port is in progress. See `AGENTS.md → Postgres Migration Contract`.
 - **Deployment:** One container built from the root [`Dockerfile`](./Dockerfile) — deploy with **Coolify** (or plain Docker Compose). Optional Home Assistant OS add-on lives in `/choresrewards`.
 
 ---
@@ -57,6 +57,9 @@ This compiles client assets into `client/dist/` and backend code into `server/di
   ```bash
   cp .env.example .env && docker compose up -d --build
   ```
+
+> [!NOTE]
+> `http://localhost:8099` served from Docker is the **production image** — code is compiled inside the image at build time, so edits do not hot-reload and a browser refresh shows the previous build. After finishing a batch of changes, rebuild once (`docker compose up -d --build`) before reviewing. For live reload use `npm run dev` (Vite) + `npm run dev:server`.
 
 ### 4. Verifying before you push
 
@@ -131,6 +134,47 @@ docker restart choresrewards
 - **On the host:** `sqlite3 /data/database.db ".backup '/backups/choresrewards-$(date +%F).db'"`.
 
 Safety copies created automatically during a restore are written to `backups/` inside the data volume (`/data/backups/pre-restore-<timestamp>.db`).
+
+---
+
+## Postgres (new target — migration in progress)
+
+The app is moving to Postgres (Drizzle ORM) so the database lives in Coolify's Postgres resource rather than inside the container. **The port is in progress**: schema, migrations and the data importer are done and verified, the request handlers still use SQLite.
+
+```bash
+# 1. a throwaway Postgres for local work
+docker run -d --name cr-pg -p 55432:5432 \
+  -e POSTGRES_USER=choresrewards -e POSTGRES_PASSWORD=choresrewards \
+  -e POSTGRES_DB=choresrewards postgres:16-alpine
+
+# 2. point the tooling at it
+export DATABASE_URL=postgres://choresrewards:choresrewards@127.0.0.1:55432/choresrewards   # PowerShell: $env:DATABASE_URL='…'
+
+# 3. author/apply schema changes, then load existing household data
+npm --prefix server run db:generate            # schema.ts -> server/drizzle/*.sql
+npm --prefix server run db:migrate             # apply pending migrations
+npm --prefix server run db:import -- instance/database.db   # SQLite -> Postgres, verified by row count
+```
+
+The importer is idempotent (`ON CONFLICT DO NOTHING`), resets identity sequences and prints a per-table sqlite/postgres count comparison — it reproduced all 17 tables (509 rows) exactly from the live database.
+
+**Coolify setup once the port lands:** add a **PostgreSQL** resource, then on the app set `DATABASE_URL` = its internal connection URL, keep the **volume mounted at `/data`** (uploads, sounds, screensaver media still live there), port `8099`. Migrations run automatically on boot.
+
+### 7. Cutover to Postgres (one-time, when the port lands)
+
+1. **Create the database**: Coolify → **+ New** → **Database** → **PostgreSQL** (same server/project as the app). Give it a name, deploy it, then copy its **internal** connection URL (not the public one).
+2. **Add it to the app**: Application → **Environment Variables** → `DATABASE_URL` = that internal URL. Optionally `PG_POOL_MAX=10`.
+3. **Redeploy the app** (Coolify rebuilds the image from this repo's `Dockerfile`). *You do not need to delete or recreate the application resource* — a redeploy is enough; the Dockerfile change (`better-sqlite3` removed, `drizzle/` copied, migrations on boot) is picked up automatically.
+4. **Import the household data once — preferred: through the app.** Open **Settings → Backup & Restore** and restore your existing `.tar.gz` backup. The v2 restore accepts the *old SQLite archive* and loads it into Postgres (you upload the same file you downloaded before the cutover), which also proves the restore path works end-to-end. Keep the CLI as a fallback for a raw `database.db` sitting on the volume (Coolify → app → **Terminal**):
+   ```bash
+   npm --prefix server run db:import -- /data/database.db
+   ```
+   Both are idempotent and print/return a per-table `sqlite=N postgres=N` comparison; the CLI exits non-zero if anything is short.
+   *Note: restore requires the Phase 3 backup/restore rework — the old file-swap importer only made sense for SQLite.*
+5. Verify: open the app, check people/chores/points/photos, and `GET /api/health` should report `database: "ok"` (Postgres).
+6. The `/data` volume stays mounted — uploads, sounds and screensaver media still live there; only the database moved.
+
+**Do not cut over until the whole server is ported** — a half-ported build boots against Postgres for some routes and SQLite for others and will look "mostly fine" while silently diverging.
 
 ---
 
