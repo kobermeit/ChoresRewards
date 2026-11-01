@@ -39,6 +39,16 @@ export interface UiState {
   parentManageMode: boolean;
   /** Device pref: render the animated seasonal character layer. */
   seasonalCharacters: boolean;
+  /** Device pref: render living Christmas/seasonal background scene on Today view. */
+  seasonalScene: boolean;
+  /** Snow density multiplier (0.5 to 2.0). */
+  snowDensity: number;
+  /** Calm mode: disables sleigh & parallax for a quieter scene. */
+  seasonalCalmMode: boolean;
+  /** Ghost / Ambient Idle mode: fades cards on Today & Chores when idle. */
+  ambientIdleEnabled: boolean;
+  /** Idle delay in minutes before ghost mode triggers (default 2). */
+  ambientIdleMinutes: number;
   activeTimers: Record<number, PersistedChoreTimer>;
   offlineQueue: QueuedOfflineMutation[];
   /** User collapsed the offline banner down to the compact pill. Reset on reconnect. */
@@ -82,6 +92,11 @@ export const initialUiState: UiState = {
   activePersonId: null,
   parentManageMode: true,
   seasonalCharacters: true,
+  seasonalScene: true,
+  snowDensity: 2,
+  seasonalCalmMode: false,
+  ambientIdleEnabled: true,
+  ambientIdleMinutes: 2,
   activeTimers: {},
   offlineQueue: [],
   offlineBannerDismissed: false,
@@ -138,6 +153,11 @@ export function repairUiState<T extends Partial<UiState>>(state: T): T & UiState
   if (typeof state.hideCompletedChores !== 'boolean') state.hideCompletedChores = false;
   if (typeof state.parentManageMode !== 'boolean') state.parentManageMode = true;
   if (typeof state.seasonalCharacters !== 'boolean') state.seasonalCharacters = true;
+  if (typeof state.seasonalScene !== 'boolean') state.seasonalScene = true;
+  if (typeof state.snowDensity !== 'number' || isNaN(state.snowDensity) || state.snowDensity < 0.5 || state.snowDensity > 2) state.snowDensity = 2;
+  if (typeof state.seasonalCalmMode !== 'boolean') state.seasonalCalmMode = false;
+  if (typeof state.ambientIdleEnabled !== 'boolean') state.ambientIdleEnabled = true;
+  if (typeof state.ambientIdleMinutes !== 'number' || isNaN(state.ambientIdleMinutes)) state.ambientIdleMinutes = 2;
   if (state.plannerViewMode !== '1week' && state.plannerViewMode !== '2weeks') {
     state.plannerViewMode = '2weeks';
   }
@@ -186,6 +206,21 @@ const uiSlice = createSlice({
     },
     setSeasonalCharacters(state, action: PayloadAction<boolean>) {
       state.seasonalCharacters = action.payload;
+    },
+    setSeasonalScene(state, action: PayloadAction<boolean>) {
+      state.seasonalScene = action.payload;
+    },
+    setSnowDensity(state, action: PayloadAction<number>) {
+      state.snowDensity = Math.max(0.5, Math.min(2, action.payload));
+    },
+    setSeasonalCalmMode(state, action: PayloadAction<boolean>) {
+      state.seasonalCalmMode = action.payload;
+    },
+    setAmbientIdleEnabled(state, action: PayloadAction<boolean>) {
+      state.ambientIdleEnabled = action.payload;
+    },
+    setAmbientIdleMinutes(state, action: PayloadAction<number>) {
+      state.ambientIdleMinutes = Math.max(0.5, Math.min(15, action.payload));
     },
     setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
       repairUiState(state);
@@ -260,6 +295,11 @@ export const {
   setActivePersonId,
   setParentManageMode,
   setSeasonalCharacters,
+  setSeasonalScene,
+  setSnowDensity,
+  setSeasonalCalmMode,
+  setAmbientIdleEnabled,
+  setAmbientIdleMinutes,
   setActiveTimers,
   enqueueOfflineMutation,
   dequeueOfflineMutation,

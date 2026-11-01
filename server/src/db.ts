@@ -427,7 +427,7 @@ async function seedSeasonalData(): Promise<void> {
         { key: 'new_year', name: "New Year's", ruleType: 'fixed', monthDay: '01-01', daysBefore: 1, daysAfter: 0, emoji: '🎆', accent: '#a855f7', soundKey: 'fanfare' },
         { key: 'easter', name: 'Easter', ruleType: 'easter', monthDay: null, daysBefore: 7, daysAfter: 1, emoji: '🐣', accent: '#a3e635', soundKey: 'chimes' },
         { key: 'halloween', name: 'Halloween', ruleType: 'fixed', monthDay: '10-31', daysBefore: 7, daysAfter: 1, emoji: '🎃', accent: '#f97316', soundKey: 'spooky' },
-        { key: 'christmas', name: 'Christmas', ruleType: 'fixed', monthDay: '12-25', daysBefore: 24, daysAfter: 1, emoji: '❄️', accent: '#38bdf8', soundKey: 'christmas' },
+        { key: 'christmas', name: 'Christmas', ruleType: 'fixed', monthDay: '12-25', daysBefore: 24, daysAfter: 1, emoji: '🎅', accent: '#ef4444', soundKey: 'christmas' },
       ])
       .onConflictDoNothing();
 

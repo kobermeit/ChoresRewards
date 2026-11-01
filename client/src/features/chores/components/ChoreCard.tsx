@@ -121,9 +121,11 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
     />
   );
 
+  const isRunningTimer = Boolean(_activeTimer?.isRunning);
+
   if (isTimed) {
     return (
-      <FlipCard
+      <FlipCard className={isRunningTimer ? 'cr-keep-solid' : ''}
         key={chore.id}
         isFlipped={isFlipped}
         front={frontCard}
@@ -139,7 +141,7 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
     );
   }
 
-  return <div key={chore.id}>{frontCard}</div>;
+  return <div key={chore.id} className={isRunningTimer ? 'cr-keep-solid' : ''}>{frontCard}</div>;
 });
 
 ChoreCard.displayName = 'ChoreCard';

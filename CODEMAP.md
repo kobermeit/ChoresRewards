@@ -76,6 +76,7 @@ choresrewards/
 | **Health Probes (containers & offline)** | - | - | `server/src/routes/health.ts` — `/api/health` (`200`/`503` + version + DB status, used by the Docker `HEALTHCHECK` and Coolify) and `/api/ping` (`204`, the client's reconnect/wake probe) |
 | **Backup & Restore (household export/import)** | `client/src/features/settings/tabs/BackupSettingsTab.tsx` | `features/settings/SettingsView.tsx` (`tab === 'backup'`) | `/api/backup/info`, `/api/backup/export`, `/api/backup/import` (`server/src/routes/backup.ts` → `server/src/services/backup.ts`)<br>Archive = `manifest.json` + `database.json` (logical dump of every table) + `secret_key` + `uploads/**`<br>Restore: whitelist-validated tar (v1 SQLite `database.db` still accepted) → safety copy `backups/pre-restore-*.json` → transactional table replace in Postgres + media copy back (no restart) |
 | **Notification Bell (Alerts)** | `client/src/components/Header.tsx` (`header-notif-*`, mark read / dismiss; panel is a direct child of `.header-nav-actions` so the tablet burger menu can open it at 769–1400px) | - | `/api/notifications`, `/api/notifications/mark_read`, `/api/notifications/delete` (`server/src/routes/organise.ts`)<br>Table: `notifications` (`dedupe_key`, `read_at`, `dismissed_at`) |
+| **Seasonal Scene & Ambient Idle** | `client/src/features/seasonal/ChristmasScene.tsx`<br>`client/src/features/seasonal/EventCountdown.tsx`<br>`client/src/hooks/useAmbientIdle.ts`<br>`client/src/components/ui/TimerDurationSelect.tsx` | - | Dynamic living canvas, animated Santa Tracker SVG characters, view-gated ambient idle ghosting |
 
 ---
 
@@ -90,6 +91,7 @@ All domain types are cleanly separated:
 - `calendar.types.ts`: `CalendarEvent`, `CalendarMonthCell`
 - `notes.types.ts`: `NoteItem`, `KanbanNote`, `DashboardStickyNote`
 - `navigation.types.ts`: `ViewMode`, `AppTab`
+- `seasonal.types.ts`: `SeasonalCharacter`, `SeasonalEvent`, `SeasonalSceneProps`
 - `bootstrap.types.ts`: `AppData`, `HouseholdConfig`, `FamilySummary`
 
 ---

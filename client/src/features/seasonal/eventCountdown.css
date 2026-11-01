@@ -1,0 +1,98 @@
+/* Event Countdown Pill in Topnav (Santa Tracker inspired) */
+.cr-event-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  min-height: 38px;
+  border-radius: 999px;
+  border: none;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+  font-family: inherit;
+  user-select: none;
+  white-space: nowrap;
+  color: #ffffff;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cr-event-countdown:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.cr-event-countdown__emoji {
+  font-size: 1.25rem;
+  line-height: 1;
+  margin-right: 2px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.cr-event-countdown__unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+}
+
+.cr-event-countdown__val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.cr-event-countdown__label {
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.9;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  margin-top: 2px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.cr-event-countdown__divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.28);
+  margin: 0 2px;
+}
+
+.cr-event-countdown--today {
+  padding: 6px 14px;
+  min-height: 38px;
+}
+
+.cr-event-countdown__today-text {
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 900px) {
+  .cr-event-countdown {
+    padding: 3px 8px;
+    min-height: 32px;
+    gap: 4px;
+  }
+  .cr-event-countdown__emoji {
+    font-size: 1.05rem;
+  }
+  .cr-event-countdown__val {
+    font-size: 0.95rem;
+  }
+  .cr-event-countdown__label {
+    font-size: 0.5rem;
+  }
+  .cr-event-countdown__unit:nth-child(7), /* SEC unit */
+  .cr-event-countdown__divider:nth-child(6) {
+    display: none;
+  }
+}

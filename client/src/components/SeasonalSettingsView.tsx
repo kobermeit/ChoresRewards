@@ -6,7 +6,7 @@ import {
   useUpdateSeasonalEventMutation,
   SoundTheme,
 } from '../store/api';
-import { Button, Select, Card, Badge, FormField } from './ui';
+import { Button, Select, Card, Badge, FormField, TimerDurationSelect } from './ui';
 import { playThemedSound } from '../services/soundService';
 import { useUiPref } from '../hooks/useSettings';
 
@@ -17,6 +17,11 @@ export const SeasonalSettingsView: React.FC = () => {
   const [updateEvent] = useUpdateSeasonalEventMutation();
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>('christmas');
   const [seasonalCharacters, setSeasonalCharacters] = useUiPref('seasonalCharacters');
+  const [seasonalScene, setSeasonalScene] = useUiPref('seasonalScene');
+  const [snowDensity, setSnowDensity] = useUiPref('snowDensity');
+  const [seasonalCalmMode, setSeasonalCalmMode] = useUiPref('seasonalCalmMode');
+  const [ambientIdleEnabled, setAmbientIdleEnabled] = useUiPref('ambientIdleEnabled');
+  const [ambientIdleMinutes, setAmbientIdleMinutes] = useUiPref('ambientIdleMinutes');
 
   if (isLoading || !data) {
     return (
@@ -99,6 +104,130 @@ export const SeasonalSettingsView: React.FC = () => {
           </div>
         </label>
 
+
+        {/* Seasonal Scene & Living Backdrop (per-device preferences) */}
+        <div
+          style={{
+            padding: '14px 16px',
+            borderRadius: 12,
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginBottom: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: settings.seasonal_themes_enabled ? 'pointer' : 'not-allowed',
+              opacity: settings.seasonal_themes_enabled ? 1 : 0.55,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={seasonalScene}
+              disabled={!settings.seasonal_themes_enabled}
+              onChange={(e) => setSeasonalScene(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: 'var(--cr-primary)' }}
+            />
+            <div>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
+                Show Living Christmas Scene
+              </span>
+              <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
+                Living holiday background on the Today screen (snow, stars, aurora, village, and Santa).
+              </div>
+            </div>
+          </label>
+
+          {seasonalScene && settings.seasonal_themes_enabled && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 16,
+                paddingLeft: 28,
+                paddingTop: 4,
+                borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.85 }}>Snow Density:</span>
+                <select
+                  value={snowDensity}
+                  onChange={(e) => setSnowDensity(Number(e.target.value))}
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    color: '#f8fafc',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  <option value={1}>Low (1.0×)</option>
+                  <option value={1.5}>Medium (1.5×)</option>
+                  <option value={2}>High (2.0× - Recommended)</option>
+                </select>
+              </div>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  opacity: 0.85,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={seasonalCalmMode}
+                  onChange={(e) => setSeasonalCalmMode(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: 'var(--cr-primary)' }}
+                />
+                <span>Calm Mode (no Santa flight, no pointer parallax)</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  opacity: 0.85,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={ambientIdleEnabled}
+                  onChange={(e) => setAmbientIdleEnabled(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: 'var(--cr-primary)' }}
+                />
+                <span>Ambient Idle Mode (fade cards to ghost mode on Today &amp; Chores)</span>
+              </label>
+
+              {ambientIdleEnabled && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.85 }}>Idle Trigger:</span>
+                  <TimerDurationSelect
+                    value={ambientIdleMinutes}
+                    onChange={(val) => setAmbientIdleMinutes(val)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Master Toggle */}
         <label
           style={{
@@ -136,18 +265,8 @@ export const SeasonalSettingsView: React.FC = () => {
             style={{
               padding: '14px 18px',
               borderRadius: 14,
-              background: active.event
-                ? 'rgba(249, 115, 22, 0.12)'
-                : active.season
-                ? 'rgba(59, 130, 246, 0.12)'
-                : 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${
-                active.event
-                  ? 'rgba(249, 115, 22, 0.35)'
-                  : active.season
-                  ? 'rgba(59, 130, 246, 0.35)'
-                  : 'rgba(255, 255, 255, 0.08)'
-              }`,
+              background: (active.event?.key === 'christmas' ? '#ef44441f' : (active.event?.accent ? active.event.accent + '1f' : (active.season?.accent ? active.season.accent + '1f' : 'rgba(255, 255, 255, 0.04)'))),
+              border: `1px solid ${active.event?.key === 'christmas' ? '#ef444455' : (active.event?.accent ? active.event.accent + '55' : (active.season?.accent ? active.season.accent + '55' : 'rgba(255, 255, 255, 0.08)'))}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -158,7 +277,7 @@ export const SeasonalSettingsView: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>
-                {active.event?.emoji || active.season?.emoji || '🗓️'}
+                {(active.event?.key === 'christmas' ? '🎅' : active.event?.emoji) || active.season?.emoji || '🗓️'}
               </span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

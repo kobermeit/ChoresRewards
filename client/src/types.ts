@@ -13,3 +13,4 @@ export * from './types/notes.types';
 export * from './types/organise.types';
 export * from './types/calendar.types';
 export * from './types/bootstrap.types';
+export * from './types/seasonal.types';

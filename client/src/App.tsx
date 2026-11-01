@@ -4,6 +4,10 @@ import { useNavigation } from './hooks/useSettings';
 import { Header } from './components/Header';
 import { SideNav } from './components/SideNav';
 import { SeasonalCharacters } from './features/seasonal/SeasonalCharacters';
+import { ChristmasScene } from './features/seasonal/ChristmasScene';
+import { useSeason, useUiPref } from './hooks/useSettings';
+import { useAmbientIdle } from './hooks/useAmbientIdle';
+import './styles/ambientIdle.css';
 import { SetupWizard } from './components/SetupWizard';
 import { PinModals } from './components/PinModals';
 import { DashboardSection } from './components/DashboardSection';
@@ -29,8 +33,29 @@ const MainShell: React.FC<{
   onCloseAdultPin: () => void;
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
-  const { data, loading, isSyncing, isParent, setProfileSwitcherOpen } = useApp();
+  const { data, loading, isSyncing, isParent, setProfileSwitcherOpen, timerRunning } = useApp();
   const { activeView, navigate: setActiveView } = useNavigation();
+  const seasonInfo = useSeason();
+  const [seasonalScene] = useUiPref('seasonalScene');
+  const [snowDensity] = useUiPref('snowDensity');
+  const [seasonalCalmMode] = useUiPref('seasonalCalmMode');
+  const { isAmbientIdle } = useAmbientIdle();
+  const isChristmasActive = Boolean(
+    seasonInfo.enabled &&
+    seasonalScene &&
+    (activeView === 'dashboard' || activeView === 'chores') &&
+    (
+      (seasonInfo.event?.key || '').toLowerCase().includes('christ') ||
+      (seasonInfo.event?.key || '').toLowerCase().includes('xmas') ||
+      (seasonInfo.season?.key || '').toLowerCase().includes('winter') ||
+      (seasonInfo.forcedTheme || '').toLowerCase().includes('christ') ||
+      (seasonInfo.forcedTheme || '').toLowerCase().includes('winter')
+    )
+  );
+
+  const isTimerActiveOnToday = activeView === 'dashboard' && timerRunning;
+  const isSceneActive = Boolean(seasonInfo.enabled && (activeView === 'dashboard' || activeView === 'chores'));
+  const isGhostModeActive = isSceneActive && (isAmbientIdle || isTimerActiveOnToday);
 
   const [visitedViews, setVisitedViews] = useState<Record<string, boolean>>(() => ({
     [activeView || 'dashboard']: true,
@@ -67,8 +92,11 @@ const MainShell: React.FC<{
   return (
     <>
       <SeasonalCharacters />
+      {isChristmasActive && (
+        <ChristmasScene density={snowDensity} calmMode={seasonalCalmMode} />
+      )}
       <SideNav />
-      <div id="site-content" style={{ position: 'relative', zIndex: 2 }}>
+      <div id="site-content" className={`cr-ambient-idle-wrap ${isGhostModeActive ? "cr-ambient-idle-active" : ""}`} style={{ position: "relative", zIndex: 2 }}>
         <Header />
 
         {/* Cached Views for Instant 0ms Tab Transitions */}

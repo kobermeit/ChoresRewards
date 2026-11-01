@@ -27,7 +27,7 @@ export const VisualTimerWidget: React.FC<VisualTimerWidgetProps> = memo(({
 }) => {
   return (
     <div
-      className="dashboard-card dashboard-card-timer"
+      className={`dashboard-card dashboard-card-timer ${timerRunning ? 'cr-keep-solid' : ''}`}
       style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}
     >
       <SeasonalCardWatermark variant={1} />

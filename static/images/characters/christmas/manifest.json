@@ -1,0 +1,4 @@
+{
+  "characters": [],
+  "_comment": "List character names (santa, elf, snowman, reindeer) that have a custom <name>.svg in this folder. Anything not listed falls back to built-in SVG."
+}

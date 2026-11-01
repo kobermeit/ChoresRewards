@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import { useGetPrefsQuery, useGetSeasonalQuery, useUpdatePrefsMutation, SoundTheme } from '../store/api';
-import { UiState, setActiveView, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode, setSeasonalCharacters } from '../store/uiSlice';
+import { UiState, setActiveView, setSideNavCollapsed, setHeaderMinimized, setHideCompletedChores, setPlannerViewMode, setActivePersonId, setParentManageMode, setSeasonalCharacters, setSeasonalScene, setSnowDensity, setSeasonalCalmMode, setAmbientIdleEnabled, setAmbientIdleMinutes } from '../store/uiSlice';
 import { ActiveView } from '../types';
 
 /** Decoupled, high-performance Redux tab navigation (prevents whole-app re-renders on tab switch). */
@@ -59,6 +59,11 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
         activePersonId: setActivePersonId,
         parentManageMode: setParentManageMode,
         seasonalCharacters: setSeasonalCharacters,
+        seasonalScene: setSeasonalScene,
+        snowDensity: setSnowDensity,
+        seasonalCalmMode: setSeasonalCalmMode,
+        ambientIdleEnabled: setAmbientIdleEnabled,
+        ambientIdleMinutes: setAmbientIdleMinutes,
       };
       const action = actions[key];
       if (action) dispatch(action(v));

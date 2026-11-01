@@ -6,6 +6,7 @@ import { useAppDispatch } from '../store';
 import { toggleMobileDrawer } from '../store/uiSlice';
 import { ClockWidget } from '../features/header/ClockWidget';
 import { WeatherWidget } from '../features/header/WeatherWidget';
+import { EventCountdown } from '../features/seasonal/EventCountdown';
 
 export const Header: React.FC = () => {
   const {
@@ -299,27 +300,35 @@ function getRelativeAge(from: Date | null, to: Date): string {
               </span>
             )}
             {seasonInfo.enabled && seasonInfo.theme && (
-              <span
-                className="header-seasonal-badge"
-                style={{
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  color: seasonInfo.accent || '#f8fafc',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: `1px solid ${seasonInfo.accent ? seasonInfo.accent + '55' : 'rgba(255, 255, 255, 0.15)'}`,
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  letterSpacing: '0.01em',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-                title={seasonInfo.event ? `Active Event: ${seasonInfo.theme.name}` : `Active Season: ${seasonInfo.theme.name}`}
-              >
-                <span>{seasonInfo.emoji}</span>
-                <span className="header-seasonal-name">{seasonInfo.theme.name}</span>
-              </span>
+              seasonInfo.event ? (
+                <EventCountdown
+                  event={seasonInfo.event}
+                  accent={seasonInfo.event.accent || seasonInfo.accent}
+                  emoji={seasonInfo.event.emoji || seasonInfo.emoji}
+                />
+              ) : (
+                <span
+                  className="header-seasonal-badge"
+                  style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: seasonInfo.accent || '#f8fafc',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: `1px solid ${seasonInfo.accent ? seasonInfo.accent + '55' : 'rgba(255, 255, 255, 0.15)'}`,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    letterSpacing: '0.01em',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                  title={seasonInfo.event ? `Active Event: ${seasonInfo.theme.name}` : `Active Season: ${seasonInfo.theme.name}`}
+                >
+                  <span>{seasonInfo.emoji}</span>
+                  <span className="header-seasonal-name">{seasonInfo.theme.name}</span>
+                </span>
+              )
             )}
           </div>
           </div>
