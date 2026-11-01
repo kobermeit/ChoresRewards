@@ -14,6 +14,7 @@ export interface ChoreCardProps {
   completeBtnLabel: string;
   isFlipped: boolean;
   activeTimer?: any;
+  userHasActiveTimer?: boolean;
   onComplete: (chore: Chore, person: Person, meta?: { actual_seconds?: number; target_seconds?: number; timer_status?: string }) => void;
   onUndo: (choreId: number) => void;
   onStartTimer: (chore: Chore) => void;
@@ -32,7 +33,8 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
   isOverdue,
   completeBtnLabel,
   isFlipped,
-  activeTimer: _activeTimer,
+  activeTimer,
+  userHasActiveTimer = false,
   onComplete,
   onUndo,
   onStartTimer,
@@ -121,27 +123,49 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
     />
   );
 
-  const isRunningTimer = Boolean(_activeTimer?.isRunning);
+  const isRunningTimer = Boolean(activeTimer?.isRunning);
+  const isTimerActive = Boolean(activeTimer && (activeTimer.isRunning || activeTimer.remainingSeconds !== undefined));
+  const effectiveFlipped = isFlipped || isTimerActive;
+  const shouldDim = userHasActiveTimer && !isRunningTimer && !isDone;
+
+  const wrapperStyle: React.CSSProperties = {
+    position: 'relative',
+    borderRadius: 'var(--card-radius, 16px)',
+    transition: 'all 0.3s ease',
+    ...(isRunningTimer
+      ? {
+          boxShadow: `0 0 24px ${memberColor}66, 0 0 10px ${memberColor}88`,
+          border: `2px solid ${memberColor}`,
+        }
+      : {}),
+    ...(shouldDim ? { opacity: 0.5, filter: 'grayscale(0.15)' } : {}),
+  };
 
   if (isTimed) {
     return (
-      <FlipCard className={isRunningTimer ? 'cr-keep-solid' : ''}
-        key={chore.id}
-        isFlipped={isFlipped}
-        front={frontCard}
-        back={
-          <ChoreTimerCardBack
-            chore={chore}
-            person={person}
-            onFlipBack={() => onToggleFlip(chore.id, false)}
-            onComplete={(meta) => onComplete(chore, person, meta)}
-          />
-        }
-      />
+      <div data-chore-id={chore.id} className={`cr-chore-card-wrapper ${isRunningTimer ? 'cr-keep-solid' : ''}`} style={wrapperStyle}>
+        <FlipCard
+          key={chore.id}
+          isFlipped={effectiveFlipped}
+          front={frontCard}
+          back={
+            <ChoreTimerCardBack
+              chore={chore}
+              person={person}
+              onFlipBack={() => onToggleFlip(chore.id, false)}
+              onComplete={(meta) => onComplete(chore, person, meta)}
+            />
+          }
+        />
+      </div>
     );
   }
 
-  return <div key={chore.id} className={isRunningTimer ? 'cr-keep-solid' : ''}>{frontCard}</div>;
+  return (
+    <div data-chore-id={chore.id} className={`cr-chore-card-wrapper ${isRunningTimer ? 'cr-keep-solid' : ''}`} style={wrapperStyle}>
+      {frontCard}
+    </div>
+  );
 });
 
 ChoreCard.displayName = 'ChoreCard';

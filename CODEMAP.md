@@ -59,7 +59,7 @@ choresrewards/
 
 | User Feature / Page | Primary Frontend Feature Module | Compatibility Shim | Backend Route / Database |
 | :--- | :--- | :--- | :--- |
-| **Chores Kanban & Cards** | `client/src/features/chores/ChoresKanbanSection.tsx`<br>`features/chores/components/ChoreCard.tsx`<br>`features/chores/components/ChoreKanbanColumn.tsx`<br>`features/chores/components/ChoreCelebrationModal.tsx` | `components/ChoresKanbanSection.tsx` | `/api/chores` (`server/src/routes/chores.ts`)<br>Table: `chore` |
+| **Chores Kanban & Cards** | `client/src/features/chores/ChoresKanbanSection.tsx`<br>`features/chores/components/ChoreCard.tsx`<br>`features/chores/components/ChoreKanbanColumn.tsx`<br>`features/chores/components/ChoreCelebrationModal.tsx`<br>`features/chores/components/WeeklyMilestoneModal.tsx`<br>`features/chores/components/AdjustPointsModal.tsx` | `components/ChoresKanbanSection.tsx` | `/api/chores`, `/api/adjust_points` (`server/src/routes/chores.ts`)<br>Table: `chore` |
 | **Chore Timer (Card Reverse)** | `client/src/components/ChoreTimerCardBack.tsx` | - | `client/src/context/TimerContext.tsx` |
 | **Add / Edit Chore Modal** | `client/src/components/ChoreModal.tsx` | - | `/api/add_chore`, `/api/update_chore` |
 | **Meal Planner & Recipes** | `client/src/features/meals/MealPlannerSection.tsx`<br>`features/meals/RecipeLibrarySection.tsx`<br>`features/meals/components/MealDayColumn.tsx`<br>`features/meals/components/RecipeCard.tsx` | `components/MealAndShoppingSection.tsx` | `/api/meals` (`server/src/routes/meals.ts`)<br>Tables: `meal_plan`, `recipe` |

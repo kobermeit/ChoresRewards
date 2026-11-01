@@ -136,20 +136,27 @@ export function playSyntheticChime(type: 'success' | 'fanfare' | 'timer_done' | 
       osc.stop(now + idx * 0.1 + 0.5);
     });
   } else if (type === 'timer_done') {
-    // 3 rhythmic urgent beeps
-    [0, 0.2, 0.4].forEach((delay) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, now + delay);
+    // 3 distinct melodic alarm pulses (microwave/kitchen timer style, ~2.4s duration, punchy & clear)
+    const pulses = [0, 0.75, 1.5];
+    pulses.forEach((pulseStart) => {
+      [
+        { freq: 987.77, gainVal: 0.55 },
+        { freq: 1318.51, gainVal: 0.35 },
+      ].forEach(({ freq, gainVal }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + pulseStart);
 
-      gain.gain.setValueAtTime(0.18, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
+        gain.gain.setValueAtTime(0.001, now + pulseStart);
+        gain.gain.exponentialRampToValueAtTime(gainVal, now + pulseStart + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + pulseStart + 0.38);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + delay);
-      osc.stop(now + delay + 0.13);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + pulseStart);
+        osc.stop(now + pulseStart + 0.4);
+      });
     });
   }
 }
@@ -165,23 +172,62 @@ export function playThemedSound(theme: SoundThemeKey | string, action: 'chore_do
   const key = String(theme).toLowerCase();
 
   if (key === 'fantasy') {
-    // Iconic Zelda-style 8-note secret chime (G5 -> F#5 -> D#5 -> A4 -> G#4 -> E5 -> G#5 -> C6)
-    const notes = [783.99, 739.99, 622.25, 440.0, 415.3, 659.25, 830.61, 1046.5];
-    notes.forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+    if (action === 'timer_done') {
+      // Zelda Chest Opened / Item Fanfare: 8-note rising arpeggio + triumphant holding chord (~2.2s)
+      const arpeggio = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5];
+      arpeggio.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
 
-      gain.gain.setValueAtTime(0.001, now + idx * 0.1);
-      gain.gain.exponentialRampToValueAtTime(0.28, now + idx * 0.1 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.35);
+        gain.gain.setValueAtTime(0.001, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.45, now + idx * 0.1 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.28);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + idx * 0.1);
-      osc.stop(now + idx * 0.1 + 0.38);
-    });
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.3);
+      });
+
+      // Triumphant sustained final chord (C6 + E6 + G6) at idx 8
+      const finalChord = [1046.5, 1318.51, 1567.98];
+      const chordStart = now + arpeggio.length * 0.1;
+      finalChord.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, chordStart);
+
+        gain.gain.setValueAtTime(0.001, chordStart);
+        gain.gain.exponentialRampToValueAtTime(0.4, chordStart + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, chordStart + 1.4);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(chordStart);
+        osc.stop(chordStart + 1.45);
+      });
+    } else {
+      // Iconic Zelda-style 8-note secret chime (G5 -> F#5 -> D#5 -> A4 -> G#4 -> E5 -> G#5 -> C6)
+      const notes = [783.99, 739.99, 622.25, 440.0, 415.3, 659.25, 830.61, 1046.5];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+
+        gain.gain.setValueAtTime(0.001, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.35, now + idx * 0.1 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.35);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.38);
+      });
+    }
   } else if (key === 'christmas') {
     // Warm Celesta & Church Bell Chimes (D6 -> B5 -> G5 -> D5 with bell overtones)
     const notes = [1174.66, 987.77, 783.99, 587.33];

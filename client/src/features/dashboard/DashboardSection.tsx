@@ -27,6 +27,7 @@ export const DashboardSection: React.FC = () => {
     timerTotalSeconds,
     timerRemainingSeconds,
     timerRunning,
+    timerTimesUp,
     startTimer,
     pauseTimer,
     resetTimer,
@@ -261,6 +262,7 @@ export const DashboardSection: React.FC = () => {
           timerDigits={timerDigits}
           timerRemainingSeconds={timerRemainingSeconds}
           timerRunning={timerRunning}
+          timerTimesUp={timerTimesUp}
           onStart={startTimer}
           onPause={pauseTimer}
           onReset={resetTimer}

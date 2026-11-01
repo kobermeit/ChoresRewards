@@ -214,12 +214,14 @@ choresRouter.post(
         : 0;
       const durationSeconds = parsedDuration > 0 ? Math.max(10, parsedDuration) : null;
       const description = data.description !== undefined && data.description !== null ? String(data.description).trim() : null;
+      const bonusPoints = Math.max(0, roundPoints(data.bonus_points ?? 0));
 
-      const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
-           VALUES (?, ?, ?, ?, false, ?, ?, ?, ?, false, ?, ?, ?, ?, ?, ?)`, [title,
+      const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, bonus_points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
+           VALUES (?, ?, ?, ?, ?, false, ?, ?, ?, ?, false, ?, ?, ?, ?, ?, ?)`, [title,
           person.id,
           person.name,
           points,
+          bonusPoints,
           isDaily,
           daysOfWeekStr,
           dueDate,
@@ -337,8 +339,9 @@ choresRouter.post(
       }
 
       const description = 'description' in data ? (data.description ? String(data.description).trim() : null) : (chore.description || null);
+      const bonusPoints = 'bonus_points' in data ? Math.max(0, roundPoints(data.bonus_points ?? 0)) : Number(chore.bonus_points || 0);
 
-      await sqlRun(`UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ?, description = ? WHERE id = ?`, [title, assignedTo, assignedToId, points, daysOfWeek, isDaily, icon, imageUrl, dueDate, dueDatetime, durationSeconds, description, choreId]);
+      await sqlRun(`UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, bonus_points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ?, description = ? WHERE id = ?`, [title, assignedTo, assignedToId, points, bonusPoints, daysOfWeek, isDaily, icon, imageUrl, dueDate, dueDatetime, durationSeconds, description, choreId]);
 
       logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
       res.json({
@@ -523,7 +526,7 @@ choresRouter.post('/complete_chore', requireAuth, async (req: Request, res: Resp
     }
 
     let pointsAwarded = 0;
-    const bonusAwarded = 0;
+    let bonusAwarded = 0;
     let overdue = false;
     let newBadges: Array<any> = [];
     let currentStreak = 0;
@@ -533,7 +536,57 @@ choresRouter.post('/complete_chore', requireAuth, async (req: Request, res: Resp
       overdue = !isPastDate && isChoreOverdue(chore, isoNaive);
       if (!overdue) {
         pointsAwarded = roundPoints(chore.points);
-        const updatedPts = roundPoints(Number(person.points || 0) + pointsAwarded);
+        let updatedPts = roundPoints(Number(person.points || 0) + pointsAwarded);
+
+        // Check Weekly Milestone Bonus Points
+        const configuredBonus = roundPoints(Number(chore.bonus_points || 0));
+        if (configuredBonus > 0) {
+          const [fy, fm, fd] = forDate.split('-').map(Number);
+          const forDateDt = new Date(Date.UTC(fy, fm - 1, fd));
+          const dayOfWeek = (forDateDt.getUTCDay() + 6) % 7; // 0=Mon, 6=Sun
+          const mondayDt = new Date(forDateDt);
+          mondayDt.setUTCDate(forDateDt.getUTCDate() - dayOfWeek);
+          const mondayIso = mondayDt.toISOString().slice(0, 10);
+          const sundayDt = new Date(mondayDt);
+          sundayDt.setUTCDate(mondayDt.getUTCDate() + 6);
+          const sundayIso = sundayDt.toISOString().slice(0, 10);
+
+          const scheduledWeekDates: string[] = [];
+          for (let i = 0; i < 7; i++) {
+            const checkDt = new Date(mondayDt);
+            checkDt.setUTCDate(mondayDt.getUTCDate() + i);
+            const dateIso = checkDt.toISOString().slice(0, 10);
+            if (isDayOfWeekScheduled(dateIso, chore.days_of_week)) {
+              scheduledWeekDates.push(dateIso);
+            }
+          }
+
+          if (scheduledWeekDates.length > 0) {
+            const weekLogs = (await sqlAll(
+              'SELECT DISTINCT for_date FROM chore_log WHERE chore_id = ? AND for_date >= ? AND for_date <= ?',
+              [choreId, mondayIso, sundayIso]
+            )) as any[];
+            const completedSet = new Set(weekLogs.map((l: any) => l.for_date));
+            completedSet.add(forDate);
+
+            const allDaysDone = scheduledWeekDates.every((d) => completedSet.has(d));
+            const existingBonus = await sqlOne(
+              "SELECT id FROM activity_log WHERE type = 'milestone_bonus' AND description LIKE ? AND date >= ? AND date <= ?",
+              [`%chore_${choreId}_bonus%`, mondayIso + ' 00:00:00', sundayIso + ' 23:59:59']
+            );
+
+            if (allDaysDone && !existingBonus) {
+              bonusAwarded = configuredBonus;
+              updatedPts = roundPoints(updatedPts + bonusAwarded);
+              logActivity(
+                'milestone_bonus',
+                `Milestone bonus achieved! Chore '${chore.title}' (chore_${choreId}_bonus) was completed for all ${scheduledWeekDates.length} scheduled days this week. ${bonusAwarded} bonus points awarded to ${assignedName}!`,
+                assignedName
+              );
+            }
+          }
+        }
+
         await sqlRun('UPDATE person SET points = ? WHERE id = ?', [updatedPts, person.id]);
         newPoints = roundPoints(updatedPts + Number(person.bonus_points || 0));
 
@@ -901,5 +954,65 @@ choresRouter.post(['/api/extra_chores/reset_defaults', '/extra_chores/reset_defa
     res.json({ success: true, extras: seeded });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
+  }
+});
+
+choresRouter.post(['/api/adjust_points', '/adjust_points'], requireAuth, async (req: Request, res: Response) => {
+  try {
+    const data = req.body || {};
+    const personId = Number(data.person_id);
+    const pointsDelta = roundPoints(Number(data.points));
+    const reason = String(data.reason || '').trim();
+
+    if (!personId) {
+      res.status(400).json({ success: false, error: 'Please choose a family member' });
+      return;
+    }
+    if (Number.isNaN(pointsDelta) || pointsDelta === 0) {
+      res.status(400).json({ success: false, error: 'Please enter a valid non-zero points amount' });
+      return;
+    }
+    if (!reason) {
+      res.status(400).json({ success: false, error: 'Please enter a reason for the points adjustment' });
+      return;
+    }
+
+    const person = (await sqlOne('SELECT * FROM person WHERE id = ?', [personId])) as any;
+    if (!person) {
+      res.status(404).json({ success: false, error: 'Family member not found' });
+      return;
+    }
+
+    const currentPoints = roundPoints(Number(person.points || 0));
+    const newTotal = roundPoints(currentPoints + pointsDelta);
+
+    if (newTotal < 0) {
+      res.status(400).json({
+        success: false,
+        error: `Cannot deduct ${Math.abs(pointsDelta)} points: ${person.name} only has ${currentPoints} points. Points cannot go negative.`,
+      });
+      return;
+    }
+
+    await sqlRun('UPDATE person SET points = ? WHERE id = ?', [newTotal, personId]);
+
+    const isAdd = pointsDelta > 0;
+    const actionDesc = isAdd
+      ? `Added ${pointsDelta} points to ${person.name}. Reason: ${reason}`
+      : `Deducted ${Math.abs(pointsDelta)} points from ${person.name}. Reason: ${reason}`;
+
+    logActivity('points_adjusted', actionDesc, person.name);
+
+    res.json({
+      success: true,
+      person_id: person.id,
+      person_name: person.name,
+      previous_points: currentPoints,
+      new_points: newTotal,
+      points_delta: pointsDelta,
+      reason,
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err?.message || 'Error adjusting points' });
   }
 });

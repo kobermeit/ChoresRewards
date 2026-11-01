@@ -8,6 +8,7 @@ export interface VisualTimerWidgetProps {
   timerDigits: string;
   timerRemainingSeconds: number;
   timerRunning: boolean;
+  timerTimesUp?: boolean;
   onStart: () => void;
   onPause: () => void;
   onReset: () => void;
@@ -18,13 +19,16 @@ export const VisualTimerWidget: React.FC<VisualTimerWidgetProps> = memo(({
   timerPct,
   timerPieColor,
   timerDigits,
-  timerRemainingSeconds,
+  timerRemainingSeconds: _timerRemainingSeconds,
   timerRunning,
+  timerTimesUp = false,
   onStart,
   onPause,
   onReset,
   onOpenModal,
 }) => {
+  const caption = timerTimesUp ? "TIME'S UP!" : timerRunning ? 'ACTIVE' : 'READY';
+  const displayColor = timerTimesUp ? '#ef4444' : timerRunning ? timerPieColor : '#38bdf8';
   return (
     <div
       className={`dashboard-card dashboard-card-timer ${timerRunning ? 'cr-keep-solid' : ''}`}
@@ -65,10 +69,10 @@ export const VisualTimerWidget: React.FC<VisualTimerWidgetProps> = memo(({
       </div>
 
       <TimerRing
-        fraction={timerPct}
-        color={timerPieColor}
+        fraction={timerTimesUp ? 0 : timerPct}
+        color={displayColor}
         label={timerDigits}
-        caption={timerRunning ? 'Active' : timerRemainingSeconds === 0 ? 'Time Up!' : 'Ready'}
+        caption={caption}
         onClick={onOpenModal}
         title="Click to open full timer modal"
       />
@@ -112,15 +116,6 @@ export const VisualTimerWidget: React.FC<VisualTimerWidgetProps> = memo(({
           onClick={onReset}
           title="Reset"
           aria-label="Reset"
-          style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
-        />
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="fas fa-expand"
-          onClick={onOpenModal}
-          title="Open full timer"
-          aria-label="Open full timer"
           style={{ width: 38, height: 38, borderRadius: '50%', padding: 0 }}
         />
       </div>

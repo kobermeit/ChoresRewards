@@ -11,6 +11,7 @@ export const VisualTimerModal: React.FC = () => {
     timerTotalSeconds,
     timerRemainingSeconds,
     timerRunning,
+    timerTimesUp,
     startTimer,
     pauseTimer,
     resetTimer,
@@ -21,7 +22,16 @@ export const VisualTimerModal: React.FC = () => {
   const mins = Math.floor(timerRemainingSeconds / 60);
   const secs = timerRemainingSeconds % 60;
   const pct = timerTotalSeconds > 0 ? timerRemainingSeconds / timerTotalSeconds : 0;
-  const strokeColor = pct > 0.35 ? '#0097a7' : pct > 0.15 ? '#f59e0b' : '#ef4444';
+  const strokeColor = timerTimesUp
+    ? '#ef4444'
+    : timerRunning
+    ? pct > 0.35
+      ? '#0097a7'
+      : pct > 0.15
+      ? '#f59e0b'
+      : '#ef4444'
+    : '#0097a7';
+  const caption = timerTimesUp ? "TIME'S UP!" : timerRunning ? 'ACTIVE' : 'READY';
 
   const handleDurationChange = (newTotal: number) => {
     const clamped = Math.max(0, newTotal);
@@ -98,7 +108,7 @@ export const VisualTimerModal: React.FC = () => {
                 fraction={pct}
                 color={strokeColor}
                 label={`${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`}
-                caption={timerRemainingSeconds === 0 && timerTotalSeconds > 0 ? "TIME'S UP!" : timerRunning ? 'ACTIVE' : 'READY'}
+                caption={caption}
                 strokeWidth={5}
               />
             </div>

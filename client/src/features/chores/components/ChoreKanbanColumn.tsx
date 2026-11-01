@@ -3,6 +3,7 @@ import { Button, UserAvatar } from '../../../components/ui';
 import { Chore, ExtraChore, Person } from '../../../types';
 import { ChoreCard } from './ChoreCard';
 import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
+import { useTimer } from '../../../context/TimerContext';
 
 export interface ChoreKanbanColumnProps {
   person: Person;
@@ -64,6 +65,8 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
   const totalPts = Number((person.points || 0) + (person.bonus_points || 0));
   const streakCount = person.streak?.current_streak || 0;
   const visibleChores = hideCompleted ? pendingChores : [...pendingChores, ...completedChores];
+  const { activeTimers } = useTimer();
+  const userHasActiveTimer = visibleChores.some((c) => Boolean(activeTimers[c.id]?.isRunning));
 
   return (
     <div
@@ -222,6 +225,8 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
                 isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
                 completeBtnLabel={completeBtnLabel}
                 isFlipped={Boolean(flippedChores[chore.id])}
+                activeTimer={activeTimers[chore.id]}
+                userHasActiveTimer={userHasActiveTimer}
                 onComplete={onCompleteChore}
                 onUndo={onUndoChore}
                 onStartTimer={onStartTimer}

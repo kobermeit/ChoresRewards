@@ -32,9 +32,14 @@ export function useAmbientIdle(): { isAmbientIdle: boolean; resetIdle: () => voi
       return;
     }
 
-    const events = ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'wheel'];
+    const events = ['pointermove', 'mousemove', 'pointerdown', 'touchstart', 'mousedown', 'keydown', 'wheel'];
+    let lastActivity = 0;
     const handleActivity = () => {
-      resetIdle();
+      const now = Date.now();
+      if (now - lastActivity > 500) {
+        lastActivity = now;
+        resetIdle();
+      }
     };
 
     events.forEach((ev) => window.addEventListener(ev, handleActivity, { passive: true }));

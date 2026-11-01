@@ -13,6 +13,8 @@ import { ErrorBoundary } from '../../components/common/ErrorBoundary';
 import { ChoreKanbanColumn } from './components/ChoreKanbanColumn';
 import { ChoreCelebrationModal } from './components/ChoreCelebrationModal';
 import { ChoreDetailModal } from './components/ChoreDetailModal';
+import { WeeklyMilestoneModal } from './components/WeeklyMilestoneModal';
+import { AdjustPointsModal } from './components/AdjustPointsModal';
 
 export interface ChoresKanbanSectionProps {
   isStandalonePage?: boolean;
@@ -34,7 +36,7 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   } = useApp();
 
   const seasonInfo = useSeason();
-  const { startChoreTimer, stopChoreTimer } = useTimer();
+  const { activeTimers, startChoreTimer, stopChoreTimer } = useTimer();
 
   useEffect(() => {
     if (isChild && activeUser) {
@@ -44,6 +46,22 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
 
   const [hideCompleted, setHideCompleted] = useUiPref('hideCompletedChores');
   const [flippedChores, setFlippedChores] = useState<Record<number, boolean>>({});
+
+  // Focus and flip active chore timer when clicked in bottom dock
+  useEffect(() => {
+    const handleFocus = (e: any) => {
+      const choreId = e.detail?.choreId;
+      if (choreId) {
+        setFlippedChores((prev) => ({ ...prev, [choreId]: true }));
+        setTimeout(() => {
+          const el = document.querySelector(`[data-chore-id="${choreId}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+      }
+    };
+    window.addEventListener('cr:focus-chore-timer', handleFocus);
+    return () => window.removeEventListener('cr:focus-chore-timer', handleFocus);
+  }, []);
 
   // Modals state
   const [editingPersonModal, setEditingPersonModal] = useState<Person | null>(null);
@@ -63,6 +81,13 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   const [bodyChallengeText, setBodyChallengeText] = useState<string>('');
   const [bonusAwarded, setBonusAwarded] = useState<number | null>(null);
   const [spinningBonus, setSpinningBonus] = useState(false);
+  const [pointsModalOpen, setPointsModalOpen] = useState(false);
+  const [milestoneCelebration, setMilestoneCelebration] = useState<{
+    person: Person;
+    choreTitle: string;
+    bonusPoints: number;
+    totalPoints: number;
+  } | null>(null);
 
   const chores: Chore[] = data?.chores || [];
   const family: Person[] = data?.family || [];
@@ -207,7 +232,13 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     stopChoreTimer(chore.id);
     setFlippedChores((prev) => ({ ...prev, [chore.id]: false }));
     try {
-      const res = await apiPost<{ success: boolean; earned_badges?: any[]; all_done?: boolean }>('complete_chore', {
+      const res = await apiPost<{
+        success: boolean;
+        earned_badges?: any[];
+        all_done?: boolean;
+        bonus_awarded?: number;
+        new_points?: number;
+      }>('complete_chore', {
         chore_id: chore.id,
         for_date: selectedDate,
         actual_seconds: meta?.actual_seconds ?? 0,
@@ -219,7 +250,16 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         playSound('chore_complete');
         fireChoreConfetti();
 
-        if (res.all_done) {
+        if (res.bonus_awarded && res.bonus_awarded > 0) {
+          playSound('celebration');
+          fireCelebrationFireworks();
+          setMilestoneCelebration({
+            person,
+            choreTitle: chore.title,
+            bonusPoints: res.bonus_awarded,
+            totalPoints: res.new_points ?? Number(person.points || 0) + res.bonus_awarded,
+          });
+        } else if (res.all_done) {
           fireCelebrationFireworks();
           setCelebrationPerson(person);
           setCelebrationStep('intro');
@@ -359,6 +399,22 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
       icon="fas fa-list-check"
       iconClass="section-icon-chores"
       boxed={!isStandalonePage}
+      actions={
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!isChild && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon="fas fa-coins"
+              collapseOnMobile
+              onClick={() => setPointsModalOpen(true)}
+              title="Add or deduct points for a family member"
+            >
+              Points
+            </Button>
+          )}
+        </div>
+      }
       toolbar={
         <div className="chores-member-filter-bar">
           {/* Day Navigation Row */}
@@ -580,6 +636,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
               );
             }
 
+            const userHasActiveTimer = visible.some((c) => Boolean(activeTimers[c.id]?.isRunning));
+
             return (
               <ResponsiveGrid minColWidth="240px" gap="18px">
                 {visible.map((chore) => (
@@ -593,6 +651,8 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                     isOverdue={!chore.completed && (overdueIds.has(chore.id) || Boolean(chore.is_overdue))}
                     completeBtnLabel={completeLabel}
                     isFlipped={Boolean(flippedChores[chore.id])}
+                    activeTimer={activeTimers[chore.id]}
+                    userHasActiveTimer={userHasActiveTimer}
                     onComplete={handleCompleteChore}
                     onUndo={handleUndoChore}
                     onStartTimer={startChoreTimer}
@@ -917,6 +977,38 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
         onGoToBody={() => setCelebrationStep('body')}
         onGoToBonus={() => setCelebrationStep('bonus')}
         onSpinBonus={handleSpinBonus}
+      />
+      {/* Adjust Points Modal */}
+      <AdjustPointsModal
+        isOpen={pointsModalOpen}
+        onClose={() => setPointsModalOpen(false)}
+        family={family}
+        selectedPersonId={selectedPerson?.id}
+        isCash={isCash}
+        onSuccess={(name, newPts, isDeductMode, amt) => {
+          refresh();
+          showToast(
+            isDeductMode
+              ? `Deducted ${isCash ? `$${amt.toFixed(2)}` : `${amt} pts`} from ${name}. Balance: ${isCash ? `$${newPts.toFixed(2)}` : `${newPts} pts`}`
+              : `Added ${isCash ? `$${amt.toFixed(2)}` : `${amt} pts`} to ${name}. Balance: ${isCash ? `$${newPts.toFixed(2)}` : `${newPts} pts`}`,
+            { type: 'success' }
+          );
+        }}
+      />
+
+      {/* Weekly Milestone Bonus Modal */}
+      <WeeklyMilestoneModal
+        isOpen={Boolean(milestoneCelebration)}
+        person={milestoneCelebration?.person || null}
+        choreTitle={milestoneCelebration?.choreTitle || ''}
+        bonusPoints={milestoneCelebration?.bonusPoints || 0}
+        totalPoints={milestoneCelebration?.totalPoints || 0}
+        isCash={isCash}
+        onClaim={() => {
+          fireCelebrationFireworks();
+          playSound('celebration');
+          setMilestoneCelebration(null);
+        }}
       />
     </PageContainer>
   );

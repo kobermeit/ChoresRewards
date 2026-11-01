@@ -168,6 +168,11 @@ async function resetIdentitySequence(tableName: string): Promise<void> {
 
 export async function initDatabase(): Promise<void> {
   await runMigrations();
+  try {
+    await getDb().execute(sql.raw('ALTER TABLE "chore" ADD COLUMN IF NOT EXISTS "bonus_points" double precision DEFAULT 0'));
+  } catch (err) {
+    console.warn('Note on bonus_points column check:', err);
+  }
   await AppSetting.load();
   await seedHouseholdIfEmpty();
   await seedSeasonalData();

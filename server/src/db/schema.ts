@@ -82,6 +82,7 @@ export const chore = pgTable(
     assignedToId: integer('assigned_to_id').references(() => person.id),
     assignedTo: varchar('assigned_to', { length: 255 }),
     points: doublePrecision('points').default(1),
+    bonusPoints: doublePrecision('bonus_points').default(0),
     completed: boolean('completed').default(false),
     dateCompleted: timestamp('date_completed', { mode: 'string' }),
     isDaily: boolean('is_daily').default(false),

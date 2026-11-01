@@ -81,6 +81,7 @@ interface AppContextValue {
   timerTotalSeconds: number;
   timerRemainingSeconds: number;
   timerRunning: boolean;
+  timerTimesUp: boolean;
   startTimer: () => void;
   pauseTimer: () => void;
   resetTimer: () => void;
@@ -185,6 +186,8 @@ export const AppProvider: React.FC<{
   const [timerTotalSeconds, setTimerTotalSeconds] = useState(300);
   const [timerRemainingSeconds, setTimerRemainingSeconds] = useState(300);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [timerTimesUp, setTimerTimesUp] = useState(false);
+  const autoResetTimeoutRef = useRef<any>(null);
 
   // Global Add/Edit Chore Modal State
   const [editingChoreModalItem, setEditingChoreModalItem] = useState<Chore | null | undefined>(undefined);
@@ -208,39 +211,56 @@ export const AppProvider: React.FC<{
   }, []);
 
   const startTimer = useCallback(() => {
-    // If starting from 00:00, default to 5 minutes (300s)
+    if (autoResetTimeoutRef.current) {
+      clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
+    }
+    setTimerTimesUp(false);
+    // If starting from 00:00, default to total or 5 minutes (300s)
     setTimerRemainingSeconds((prev) => {
       if (prev <= 0) {
-        setTimerTotalSeconds(300);
-        return 300;
+        const resetTo = timerTotalSeconds > 0 ? timerTotalSeconds : 300;
+        setTimerTotalSeconds(resetTo);
+        return resetTo;
       }
       return prev;
     });
     setTimerRunning(true);
-  }, []);
+  }, [timerTotalSeconds]);
 
   const pauseTimer = useCallback(() => {
     setTimerRunning(false);
   }, []);
 
   const resetTimer = useCallback(() => {
-    // If currently running, reset to beginning of total duration and keep running
-    // If not running / stopped, reset timer to 00:00
-    if (timerRunning) {
-      setTimerRemainingSeconds(timerTotalSeconds);
-    } else {
-      setTimerRemainingSeconds(0);
-      setTimerTotalSeconds(0);
+    if (autoResetTimeoutRef.current) {
+      clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
     }
-  }, [timerRunning, timerTotalSeconds]);
+    setTimerRunning(false);
+    setTimerTimesUp(false);
+    const resetTo = timerTotalSeconds > 0 ? timerTotalSeconds : 300;
+    setTimerRemainingSeconds(resetTo);
+    if (timerTotalSeconds <= 0) setTimerTotalSeconds(300);
+  }, [timerTotalSeconds]);
 
   const setTimerPreset = useCallback((minutes: number) => {
+    if (autoResetTimeoutRef.current) {
+      clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
+    }
+    setTimerTimesUp(false);
     const s = Math.max(10, Math.round(minutes * 60));
     setTimerTotalSeconds(s);
     setTimerRemainingSeconds(s);
   }, []);
 
   const setTimerDurationSeconds = useCallback((seconds: number) => {
+    if (autoResetTimeoutRef.current) {
+      clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
+    }
+    setTimerTimesUp(false);
     const s = Math.max(10, Math.round(seconds));
     setTimerTotalSeconds(s);
     setTimerRemainingSeconds(s);
@@ -523,13 +543,21 @@ export const AppProvider: React.FC<{
       setTimerRemainingSeconds((prev) => {
         if (prev <= 1) {
           setTimerRunning(false);
-          playSound();
+          setTimerTimesUp(true);
+          playSound('timer_done');
           try {
             fireCelebrationFireworks();
           } catch {}
-          showToast('⏰ Visual Timer Finished!', { type: 'success' });
-          // Automatically reset to original total seconds so it doesn't stay stuck at 0:00
-          return timerTotalSeconds;
+          showToast("⏰ Time's Up!", { type: 'success' });
+
+          // Microwave-style auto reset: reset status and restore duration after 8 seconds
+          if (autoResetTimeoutRef.current) clearTimeout(autoResetTimeoutRef.current);
+          autoResetTimeoutRef.current = setTimeout(() => {
+            setTimerTimesUp(false);
+            setTimerRemainingSeconds(timerTotalSeconds > 0 ? timerTotalSeconds : 300);
+          }, 8000);
+
+          return 0;
         }
         return prev - 1;
       });
@@ -664,6 +692,7 @@ export const AppProvider: React.FC<{
         timerTotalSeconds,
         timerRemainingSeconds,
         timerRunning,
+        timerTimesUp,
         startTimer,
         pauseTimer,
         resetTimer,

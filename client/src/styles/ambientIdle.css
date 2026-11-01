@@ -19,7 +19,7 @@
               border-color 0.8s ease;
 }
 
-/* In ambient idle / active timer mode: make cards completely transparent so living scene shines through */
+/* In ambient idle / active timer mode: make cards translucent ghost mode so living scene shines through */
 .cr-ambient-idle-active .page-header-card:not(.cr-keep-solid),
 .cr-ambient-idle-active .dashboard-card:not(.cr-keep-solid),
 .cr-ambient-idle-active .dashboard-header-card:not(.cr-keep-solid),
@@ -29,7 +29,7 @@
 .cr-ambient-idle-active .chores-kanban-column:not(.cr-keep-solid),
 .cr-ambient-idle-active .kanban-column:not(.cr-keep-solid),
 .cr-ambient-idle-active .chore-card:not(.cr-keep-solid) {
-  opacity: 0 !important;
+  opacity: 0.08 !important;
   box-shadow: none !important;
   border-color: transparent !important;
   backdrop-filter: none !important;

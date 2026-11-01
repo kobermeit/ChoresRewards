@@ -5,6 +5,7 @@ export interface Chore {
   assigned_to_id: number | null;
   assigned_to: string;
   points: number;
+  bonus_points?: number | null;
   completed: boolean;
   date_completed: string | null;
   is_daily: boolean;

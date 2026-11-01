@@ -57,7 +57,14 @@ export const ActiveTimersMiniDock: React.FC = () => {
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
-            onClick={() => setActiveView('chores')}
+            onClick={() => {
+              setActiveView('chores');
+              window.dispatchEvent(new CustomEvent('cr:focus-chore-timer', { detail: { choreId: timer.choreId } }));
+              setTimeout(() => {
+                const el = document.querySelector(`[data-chore-id="${timer.choreId}"]`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 120);
+            }}
           >
             {/* Circular Mini Progress */}
             <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>

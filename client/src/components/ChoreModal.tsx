@@ -87,6 +87,7 @@ export const ChoreModal: React.FC = () => {
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [points, setPoints] = useState('1');
+  const [bonusPoints, setBonusPoints] = useState('0');
   const [isRepeating, setIsRepeating] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [hasDueDate, setHasDueDate] = useState(false);
@@ -151,6 +152,7 @@ export const ChoreModal: React.FC = () => {
       setDescription(chore.description || '');
       setAssignedTo(chore.assigned_to || (family[0]?.name ?? ''));
       setPoints(String(chore.points ?? 1));
+      setBonusPoints(String(chore.bonus_points ?? 0));
       setIsRepeating(Boolean(chore.is_daily));
 
       let daysArr: string[] = [];
@@ -198,6 +200,7 @@ export const ChoreModal: React.FC = () => {
           : family[0]?.name || '');
       setAssignedTo(defaultAssignee);
       setPoints('1');
+      setBonusPoints('0');
       setIsRepeating(false);
       setSelectedDays([]);
       setHasDueDate(false);
@@ -318,6 +321,8 @@ export const ChoreModal: React.FC = () => {
       formData.append('description', description.trim());
       formData.append('assigned_to', assignedTo);
       formData.append('points', String(numPoints));
+      const parsedBonus = parseFloat(bonusPoints);
+      formData.append('bonus_points', String(!Number.isNaN(parsedBonus) && parsedBonus > 0 ? parsedBonus : 0));
       formData.append('is_daily', isRepeating ? 'true' : 'false');
 
       if (isRepeating && selectedDays.length > 0) {
@@ -698,6 +703,51 @@ export const ChoreModal: React.FC = () => {
             buttonsPosition="right"
             inputWidth={80}
             helperText={isCash ? 'Pocket money awarded when chore is completed' : 'Points earned when chore is completed'}
+          />
+        </div>
+
+        {/* 3b. Weekly Milestone Bonus Points */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <label
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                color: 'var(--color-text-primary, #f8fafc)',
+              }}
+            >
+              Weekly Milestone Bonus Points <span style={{ color: '#94a3b8', fontWeight: 500 }}>(optional)</span>
+            </label>
+            <span
+              title="Award extra bonus points when all configured days for this chore are completed in a given week. Example: reading time configured Mon–Fri (5 pts each) awards an additional bonus if all 5 days are completed that week."
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: 'rgba(56, 189, 248, 0.2)',
+                color: '#38bdf8',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                cursor: 'help',
+              }}
+            >
+              ?
+            </span>
+          </div>
+          <NumberStepper
+            label=""
+            value={bonusPoints}
+            onChange={(val) => setBonusPoints(String(val))}
+            min={0}
+            step={1}
+            prefix={<i className="fas fa-gift" style={{ color: '#ec4899' }} />}
+            presets={[0, 2, 5, 10, 20]}
+            buttonsPosition="right"
+            inputWidth={80}
+            helperText="If the chore is completed for all of its configured days that week, bonus points will be awarded when the final day is completed (e.g. Reading Mon–Fri completed all 5 days)."
           />
         </div>
 
