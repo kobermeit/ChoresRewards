@@ -6131,6 +6131,71 @@ body.cr-modal-open {
   color: var(--color-text-secondary, #94a3b8);
 }
 
+/* ============================ Seasonal character layer ============================
+   Fixed, non-interactive backdrop layer. Characters live in the screen gutters so
+   they never sit under a card; content and nav are lifted above it.
+   ================================================================================ */
+.cr-characters {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.cr-char {
+  position: absolute;
+  transform-origin: 50% 100%;
+  animation-name: cr-char-idle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.cr-char__builtin,
+.cr-char__custom {
+  display: block;
+  width: 100%;
+}
+.cr-char__builtin svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cr-char__custom {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cr-char--jack { animation-name: cr-char-sway; }
+.cr-char--sally { animation-name: cr-char-sway-rev; }
+.cr-char--zero { animation-name: cr-char-float; }
+.cr-char--oogie { animation-name: cr-char-wobble; }
+.cr-char--lock,
+.cr-char--shock,
+.cr-char--barrel { animation-name: cr-char-peek; }
+@keyframes cr-char-sway { 0%, 100% { transform: rotate(-1.6deg) translateY(0); } 50% { transform: rotate(1.6deg) translateY(-4px); } }
+@keyframes cr-char-sway-rev { 0%, 100% { transform: rotate(1.6deg); } 50% { transform: rotate(-1.6deg) translateY(-3px); } }
+@keyframes cr-char-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-14px) rotate(2deg); } }
+@keyframes cr-char-wobble { 0%, 100% { transform: rotate(1.4deg) scale(1); } 50% { transform: rotate(-1.4deg) scale(1.02); } }
+@keyframes cr-char-peek { 0%, 100% { transform: translateY(8px) rotate(-1.5deg); } 50% { transform: translateY(-4px) rotate(1.5deg); } }
+@keyframes cr-char-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.cr-char__head { animation: cr-char-head 9s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes cr-char-head { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+.cr-char__eyes { animation: cr-char-eyes 4.5s ease-in-out infinite; }
+@keyframes cr-char-eyes { 0%, 100% { opacity: 0.55; } 45% { opacity: 1; } 60% { opacity: 0.7; } }
+
+/* Keep the app above the layer */
+#site-content {
+  position: relative;
+  z-index: 1;
+}
+/* Never let characters cover cards on narrow screens */
+@media (max-width: 1100px) {
+  .cr-characters { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-char, .cr-char__head, .cr-char__eyes { animation: none !important; }
+}
+
 .cr-chore-face__pill {
   background: linear-gradient(180deg, #fde68a, #fbbf24);
   border: 1px solid #fcd34d;

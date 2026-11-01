@@ -37,6 +37,8 @@ export interface UiState {
   plannerViewMode: '1week' | '2weeks';
   activePersonId: number | null;
   parentManageMode: boolean;
+  /** Device pref: render the animated seasonal character layer. */
+  seasonalCharacters: boolean;
   activeTimers: Record<number, PersistedChoreTimer>;
   offlineQueue: QueuedOfflineMutation[];
   /** User collapsed the offline banner down to the compact pill. Reset on reconnect. */
@@ -79,6 +81,7 @@ export const initialUiState: UiState = {
   plannerViewMode: '2weeks',
   activePersonId: null,
   parentManageMode: true,
+  seasonalCharacters: true,
   activeTimers: {},
   offlineQueue: [],
   offlineBannerDismissed: false,
@@ -134,6 +137,7 @@ export function repairUiState<T extends Partial<UiState>>(state: T): T & UiState
   if (typeof state.headerMinimized !== 'boolean') state.headerMinimized = false;
   if (typeof state.hideCompletedChores !== 'boolean') state.hideCompletedChores = false;
   if (typeof state.parentManageMode !== 'boolean') state.parentManageMode = true;
+  if (typeof state.seasonalCharacters !== 'boolean') state.seasonalCharacters = true;
   if (state.plannerViewMode !== '1week' && state.plannerViewMode !== '2weeks') {
     state.plannerViewMode = '2weeks';
   }
@@ -179,6 +183,9 @@ const uiSlice = createSlice({
     },
     setParentManageMode(state, action: PayloadAction<boolean>) {
       state.parentManageMode = action.payload;
+    },
+    setSeasonalCharacters(state, action: PayloadAction<boolean>) {
+      state.seasonalCharacters = action.payload;
     },
     setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
       repairUiState(state);
@@ -252,6 +259,7 @@ export const {
   setPlannerViewMode,
   setActivePersonId,
   setParentManageMode,
+  setSeasonalCharacters,
   setActiveTimers,
   enqueueOfflineMutation,
   dequeueOfflineMutation,

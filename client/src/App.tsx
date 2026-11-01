@@ -3,6 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { useNavigation } from './hooks/useSettings';
 import { Header } from './components/Header';
 import { SideNav } from './components/SideNav';
+import { SeasonalCharacters } from './features/seasonal/SeasonalCharacters';
 import { SetupWizard } from './components/SetupWizard';
 import { PinModals } from './components/PinModals';
 import { DashboardSection } from './components/DashboardSection';
@@ -65,8 +66,9 @@ const MainShell: React.FC<{
 
   return (
     <>
+      <SeasonalCharacters />
       <SideNav />
-      <div id="site-content">
+      <div id="site-content" style={{ position: 'relative', zIndex: 2 }}>
         <Header />
 
         {/* Cached Views for Instant 0ms Tab Transitions */}

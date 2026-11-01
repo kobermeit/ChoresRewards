@@ -8,6 +8,7 @@ import {
 } from '../store/api';
 import { Button, Select, Card, Badge, FormField } from './ui';
 import { playThemedSound } from '../services/soundService';
+import { useUiPref } from '../hooks/useSettings';
 
 export const SeasonalSettingsView: React.FC = () => {
   const { data, isLoading } = useGetSeasonalQuery();
@@ -15,6 +16,7 @@ export const SeasonalSettingsView: React.FC = () => {
   const [updateSeason] = useUpdateSeasonMutation();
   const [updateEvent] = useUpdateSeasonalEventMutation();
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>('christmas');
+  const [seasonalCharacters, setSeasonalCharacters] = useUiPref('seasonalCharacters');
 
   if (isLoading || !data) {
     return (
@@ -63,6 +65,39 @@ export const SeasonalSettingsView: React.FC = () => {
             {settings.seasonal_themes_enabled ? 'Seasonal Themes Active' : 'Seasonal Themes Disabled'}
           </Badge>
         </div>
+
+        {/* Seasonal characters (per-device display preference) */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            cursor: settings.seasonal_themes_enabled ? 'pointer' : 'not-allowed',
+            opacity: settings.seasonal_themes_enabled ? 1 : 0.55,
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginBottom: 16,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={seasonalCharacters}
+            disabled={!settings.seasonal_themes_enabled}
+            onChange={(e) => setSeasonalCharacters(e.target.checked)}
+            style={{ width: 18, height: 18, accentColor: 'var(--cr-primary)' }}
+          />
+          <div>
+            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
+              Show Seasonal Characters
+            </span>
+            <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
+              Animated characters in the screen gutters (Jack, Sally, Zero &amp; co. during Halloween).
+              Device-only setting. Custom art: <code>static/images/characters/&lt;theme&gt;/</code>
+            </div>
+          </div>
+        </label>
 
         {/* Master Toggle */}
         <label
