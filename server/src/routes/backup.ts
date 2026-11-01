@@ -91,27 +91,23 @@ async function handleImport(req: Request, res: Response): Promise<void> {
     const result = await restoreFromArchive(uploaded);
     removeFileQuietly(uploaded);
 
-    // The database handle is closed and replaced; restart so the restored
-    // database is opened cleanly by the container runtime.
+    // The restore is a logical replacement inside Postgres, so the server keeps
+    // running — no restart and no lost sessions.
     res.json({
       success: true,
-      restarting: true,
-      message: 'Backup restored. The app is restarting now.',
+      restarting: false,
+      message: 'Backup restored.',
       restored: {
         created_at: result.manifest.created_at,
         backup_app_version: result.manifest.app_version,
         includes_media: result.manifest.includes_media,
         media_files: result.media_files,
         database_bytes: result.database_bytes,
+        rows: Object.values(result.tables).reduce((a, b) => a + b, 0),
         pre_restore_backup: result.pre_restore_backup ? path.basename(result.pre_restore_backup) : null,
         backups_dir: BACKUPS_DIR,
       },
     });
-
-    setTimeout(() => {
-      console.log('[backup] Restore complete — exiting so the container restarts with the new database.');
-      process.exit(0);
-    }, 750);
   } catch (err: any) {
     removeFileQuietly(uploaded);
     console.error('[backup] Restore failed:', err);

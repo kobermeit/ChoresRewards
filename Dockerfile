@@ -6,16 +6,17 @@
 #     -v choresrewards-data:/data choresrewards:local
 #
 # The Coolify application builds THIS file ("Dockerfile" build pack) and exposes
-# port 8099. All state (SQLite DB, uploads, session secret) lives in DATA_DIR
-# (/data) and MUST be a mounted volume, otherwise data is lost on redeploy.
+# port 8099. The database is Postgres (add a Postgres resource in Coolify and set
+# DATABASE_URL). Uploads and the session secret live in DATA_DIR (/data) and MUST
+# be a mounted volume, otherwise that state is lost on redeploy.
 # =============================================================================
 
 # =============================================================================
 # Stage 1: Build the React client and the Express/TypeScript server
 # =============================================================================
-# NOTE: better-sqlite3 is a native module. Keep this stage glibc-based (Debian
-# slim) and compile it here — never Alpine/musl, otherwise the runtime image
-# needs a full toolchain or the binary fails to load.
+# NOTE: better-sqlite3 is still a dependency — not for serving requests, but so a
+# v1 (SQLite) household backup archive can be imported after the cutover. It is a
+# native module, so keep this stage glibc-based (Debian slim) — never Alpine/musl.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
@@ -50,6 +51,8 @@ RUN cd server && npm prune --omit=dev
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
+# DATABASE_URL (Postgres) has no default: Coolify must inject the Postgres
+# resource's internal URL — there is no SQLite fallback any more.
 ENV NODE_ENV=production \
     PORT=8099 \
     DATA_DIR=/data
@@ -59,6 +62,8 @@ COPY --from=build /app/server/package.json ./server/package.json
 COPY --from=build /app/server/index.js ./server/index.js
 COPY --from=build /app/server/node_modules ./server/node_modules
 COPY --from=build /app/server/dist ./server/dist
+# Drizzle migrations are applied on boot (drizzle.__drizzle_migrations tracks them)
+COPY --from=build /app/server/drizzle ./server/drizzle
 
 # Built Vite client (served by Express at /)
 COPY --from=build /app/client/dist ./client/dist
@@ -69,8 +74,7 @@ COPY --from=build /app/static ./static
 COPY --from=build /app/choresrewards/config.yaml ./choresrewards/config.yaml
 
 # Persistent volume mount point, owned by the unprivileged runtime user
-RUN mkdir -p /data/uploads /data/chores /data/rewards /data/library /data/meals \
-      /data/organise /data/sounds /data/screensaver \
+RUN mkdir -p /data/uploads /data/backups \
     && chown -R node:node /data /app
 
 USER node

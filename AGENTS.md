@@ -2,18 +2,18 @@
 
 ## Architecture & Technology Stack
 - **Backend**: Node.js + Express + TypeScript (`server/`).
-  - Database: **Postgres via Drizzle ORM** (`server/src/db/`) — migration from SQLite in progress. `better-sqlite3` (`server/src/db.ts`) still serves every request until the route port completes, so **both drivers exist right now**.
+  - Database: **Postgres via Drizzle ORM** (`server/src/db/`: `schema.ts`, `client.ts`, `migrate.ts`, `sql.ts`). Every route is ported — there is **no SQLite in the request path**. `better-sqlite3` remains a dependency *only* to import v1 (SQLite) backup archives and to run `db:import`.
   - Auth: Session-based role auth (`parent`, `child`, `family`) with PIN verification.
   - File Uploads: `multer` (`server/uploads/` mounted to `/static/uploads`).
   - Notifications: Gotify push service (`server/src/services/gotify.ts`).
   - Seasons & Holidays: Anonymous Gregorian Easter calculation & hemisphere date adjustments (`server/src/services/seasons.ts`).
 - **Frontend**: React 18 + TypeScript + Vite (`client/`).
   - State & Persistence: Redux Toolkit + RTK Query (`client/src/store/api.ts`) + `redux-persist` (`whitelist: ['ui']`).
-  - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`, `activeView`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in SQLite via `/api/prefs`.
+  - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`, `activeView`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in the `app_settings` table via `/api/prefs`.
   - Audio Engine: Zero-latency procedural Web Audio synthesis (`soundService.ts`) with theme support (Zelda Fantasy, Christmas Bells, Spooky, Zen Chimes, Fanfare) + bundled fallback audio clips.
   - Visuals & Celebrations: Canvas-confetti + custom celebration fireworks.
   - **Code Map Maintenance**: Always consult and keep [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md) updated whenever components, features, or routes are added or refactored.
-- **Deployment Targets**: Primary target is a **single Docker container deployed by Coolify** (root `Dockerfile`, port `8099`, persistent volume at `/data`). Also runs standalone on port `8099` and inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`). SQLite stays the database for now; a future Postgres migration is planned but out of scope.
+- **Deployment Targets**: Primary target is a **single Docker container deployed by Coolify** (root `Dockerfile`, port `8099`, persistent volume at `/data`, Postgres resource via `DATABASE_URL`). Also runs standalone on port `8099` (bundled Postgres in `docker-compose.yml`) and inside Home Assistant OS via dynamic Ingress proxy tokens (`/api/hassio_ingress/<token>/`).
 
 ---
 
@@ -74,7 +74,8 @@ choresrewards/
 │   ├── hooks/useSettings.ts          # Typed hooks: useHouseholdPrefs, useUiPref, useSeason, useSoundTheme
 │   └── services/soundService.ts      # Web Audio procedural synthesizers & audio clip dispatcher
 └── server/src/
-    ├── db.ts                         # SQLite schema, tables (person, chore, reward, seasons, seasonal_events, settings)
+    ├── db.ts                         # Household data layer: boot (migrations + seeds), AppSetting cache, logActivity
+    ├── db/                           # Postgres + Drizzle: schema.ts, client.ts (pool + many/one), migrate.ts, sql.ts
     ├── routes/                       # Express routes (chores, rewards, seasonal, auth, meals, shopping, settings)
     └── services/seasons.ts           # Dynamic Easter computation, seasonal window resolution, hemisphere logic
 ```
@@ -96,39 +97,38 @@ choresrewards/
 - Timers use `TimerRing` (`client/src/components/ui/TimerRing.tsx`) with CSS Container Queries (`min(100cqw, 100cqh)`). The SVG circle expands dynamically to fill whatever card height or modal container is allocated without manual hardcoding or layout shifts.
 
 ### 3. Seasonal Themes & Sound Themes
-- **Seasons & Events**: Database-backed in SQLite (`seasons` and `seasonal_events` tables).
+- **Seasons & Events**: Database-backed in Postgres (`seasons` and `seasonal_events` tables).
   - Supports dynamic dates (e.g. Easter calculated via Gregorian algorithm) and fixed holidays (Halloween, Christmas, New Year's) with active celebration windows (typically ±7 days).
   - Hemisphere toggle adjusts meteorological season dates (Southern Hemisphere default: Dec–Feb Summer, Sep–Nov Spring).
 - **Sound Themes**: Configurable in Settings (`auto`, `default`, `fantasy` [Zelda-style secret chime], `christmas` [bell chime chords], `spooky` [Halloween theremin arpeggio], `chimes` [zen wind chimes], `fanfare` [royal brass]). Synthesized purely via Web Audio API (zero external assets required).
 
 ### 4. Backup & Restore (household migration)
-- **Export** (`GET /api/backup/export?media=1`, parent-only) streams one `.tar.gz`: `manifest.json` + `database.db` (a `db.backup()` online snapshot, so the live DB is never locked) + `secret_key` + `uploads/**`.
-- **Import** (`POST /api/backup/import`, parent-only) accepts *only* archives this app wrote. The tar is extracted against a strict whitelist (`manifest.json`, `database.db`, `secret_key`, `uploads/…`); symlinks, absolute paths, `..` traversal, unknown files, foreign manifests, non-SQLite payloads and a failing `PRAGMA quick_check` are all rejected. **The archive is never parsed or executed as SQL** — only validated files are swapped in.
-- Restore writes a safety copy to `DATA_DIR/backups/pre-restore-<ts>.db`, closes the DB handle, removes `-wal`/`-shm`, copies the restored files in and then exits the process so the container restarts with the new database. Therefore **the container needs a restart policy** (`unless-stopped`); while the handle is closed the SQLite session store no-ops instead of throwing.
+- **Export** (`GET /api/backup/export?media=1`, parent-only) streams one `.tar.gz` (format v2): `manifest.json` + `database.json` (a logical dump of every household table) + `secret_key` + `uploads/**`.
+- **Import** (`POST /api/backup/import`, parent-only) accepts *only* archives this app wrote. The tar is extracted against a strict whitelist (`manifest.json`, `database.json`, `database.db`, `secret_key`, `uploads/…`); symlinks, absolute paths, `..` traversal, unknown files and foreign manifests are rejected. **The archive is never parsed or executed as SQL** — rows are written through parameterised inserts against the fixed table whitelist.
+- A **v1 (SQLite) archive is still accepted**: if the tar carries `database.db` instead of `database.json`, it is validated (`PRAGMA quick_check`) and loaded through the same table mapping. That keeps the post-cutover migration a single upload.
+- Restore is a **logical, transactional replace** inside Postgres: a safety copy lands in `DATA_DIR/backups/pre-restore-<ts>.json`, then every household table is deleted and re-inserted (FK-safe order, identity sequences reset), `AppSetting` reloads its cache, media is copied back and `secret_key` restored. **No process restart, no lost sessions.**
 - Keep the in-app export as the supported migration path between HAOS, Docker and Coolify — it carries `secret_key`, so existing device logins and the PIN survive the move.
-- **Never set `CR_SECRET_KEY` when restoring a backup**: the env var overrides `DATA_DIR/secret_key`, so an explicit value there makes the restored key inert and logs every device out.
+- **Never set `CR_SECRET_KEY` when restoring a backup**: the env var overrides `DATA_DIR/secret_key` (the restore logs a warning and keeps the env value), so an explicit value logs every device out.
 
 ---
 
-## Postgres Migration Contract (IN PROGRESS — read before touching the DB)
-- **Target:** Postgres only (HAOS add-on retired). Coolify hosts a Postgres resource; the app gets `DATABASE_URL`. There is **no dual-driver** goal — SQLite is simply the legacy path that is being removed route by route.
+## Postgres Data Layer (COMPLETE — read before touching the DB)
+- **Target:** Postgres only. Coolify hosts a Postgres resource; the app gets `DATABASE_URL`. There is **no dual-driver** design — SQLite is only read when importing a v1 backup archive or running `db:import`.
 - **Where the Postgres layer lives:**
   - `server/src/db/schema.ts` — Drizzle schema for all 18 tables + `session` (types mapped from the live SQLite DB: identity PKs *BY DEFAULT* so ids survive import, `BOOLEAN`→`boolean`, `DATETIME`→`timestamp(string)`, `DATE`→`date(string)`, `FLOAT`→`double precision`; free-text columns are `varchar(255)` or `text`, since SQLite never enforced `VARCHAR(n)`).
   - `server/src/db/client.ts` — pooled `pg` connection + `getDb()`; throws a clear error when `DATABASE_URL` is missing.
   - `server/src/db/migrate.ts` + `runMigrationsCli.ts` — apply `server/drizzle/*.sql` (generated by `drizzle-kit`).
   - `server/src/scripts/import-sqlite.ts` — one-off SQLite → Postgres loader (booleans, empty dates→NULL, FK-safe order, sequence reset, row-count verification).
 - **Commands:** `npm --prefix server run db:generate` (author migrations from `schema.ts`) · `run db:migrate` (apply) · `run db:import -- <path to database.db>` (data migration).
-- **Rules for new/ported code:** all DB access is `async` Drizzle on top of `getDb()` — never add `better-sqlite3` calls; no `0/1` booleans (use real booleans); keep dates as the existing `'YYYY-MM-DD'` / `'YYYY-MM-DD HH:MM:SS'` strings.
-- **Porting recipe (one file at a time, app stays runnable on SQLite meanwhile):**
-  1. `import { getDb } from '../db/client'` + the tables you need from `../db/schema`.
-  2. Make the handler `async` (Express 4 tolerates async handlers; wrap in try/catch and keep the existing `res.json` shape so the client contract is unchanged).
-  3. `db.prepare('SELECT …').all()` → `await getDb().select({...}).from(table).where(eq(...))`; `INSERT` → `insert(table).values({...}).returning({ id: table.id })` (replaces `lastInsertRowid`); `INSERT OR IGNORE` → `.onConflictDoNothing()`.
-  4. Returns are typed snake_case→camelCase by the schema: rename `row.assigned_to_id` → `row.assignedToId` **in code**, but keep the JSON keys the client expects unchanged.
-  5. Real booleans: drop `Boolean(row.completed)`-style `0/1` handling, and never write `0`/`1` into boolean columns.
-  6. Date filtering: replace SQLite `date('now', '-7 day')` with JS-computed `'YYYY-MM-DD'` strings (the app already has helpers in `utils/time.ts`) or `sql` intervals — do not assume SQLite date functions exist.
-
-- **State:** Phase 1 (schema/migrations/importer) **done and verified** — the importer reproduced every table exactly (509 rows: person 4, seasons 4, seasonal_events 4, app_settings 28, chore 11, chore_log 3, reward 15, person_streak 3, person_badge 7, shopping_catalog 195, shopping_purchase_log 1, recipes 20, notifications 1, activity_log 209, applied_mutation 6). **Phase 2 (porting the ~230 `db.prepare` call sites across 28 files to async Drizzle) is NOT done** — the app still runs on SQLite. Phase 3 = backup/restore v2 (logical JSON + uploads tar). Phase 4 = run the importer against the real household DB. Phase 5 = Dockerfile (`better-sqlite3` removed, `drizzle/` copied), `DATABASE_URL`, deploy.
-- **Do not deploy a half-ported server:** the switch only happens once every route is on Postgres and the app boots against a migrated database.
+- **Query helper:** `server/src/db/sql.ts` (`sqlAll` / `sqlOne` / `sqlRun` / `sqlExec`) runs parameterised SQL (`?` → `$n`) on the same pool, for handlers whose queries are too dynamic for the builder. `sqlRun` appends `RETURNING id` to inserts, so `lastInsertRowid` still works.
+- **Legacy row shape:** `many()` / `one()` in `db/client.ts` run a Drizzle builder query and hand back rows with snake_case keys (`assigned_to_id`, `is_admin`, …) — that shape is also the client's JSON contract, so **keep using them when a handler previously consumed raw SQLite rows**.
+- **Rules for new/changed code:**
+  1. All DB access is `async` — never read a Promise's properties (`const x = someAsyncFn(); x.id` is a bug, and JSON-serialising an un-awaited promise yields `{}`).
+  2. Real booleans: never write `0`/`1`, compare with `= true` / `= false`, and use `Boolean(row.flag)` in JS (never `row.flag !== 0`, which is always true for `false`).
+  3. Dates stay `'YYYY-MM-DD'` / `'YYYY-MM-DD HH:MM:SS'` strings; use `CAST(? AS date)` + `INTERVAL` — there is no `date('now', …)`.
+  4. Wrap async handlers in try/catch (Express 4 does not await them); a global `unhandledRejection` logger keeps one bad request from killing the container.
+  5. `AppSetting.get()` is synchronous (cache hydrated at boot); `AppSetting.set()` persists and never rejects.
+- **State:** the whole cutover is **done and verified against the real household database** (4 people, 11 chores, 195 catalog items, 209 activity rows). Verified end-to-end on Postgres: bootstrap, chore CRUD + points/badges, reward redemption, shopping add/update/remove, meal cards, notes, sessions (login persists across restarts), settings, and the health probe.
 
 ---
 
@@ -200,11 +200,11 @@ choresrewards/
 
 ## Docker & Coolify Deployment Contract
 - **One production build path**: the root `Dockerfile` (capital D — Coolify's default Dockerfile location). `npm run verify` + client/server builds run *inside* the build stage, so a failing build never replaces the running container. Do not add a second prod Dockerfile for Coolify.
-- **Base image must stay Debian slim** (`node:22-bookworm-slim`). `better-sqlite3` is a native module; Alpine/musl would force a full toolchain into the runtime image.
+- **Base image must stay Debian slim** (`node:22-bookworm-slim`). `better-sqlite3` is still linked (v1 archive import only) and is a native module; Alpine/musl would force a full toolchain into the runtime image.
 - **Port `8099`** is what Coolify exposes (`Ports Exposes = 8099`). `NODE_ENV`, `PORT` and `DATA_DIR` are image `ENV`s and may be overridden by Coolify environment variables.
-- **Database (Postgres) is a Coolify resource, not a container**: add a PostgreSQL resource, set the app's `DATABASE_URL` to its internal URL, and run migrations on boot (`server/src/db/migrate.ts`). The generated SQL in `server/drizzle/` must be copied into the runtime image. Until the route port lands, the container still opens SQLite at `DATA_DIR/database.db`.
-- **All household state lives in `DATA_DIR`** (`/data` in containers): `database.db`, `secret_key`, `uploads/`. Never write state into the image, `client/dist`, or `server/`. Coolify always mounts a volume at `/data`; losing it loses the household.
-- **Healthcheck** is `/api/health` (`server/src/routes/health.ts`, `200` healthy / `503` when SQLite cannot be opened). `/ping` (`204`) remains the client's lightweight reconnect probe — do not merge the two, and keep the health payload free of filesystem paths and household data.
+- **Database (Postgres) is a Coolify resource, not a container**: add a PostgreSQL resource and set the app's `DATABASE_URL` to its internal URL. Migrations run on boot (`server/src/db/migrate.ts`) and the Dockerfile copies `server/drizzle/` into the runtime image — **any new migration must be committed or the container boots against an old schema**.
+- **Persistent state lives in `DATA_DIR`** (`/data` in containers): `secret_key`, `uploads/`, `backups/` (pre-restore safety copies). The household database itself lives in Postgres, so it survives a lost volume — but uploads/secret do not. Never write state into the image, `client/dist`, or `server/`.
+- **Healthcheck** is `/api/health` (`server/src/routes/health.ts`, `200` healthy / `503` when the Postgres probe fails). `/ping` (`204`) remains the client's lightweight reconnect probe — do not merge the two, and keep the health payload free of filesystem paths and household data.
 - **Runtime runs as `USER node`** (uid 1000). Any new persistent directory must be created and `chown`ed to `node` in the Dockerfile, otherwise SQLite/uploads fail with EACCES.
 - **Config template**: `.env.example` is committed (`.gitignore` and `.dockerignore` both re-include it). Add every new `process.env.*` variable there with a comment, and wire it into `docker-compose.yml` for local runs.
 - `docker-compose.yml` is for **local / self-hosted Docker only**; production is Coolify and does not use it.

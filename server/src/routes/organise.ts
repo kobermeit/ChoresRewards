@@ -3,7 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { db, logActivity } from '../db';
+import { logActivity } from '../db';
+import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
 import { getFamilyToday, isChoreOverdue } from '../utils/time';
@@ -92,12 +93,12 @@ function optionalDate(raw: any): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 }
 
-function validateParentId(raw: any, excludeId?: number): number | null {
+async function validateParentId(raw: any, excludeId?: number): Promise<number | null> {
   if (raw === null || raw === undefined || raw === '' || raw === 0 || raw === '0') return null;
   const parentId = Number(raw);
   if (Number.isNaN(parentId)) throw new Error('Invalid linked car');
   if (excludeId && parentId === excludeId) throw new Error('A car cannot be linked to itself');
-  const parent = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(parentId) as any;
+  const parent = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [parentId]) as any;
   if (!parent) throw new Error('Linked car not found');
   if (parent.parent_id) throw new Error('Can only link to a car, not another document');
   if (parent.category !== 'Car') throw new Error('Linked item must be a car');
@@ -106,12 +107,12 @@ function validateParentId(raw: any, excludeId?: number): number | null {
 
 export const organiseRouter = Router();
 
-organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
+organiseRouter.get('/api/notifications', async (_req: Request, res: Response) => {
   const today = getFamilyToday();
   const alerts: Array<any> = [];
 
   // 1. Organise items due within 7 days or overdue
-  const orgItems = db.prepare('SELECT * FROM organise_item WHERE paid = 0 AND due_date IS NOT NULL').all() as Array<any>;
+  const orgItems = await sqlAll('SELECT * FROM organise_item WHERE paid = false AND due_date IS NOT NULL') as Array<any>;
   for (const item of orgItems) {
     const days = diffDays(String(item.due_date), today);
     if (days <= 7) {
@@ -134,14 +135,10 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
   }
 
   // 2. Vehicle services next_service_date due within 7 days
-  const svcRows = db
-    .prepare(
-      `SELECT vs.*, oi.title as vehicle_title
+  const svcRows = await sqlAll(`SELECT vs.*, oi.title as vehicle_title
        FROM vehicle_service vs
        JOIN organise_item oi ON oi.id = vs.organise_item_id
-       WHERE vs.next_service_date IS NOT NULL`
-    )
-    .all() as Array<any>;
+       WHERE vs.next_service_date IS NOT NULL`) as Array<any>;
   for (const svc of svcRows) {
     const days = diffDays(String(svc.next_service_date), today);
     if (days <= 7) {
@@ -159,9 +156,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
   }
 
   // 3. Chores with deadlines
-  const openChores = db
-    .prepare('SELECT * FROM chore WHERE completed = 0 AND deleted = 0 AND (due_datetime IS NOT NULL OR (is_daily = 0 AND due_date IS NOT NULL))')
-    .all() as Array<any>;
+  const openChores = await sqlAll('SELECT * FROM chore WHERE completed = false AND deleted = false AND (due_datetime IS NOT NULL OR (is_daily = false AND due_date IS NOT NULL))') as Array<any>;
   for (const c of openChores) {
     const dueStr = c.due_datetime ? String(c.due_datetime).slice(0, 10) : String(c.due_date).slice(0, 10);
     const days = diffDays(dueStr, today);
@@ -189,37 +184,20 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
 
   // Persist unread alerts (idempotent upsert by dedupe key, preserving read state)
   const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  const insertAlertStmt = db.prepare(
-    `INSERT INTO notifications (dedupe_key, kind, severity, days, title, detail, target, admin_only)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const updateAlertStmt = db.prepare(
-    `UPDATE notifications
-     SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?
-     WHERE dedupe_key = ? AND read_at IS NULL AND dismissed_at IS NULL`
-  );
-  const reviveAlertStmt = db.prepare(
-    `UPDATE notifications
-     SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?, read_at = NULL, dismissed_at = NULL
-     WHERE dedupe_key = ?`
-  );
-  const selectAlertStmt = db.prepare(
-    'SELECT id, read_at, dismissed_at, severity, days, title, detail FROM notifications WHERE dedupe_key = ?'
-  );
-
   for (const alert of alerts) {
-    const payload = [
+    const payload: unknown[] = [
       alert.kind,
       alert.severity,
       alert.days,
       alert.title,
       alert.detail,
       alert.target,
-      alert.admin_only ? 1 : 0,
+      Boolean(alert.admin_only),
     ];
-    const existing = selectAlertStmt.get(alert.id) as any;
+    const existing = (await sqlOne('SELECT id, read_at, dismissed_at, severity, days, title, detail FROM notifications WHERE dedupe_key = ?', [alert.id])) as any;
     if (!existing) {
-      insertAlertStmt.run(alert.id, ...payload);
+      await sqlRun(`INSERT INTO notifications (dedupe_key, kind, severity, days, title, detail, target, admin_only)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [alert.id, ...payload]);
       continue;
     }
     const changed =
@@ -231,32 +209,28 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     // Dismissed alerts stay hidden until the underlying alert meaningfully changes
     if (existing.dismissed_at != null) {
       if (changed) {
-        reviveAlertStmt.run(...payload, alert.id, nowIso);
+        await sqlRun(`UPDATE notifications
+           SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?, read_at = NULL, dismissed_at = NULL
+           WHERE dedupe_key = ?`, [...payload, nowIso, alert.id]);
       }
       continue;
     }
     if (existing.read_at == null) {
-      updateAlertStmt.run(...payload, alert.id, nowIso);
+      await sqlRun(`UPDATE notifications
+         SET kind = ?, severity = ?, days = ?, title = ?, detail = ?, target = ?, admin_only = ?, updated_at = ?
+         WHERE dedupe_key = ? AND read_at IS NULL AND dismissed_at IS NULL`, [...payload, nowIso, alert.id]);
     }
   }
 
   // Drop stale notifications that no longer have a live backing item
   const liveKeys = new Set(alerts.map((a) => a.id));
-  const storedRows = db.prepare('SELECT dedupe_key FROM notifications').all() as Array<{ dedupe_key: string }>;
+  const storedRows = (await sqlAll('SELECT dedupe_key FROM notifications')) as Array<{ dedupe_key: string }>;
   const staleKeys = storedRows.filter((r) => !liveKeys.has(r.dedupe_key)).map((r) => r.dedupe_key);
-  const deleteAlertStmt = db.prepare('DELETE FROM notifications WHERE dedupe_key = ?');
-  const removeStale = db.transaction((keys: string[]) => {
-    for (const key of keys) {
-      deleteAlertStmt.run(key);
-    }
-  });
-  if (staleKeys.length) {
-    removeStale(staleKeys);
+  for (const key of staleKeys) {
+    await sqlRun('DELETE FROM notifications WHERE dedupe_key = ?', [key]);
   }
 
-  const rows = db
-    .prepare('SELECT * FROM notifications WHERE read_at IS NULL AND dismissed_at IS NULL ORDER BY created_at DESC')
-    .all() as Array<any>;
+  const rows = await sqlAll('SELECT * FROM notifications WHERE read_at IS NULL AND dismissed_at IS NULL ORDER BY created_at DESC') as Array<any>;
   const notifAlerts = rows.map((r) => ({
     id: r.dedupe_key,
     kind: r.kind,
@@ -268,7 +242,7 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
     admin_only: !!r.admin_only,
   }));
 
-  const recentLogs = db.prepare('SELECT * FROM activity_log ORDER BY date DESC, id DESC LIMIT 12').all() as Array<any>;
+  const recentLogs = await sqlAll('SELECT * FROM activity_log ORDER BY date DESC, id DESC LIMIT 12') as Array<any>;
   const recent = recentLogs.map((l) => ({
     id: l.id,
     type: l.type,
@@ -287,34 +261,36 @@ organiseRouter.get('/api/notifications', (_req: Request, res: Response) => {
   });
 });
 
-organiseRouter.post('/api/notifications/mark_read', (req: Request, res: Response) => {
+organiseRouter.post('/api/notifications/mark_read', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const ids: string[] = Array.isArray(body.ids) ? body.ids.map((v: any) => String(v)) : [];
-    const markStmt = db.prepare('UPDATE notifications SET read_at = ? WHERE dedupe_key = ? AND read_at IS NULL');
 
     const keys =
       ids.length > 0
         ? ids
-        : ((db.prepare('SELECT dedupe_key FROM notifications WHERE read_at IS NULL').all() as Array<{ dedupe_key: string }>).map((r) => r.dedupe_key));
+        : ((await sqlAll('SELECT dedupe_key FROM notifications WHERE read_at IS NULL')) as Array<{ dedupe_key: string }>).map(
+            (r) => r.dedupe_key
+          );
 
     const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
     let updated = 0;
-    const runUpdates = db.transaction((keysToUpdate: string[]) => {
-      for (const key of keysToUpdate) {
-        if (Number(markStmt.run(nowIso, key).changes) > 0) {
-          updated++;
-        }
+    for (const key of keys) {
+      const result = await sqlRun('UPDATE notifications SET read_at = ? WHERE dedupe_key = ? AND read_at IS NULL', [
+        nowIso,
+        key,
+      ]);
+      if (Number(result.changes) > 0) {
+        updated += 1;
       }
-    });
-    runUpdates(keys);
+    }
     res.json({ success: true, updated, ids: keys });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
   }
 });
 
-organiseRouter.post('/api/notifications/delete', (req: Request, res: Response) => {
+organiseRouter.post('/api/notifications/delete', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const ids: string[] = Array.isArray(body.ids) ? body.ids.map((v: any) => String(v)) : [];
@@ -322,26 +298,21 @@ organiseRouter.post('/api/notifications/delete', (req: Request, res: Response) =
       return res.status(400).json({ success: false, error: 'No notification ids supplied' });
     }
     const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
-    const delStmt = db.prepare(
-      'UPDATE notifications SET read_at = COALESCE(read_at, ?), dismissed_at = ?, updated_at = ? WHERE dedupe_key = ?'
-    );
     let deleted = 0;
-    const runDeletes = db.transaction((keys: string[]) => {
-      for (const key of keys) {
-        if (Number(delStmt.run(nowIso, nowIso, nowIso, key).changes) > 0) {
-          deleted++;
-        }
+    for (const key of ids) {
+      const result = await sqlRun('UPDATE notifications SET read_at = COALESCE(read_at, ?), dismissed_at = ?, updated_at = ? WHERE dedupe_key = ?', [nowIso, nowIso, nowIso, key]);
+      if (Number(result.changes) > 0) {
+        deleted += 1;
       }
-    });
-    runDeletes(ids);
+    }
     res.json({ success: true, deleted });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
   }
 });
 
-organiseRouter.get(['/api/organise', '/api/organise/items'], (_req: Request, res: Response) => {
-  const rows = db.prepare('SELECT * FROM organise_item ORDER BY category, sort_order, id').all() as Array<any>;
+organiseRouter.get(['/api/organise', '/api/organise/items'], async (_req: Request, res: Response) => {
+  const rows = await sqlAll('SELECT * FROM organise_item ORDER BY category, sort_order, id') as Array<any>;
   const today = getFamilyToday();
   res.json({
     success: true,
@@ -349,7 +320,7 @@ organiseRouter.get(['/api/organise', '/api/organise/items'], (_req: Request, res
   });
 });
 
-organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, async (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const title = String(data.title || '').trim().slice(0, 200);
@@ -366,7 +337,7 @@ organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req
     const reminderDays = Math.max(1, Math.min(365, parseInt(String(data.reminder_days ?? 30), 10) || 30));
     const dueDate = optionalDate(data.due_date);
     const lastDate = optionalDate(data.last_date);
-    const parentId = validateParentId(data.parent_id);
+    const parentId = await validateParentId(data.parent_id);
 
     let vehicleMake = String(data.vehicle_make || '').trim().slice(0, 100) || null;
     let vehicleModel = String(data.vehicle_model || '').trim().slice(0, 100) || null;
@@ -386,22 +357,17 @@ organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req
       nextServiceMileage = null;
     }
 
-    const info = db
-      .prepare(
-        `INSERT INTO organise_item (
+    const info = await sqlRun(`INSERT INTO organise_item (
           category, title, provider, notes, due_date, last_date, paid, cost, reminder_days, icon,
           vehicle_make, vehicle_model, vehicle_year, vehicle_rego, current_odometer,
           next_service_date, next_service_mileage, parent_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        category,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [category,
         title,
         provider,
         notes,
         dueDate,
         lastDate,
-        paid ? 1 : 0,
+        Boolean(paid),
         cost,
         reminderDays,
         icon,
@@ -412,10 +378,9 @@ organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req
         currentOdometer,
         nextServiceDate,
         nextServiceMileage,
-        parentId
-      );
+        parentId]);
 
-    const inserted = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(Number(info.lastInsertRowid));
+    const inserted = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [Number(info.lastInsertRowid)]);
     logActivity('organise_added', `Organise item '${title}' added in category '${category}'`);
     res.json({ success: true, item: formatOrganiseItem(inserted) });
   } catch (err: any) {
@@ -423,9 +388,9 @@ organiseRouter.post(['/api/organise', '/api/organise/items'], requireAdult, (req
   }
 });
 
-organiseRouter.post(['/api/organise/:itemId/renew', '/api/organise/items/:itemId/renew'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise/:itemId/renew', '/api/organise/items/:itemId/renew'], requireAdult, async (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
-  const row = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+  const row = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
   if (!row) {
     res.status(404).json({ success: false, error: 'Item not found' });
     return;
@@ -434,20 +399,18 @@ organiseRouter.post(['/api/organise/:itemId/renew', '/api/organise/items/:itemId
   const base = row.due_date ? new Date(row.due_date) : new Date();
   base.setMonth(base.getMonth() + months);
   const newDue = base.toISOString().slice(0, 10);
-  db.prepare('UPDATE organise_item SET due_date = ?, last_date = ?, paid = 1 WHERE id = ?').run(
-    newDue,
+  await sqlRun('UPDATE organise_item SET due_date = ?, last_date = ?, paid = true WHERE id = ?', [newDue,
     row.due_date || getFamilyToday(),
-    itemId
-  );
+    itemId]);
   logActivity('organise_renewed', `Renewed ${row.title} to ${newDue}`);
-  const updated = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId);
+  const updated = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]);
   res.json({ success: true, item: formatOrganiseItem(updated) });
 });
 
-organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, async (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
-    const existing = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+    const existing = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
     if (!existing) {
       res.status(404).json({ success: false, error: 'Item not found' });
       return;
@@ -476,7 +439,7 @@ organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], req
         : existing.reminder_days;
     const dueDate = 'due_date' in data ? optionalDate(data.due_date) : existing.due_date;
     const lastDate = 'last_date' in data ? optionalDate(data.last_date) : existing.last_date;
-    const parentId = 'parent_id' in data ? validateParentId(data.parent_id, itemId) : existing.parent_id;
+    const parentId = 'parent_id' in data ? await validateParentId(data.parent_id, itemId) : existing.parent_id;
 
     let vehicleMake =
       'vehicle_make' in data ? String(data.vehicle_make || '').trim().slice(0, 100) || null : existing.vehicle_make;
@@ -500,21 +463,18 @@ organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], req
       nextServiceMileage = null;
     }
 
-    db.prepare(
-      `UPDATE organise_item SET
+    await sqlRun(`UPDATE organise_item SET
         category = ?, title = ?, provider = ?, notes = ?, due_date = ?, last_date = ?,
         paid = ?, cost = ?, reminder_days = ?, icon = ?,
         vehicle_make = ?, vehicle_model = ?, vehicle_year = ?, vehicle_rego = ?,
         current_odometer = ?, next_service_date = ?, next_service_mileage = ?, parent_id = ?
-       WHERE id = ?`
-    ).run(
-      category,
+       WHERE id = ?`, [category,
       title,
       provider,
       notes,
       dueDate,
       lastDate,
-      paid ? 1 : 0,
+      Boolean(paid),
       cost,
       reminderDays,
       icon,
@@ -526,10 +486,9 @@ organiseRouter.put(['/api/organise/:itemId', '/api/organise/items/:itemId'], req
       nextServiceDate,
       nextServiceMileage,
       parentId,
-      itemId
-    );
+      itemId]);
 
-    const updated = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId);
+    const updated = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]);
     logActivity('organise_updated', `Organise item '${title}' updated`);
     res.json({ success: true, item: formatOrganiseItem(updated) });
   } catch (err: any) {
@@ -541,9 +500,9 @@ organiseRouter.post(
   ['/api/organise/:itemId/photo', '/api/organise/items/:itemId/photo'],
   requireAdult,
   organisePhotoUpload.single('photo'),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const itemId = Number(req.params.itemId);
-    const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+    const item = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
     if (!item) {
       res.status(404).json({ success: false, error: 'Item not found' });
       return;
@@ -564,7 +523,7 @@ organiseRouter.post(
       }
     }
 
-    db.prepare('UPDATE organise_item SET photo_filename = ? WHERE id = ?').run(req.file.filename, itemId);
+    await sqlRun('UPDATE organise_item SET photo_filename = ? WHERE id = ?', [req.file.filename, itemId]);
     logActivity('organise_photo', `Photo uploaded for '${item.title}'`);
     res.json({
       success: true,
@@ -573,37 +532,35 @@ organiseRouter.post(
   }
 );
 
-organiseRouter.delete(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.delete(['/api/organise/:itemId', '/api/organise/items/:itemId'], requireAdult, async (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
-  const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+  const item = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
   if (!item) {
     res.status(404).json({ success: false, error: 'Item not found' });
     return;
   }
-  db.prepare('DELETE FROM organise_item WHERE parent_id = ?').run(itemId);
-  db.prepare('DELETE FROM vehicle_service WHERE organise_item_id = ?').run(itemId);
-  db.prepare('DELETE FROM organise_item WHERE id = ?').run(itemId);
+  await sqlRun('DELETE FROM organise_item WHERE parent_id = ?', [itemId]);
+  await sqlRun('DELETE FROM vehicle_service WHERE organise_item_id = ?', [itemId]);
+  await sqlRun('DELETE FROM organise_item WHERE id = ?', [itemId]);
   logActivity('organise_deleted', `Organise item '${item.title}' deleted`);
   res.json({ success: true });
 });
 
-organiseRouter.get(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], (req: Request, res: Response) => {
+organiseRouter.get(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], async (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
-  const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId);
+  const item = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]);
   if (!item) {
     res.status(404).json({ success: false, error: 'Vehicle not found' });
     return;
   }
-  const services = db
-    .prepare('SELECT * FROM vehicle_service WHERE organise_item_id = ? ORDER BY service_date DESC, id DESC')
-    .all(itemId) as Array<any>;
+  const services = await sqlAll('SELECT * FROM vehicle_service WHERE organise_item_id = ? ORDER BY service_date DESC, id DESC', [itemId]) as Array<any>;
   res.json({ success: true, services: services.map(formatVehicleService) });
 });
 
-organiseRouter.post(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.post(['/api/organise/:itemId/services', '/api/organise/items/:itemId/services'], requireAdult, async (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
-    const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+    const item = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
     if (!item) {
       res.status(404).json({ success: false, error: 'Vehicle not found' });
       return;
@@ -622,25 +579,21 @@ organiseRouter.post(['/api/organise/:itemId/services', '/api/organise/items/:ite
     const nextServiceDate = optionalDate(data.next_service_date);
     const nextServiceMileage = optionalInt(data.next_service_mileage);
 
-    const info = db
-      .prepare(
-        `INSERT INTO vehicle_service (
+    const info = await sqlRun(`INSERT INTO vehicle_service (
           organise_item_id, service_type, service_date, mileage, cost, provider, notes, next_service_date, next_service_mileage
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(itemId, serviceType, serviceDate, mileage, cost, provider, notes, nextServiceDate, nextServiceMileage);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [itemId, serviceType, serviceDate, mileage, cost, provider, notes, nextServiceDate, nextServiceMileage]);
 
     if (mileage !== null && (item.current_odometer === null || mileage > item.current_odometer)) {
-      db.prepare('UPDATE organise_item SET current_odometer = ? WHERE id = ?').run(mileage, itemId);
+      await sqlRun('UPDATE organise_item SET current_odometer = ? WHERE id = ?', [mileage, itemId]);
     }
     if (nextServiceDate !== null) {
-      db.prepare('UPDATE organise_item SET next_service_date = ? WHERE id = ?').run(nextServiceDate, itemId);
+      await sqlRun('UPDATE organise_item SET next_service_date = ? WHERE id = ?', [nextServiceDate, itemId]);
     }
     if (nextServiceMileage !== null) {
-      db.prepare('UPDATE organise_item SET next_service_mileage = ? WHERE id = ?').run(nextServiceMileage, itemId);
+      await sqlRun('UPDATE organise_item SET next_service_mileage = ? WHERE id = ?', [nextServiceMileage, itemId]);
     }
 
-    const svc = db.prepare('SELECT * FROM vehicle_service WHERE id = ?').get(Number(info.lastInsertRowid));
+    const svc = await sqlOne('SELECT * FROM vehicle_service WHERE id = ?', [Number(info.lastInsertRowid)]);
     logActivity('vehicle_service_added', `Service '${serviceType}' added to '${item.title}'`);
     res.json({ success: true, service: formatVehicleService(svc) });
   } catch (err: any) {
@@ -648,18 +601,16 @@ organiseRouter.post(['/api/organise/:itemId/services', '/api/organise/items/:ite
   }
 });
 
-organiseRouter.put(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.put(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, async (req: Request, res: Response) => {
   try {
     const itemId = Number(req.params.itemId);
     const serviceId = Number(req.params.serviceId);
-    const svc = db
-      .prepare('SELECT * FROM vehicle_service WHERE id = ? AND organise_item_id = ?')
-      .get(serviceId, itemId) as any;
+    const svc = await sqlOne('SELECT * FROM vehicle_service WHERE id = ? AND organise_item_id = ?', [serviceId, itemId]) as any;
     if (!svc) {
       res.status(404).json({ success: false, error: 'Service record not found' });
       return;
     }
-    const item = db.prepare('SELECT * FROM organise_item WHERE id = ?').get(itemId) as any;
+    const item = await sqlOne('SELECT * FROM organise_item WHERE id = ?', [itemId]) as any;
     const data = req.body || {};
 
     const serviceType = 'service_type' in data ? String(data.service_type || '').trim().slice(0, 200) : svc.service_type;
@@ -681,26 +632,24 @@ organiseRouter.put(['/api/organise/:itemId/services/:serviceId', '/api/organise/
     const nextServiceMileage =
       'next_service_mileage' in data ? optionalInt(data.next_service_mileage) : svc.next_service_mileage;
 
-    db.prepare(
-      `UPDATE vehicle_service SET
+    await sqlRun(`UPDATE vehicle_service SET
         service_type = ?, service_date = ?, mileage = ?, cost = ?, provider = ?, notes = ?,
         next_service_date = ?, next_service_mileage = ?
-       WHERE id = ?`
-    ).run(serviceType, serviceDate, mileage, cost, provider, notes, nextServiceDate, nextServiceMileage, serviceId);
+       WHERE id = ?`, [serviceType, serviceDate, mileage, cost, provider, notes, nextServiceDate, nextServiceMileage, serviceId]);
 
     if (item) {
       if (mileage !== null && (item.current_odometer === null || mileage > item.current_odometer)) {
-        db.prepare('UPDATE organise_item SET current_odometer = ? WHERE id = ?').run(mileage, itemId);
+        await sqlRun('UPDATE organise_item SET current_odometer = ? WHERE id = ?', [mileage, itemId]);
       }
       if (nextServiceDate !== null) {
-        db.prepare('UPDATE organise_item SET next_service_date = ? WHERE id = ?').run(nextServiceDate, itemId);
+        await sqlRun('UPDATE organise_item SET next_service_date = ? WHERE id = ?', [nextServiceDate, itemId]);
       }
       if (nextServiceMileage !== null) {
-        db.prepare('UPDATE organise_item SET next_service_mileage = ? WHERE id = ?').run(nextServiceMileage, itemId);
+        await sqlRun('UPDATE organise_item SET next_service_mileage = ? WHERE id = ?', [nextServiceMileage, itemId]);
       }
     }
 
-    const updated = db.prepare('SELECT * FROM vehicle_service WHERE id = ?').get(serviceId);
+    const updated = await sqlOne('SELECT * FROM vehicle_service WHERE id = ?', [serviceId]);
     logActivity('vehicle_service_updated', `Service '${serviceType}' updated`);
     res.json({ success: true, service: formatVehicleService(updated) });
   } catch (err: any) {
@@ -708,17 +657,15 @@ organiseRouter.put(['/api/organise/:itemId/services/:serviceId', '/api/organise/
   }
 });
 
-organiseRouter.delete(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, (req: Request, res: Response) => {
+organiseRouter.delete(['/api/organise/:itemId/services/:serviceId', '/api/organise/items/:itemId/services/:serviceId'], requireAdult, async (req: Request, res: Response) => {
   const itemId = Number(req.params.itemId);
   const serviceId = Number(req.params.serviceId);
-  const svc = db
-    .prepare('SELECT * FROM vehicle_service WHERE id = ? AND organise_item_id = ?')
-    .get(serviceId, itemId) as any;
+  const svc = await sqlOne('SELECT * FROM vehicle_service WHERE id = ? AND organise_item_id = ?', [serviceId, itemId]) as any;
   if (!svc) {
     res.status(404).json({ success: false, error: 'Service record not found' });
     return;
   }
-  db.prepare('DELETE FROM vehicle_service WHERE id = ?').run(serviceId);
+  await sqlRun('DELETE FROM vehicle_service WHERE id = ?', [serviceId]);
   logActivity('vehicle_service_deleted', `Service '${svc.service_type}' deleted`);
   res.json({ success: true });
 });

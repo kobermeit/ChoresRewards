@@ -1,13 +1,34 @@
-import Database from 'better-sqlite3';
-import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
-import { DB_PATH, UPLOADS_DIR } from './config';
+import bcrypt from 'bcryptjs';
+import { count, eq, sql } from 'drizzle-orm';
+import { getDb } from './db/client';
+import { runMigrations } from './db/migrate';
+import {
+  activityLog,
+  appSettings,
+  chore,
+  person,
+  personBadge,
+  personStreak,
+  recipes,
+  reward,
+  seasons,
+  seasonalEvents,
+  shoppingCatalog,
+} from './db/schema';
+import { UPLOADS_DIR } from './config';
 import { cleanTitle, cleanDescription, decodeEntities } from './services/scraper';
 
-export const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+/**
+ * Household data layer (Postgres / Drizzle).
+ *
+ * Everything here is async and backed by `getDb()` (server/src/db/client.ts).
+ * The only synchronous surface is `AppSetting.get()`, which reads a small
+ * in-process cache hydrated at boot by `initDatabase()` — household settings are
+ * a couple of dozen rows and are only written by this single server process, so
+ * the cache can never go stale (every `set()` updates it before touching the DB).
+ */
 
 export const BADGE_DEFINITIONS: Record<string, { emoji: string; name: string; desc: string }> = {
   first_chore: { emoji: '⭐', name: 'First Steps', desc: 'Completed your very first chore!' },
@@ -21,684 +42,19 @@ export const BADGE_DEFINITIONS: Record<string, { emoji: string; name: string; de
   streak_30: { emoji: '🏆', name: 'Legend', desc: '30-day streak!' },
 };
 
-function ensureColumn(tableName: string, columnName: string, columnDef: string) {
-  const cols = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === columnName)) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN "${columnName}" ${columnDef}`);
-  }
+/** Timestamps stay naive 'YYYY-MM-DD HH:MM:SS' strings (UTC), matching the imported SQLite data. */
+export function nowNaive(): string {
+  return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
 
-function ensureTimestampColumns(tableName: string) {
-  const cols = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  if (!cols.some((c) => c.name === 'created_at')) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN "created_at" DATETIME`);
-    db.prepare(`UPDATE ${tableName} SET created_at = ? WHERE created_at IS NULL`).run(nowIso);
-  }
-  if (!cols.some((c) => c.name === 'updated_at')) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN "updated_at" DATETIME`);
-    db.prepare(`UPDATE ${tableName} SET updated_at = ? WHERE updated_at IS NULL`).run(nowIso);
-  }
+export function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export function initDatabase() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS session_store (
-      sid TEXT PRIMARY KEY,
-      sess TEXT NOT NULL,
-      expired INTEGER NOT NULL
-    );
-
-    /* Idempotency ledger for replayed offline mutations (see services/mutationDedupe.ts) */
-    CREATE TABLE IF NOT EXISTS applied_mutation (
-      mutation_id TEXT PRIMARY KEY,
-      endpoint TEXT,
-      applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      key VARCHAR(100) NOT NULL UNIQUE,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS seasons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      key VARCHAR(40) NOT NULL UNIQUE,
-      name VARCHAR(60) NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      start_md VARCHAR(5) NOT NULL,
-      end_md VARCHAR(5) NOT NULL,
-      emoji VARCHAR(16) NOT NULL DEFAULT '',
-      accent VARCHAR(16) NOT NULL DEFAULT '',
-      sound_key VARCHAR(40)
-    );
-
-    CREATE TABLE IF NOT EXISTS seasonal_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      key VARCHAR(40) NOT NULL UNIQUE,
-      name VARCHAR(60) NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      rule_type VARCHAR(16) NOT NULL DEFAULT 'fixed',
-      month_day VARCHAR(5),
-      days_before INTEGER NOT NULL DEFAULT 3,
-      days_after INTEGER NOT NULL DEFAULT 3,
-      emoji VARCHAR(16) NOT NULL DEFAULT '',
-      accent VARCHAR(16) NOT NULL DEFAULT '',
-      sound_key VARCHAR(40)
-    );
-
-    CREATE TABLE IF NOT EXISTS person (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name VARCHAR(50) NOT NULL,
-      points FLOAT DEFAULT 0.0,
-      bonus_points FLOAT DEFAULT 0.0,
-      last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_bonus_awarded DATETIME,
-      last_daily_chores_added DATETIME DEFAULT CURRENT_TIMESTAMP,
-      avatar VARCHAR(100) DEFAULT 'default_avatar.png',
-      color VARCHAR(7) DEFAULT '#ffffff',
-      "order" INTEGER DEFAULT 0,
-      pin VARCHAR(100),
-      is_admin BOOLEAN DEFAULT 0,
-      age INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS chore (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title VARCHAR(100) NOT NULL,
-      assigned_to_id INTEGER REFERENCES person(id),
-      assigned_to VARCHAR(50),
-      points FLOAT DEFAULT 1.0,
-      completed BOOLEAN DEFAULT 0,
-      date_completed DATETIME,
-      is_daily BOOLEAN DEFAULT 0,
-      days_of_week VARCHAR(64),
-      due_date DATE,
-      due_datetime DATETIME,
-      deleted BOOLEAN DEFAULT 0,
-      icon VARCHAR(20),
-      image_url VARCHAR(255),
-      is_extra BOOLEAN DEFAULT 0,
-      extra_id VARCHAR(32),
-      duration_seconds INTEGER DEFAULT NULL,
-      description TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS reward (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title VARCHAR(100) NOT NULL,
-      points_required FLOAT NOT NULL,
-      image_url VARCHAR(255),
-      description TEXT,
-      assigned_to_id INTEGER REFERENCES person(id),
-      assigned_to VARCHAR(50),
-      completed BOOLEAN DEFAULT 0,
-      date_completed DATETIME,
-      is_recurring BOOLEAN DEFAULT 1,
-      source_url VARCHAR(500),
-      source_name VARCHAR(100),
-      last_synced_at DATETIME,
-      sync_error_count INTEGER DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS activity_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      type VARCHAR(50) NOT NULL,
-      description VARCHAR(500) NOT NULL,
-      user_name VARCHAR(100)
-    );
-
-    CREATE TABLE IF NOT EXISTS person_streak (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      person_id INTEGER NOT NULL UNIQUE REFERENCES person(id),
-      current_streak INTEGER DEFAULT 0,
-      longest_streak INTEGER DEFAULT 0,
-      last_completed_date DATE
-    );
-
-    CREATE TABLE IF NOT EXISTS person_badge (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      person_id INTEGER NOT NULL REFERENCES person(id),
-      badge_key VARCHAR(50) NOT NULL,
-      earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT uq_person_badge UNIQUE (person_id, badge_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS organise_item (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category VARCHAR(80) NOT NULL DEFAULT 'General',
-      title VARCHAR(200) NOT NULL,
-      provider VARCHAR(200),
-      notes TEXT,
-      due_date DATE,
-      last_date DATE,
-      paid BOOLEAN DEFAULT 0,
-      cost FLOAT,
-      reminder_days INTEGER DEFAULT 30,
-      icon VARCHAR(20),
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      photo_filename VARCHAR(255),
-      vehicle_make VARCHAR(100),
-      vehicle_model VARCHAR(100),
-      vehicle_year INTEGER,
-      vehicle_rego VARCHAR(20),
-      current_odometer INTEGER,
-      next_service_date DATE,
-      next_service_mileage INTEGER,
-      parent_id INTEGER REFERENCES organise_item(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS vehicle_service (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      organise_item_id INTEGER NOT NULL REFERENCES organise_item(id) ON DELETE CASCADE,
-      service_type VARCHAR(200) NOT NULL,
-      service_date DATE,
-      next_service_date DATE,
-      next_service_mileage INTEGER,
-      mileage INTEGER,
-      cost FLOAT,
-      provider VARCHAR(200),
-      notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS shopping_catalog (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name VARCHAR(120) NOT NULL,
-      normalized_key VARCHAR(120) NOT NULL UNIQUE,
-      default_store VARCHAR(60) DEFAULT 'aldi',
-      times_added INTEGER DEFAULT 1,
-      times_purchased INTEGER DEFAULT 0,
-      last_added_at DATETIME,
-      last_purchased_at DATETIME,
-      avg_interval_days FLOAT
-    );
-
-    CREATE TABLE IF NOT EXISTS shopping_purchase_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      catalog_id INTEGER NOT NULL REFERENCES shopping_catalog(id) ON DELETE CASCADE,
-      purchased_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      store VARCHAR(60),
-      qty VARCHAR(40)
-    );
-
-    CREATE TABLE IF NOT EXISTS recipes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      meal_key VARCHAR(120) NOT NULL UNIQUE,
-      title VARCHAR(160) NOT NULL,
-      image_url VARCHAR(500),
-      ingredients_json TEXT NOT NULL DEFAULT '[]',
-      instructions TEXT NOT NULL DEFAULT '',
-      servings VARCHAR(40),
-      prep_time VARCHAR(40),
-      notion_id VARCHAR(120),
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS chore_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chore_id INTEGER REFERENCES chore(id),
-      chore_title VARCHAR(100) NOT NULL,
-      person_id INTEGER REFERENCES person(id),
-      person_name VARCHAR(50) NOT NULL,
-      completed_by_id INTEGER REFERENCES person(id),
-      completed_by_name VARCHAR(50) NOT NULL,
-      points_awarded FLOAT NOT NULL DEFAULT 1.0,
-      for_date DATE NOT NULL,
-      completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      target_seconds INTEGER DEFAULT NULL,
-      actual_seconds INTEGER DEFAULT 0,
-      seconds_saved INTEGER DEFAULT 0,
-      timer_status VARCHAR(30) DEFAULT 'untimed',
-      was_overdue BOOLEAN DEFAULT 0,
-      notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      dedupe_key VARCHAR(120) NOT NULL UNIQUE,
-      kind VARCHAR(40) NOT NULL,
-      severity VARCHAR(16) NOT NULL DEFAULT 'due_soon',
-      days INTEGER NOT NULL DEFAULT 0,
-      title VARCHAR(200) NOT NULL,
-      detail TEXT NOT NULL DEFAULT '',
-      target VARCHAR(40) NOT NULL DEFAULT 'kanban',
-      admin_only BOOLEAN NOT NULL DEFAULT 0,
-      read_at DATETIME,
-      dismissed_at DATETIME,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_chore_log_for_date ON chore_log(for_date);
-    CREATE INDEX IF NOT EXISTS idx_chore_log_chore_id ON chore_log(chore_id);
-    CREATE INDEX IF NOT EXISTS idx_chore_log_person_id ON chore_log(person_id);
-  `);
-
-  // Safe migrations for existing databases
-  ensureColumn('person', 'age', 'INTEGER');
-  ensureColumn('person', 'dob', 'DATE');
-  ensureColumn('person', 'role', "VARCHAR(20) DEFAULT 'child'");
-  ensureColumn('person', 'calendar_ical_url', 'TEXT');
-  ensureColumn('chore', 'icon', 'VARCHAR(20)');
-  ensureColumn('chore', 'image_url', 'VARCHAR(255)');
-  ensureColumn('chore', 'is_extra', 'BOOLEAN DEFAULT 0');
-  ensureColumn('chore', 'extra_id', 'VARCHAR(32)');
-  ensureColumn('chore', 'duration_seconds', 'INTEGER');
-  ensureColumn('chore', 'description', 'TEXT');
-  ensureColumn('reward', 'is_recurring', 'BOOLEAN DEFAULT 1');
-  ensureColumn('reward', 'source_url', 'VARCHAR(500)');
-  ensureColumn('reward', 'source_name', 'VARCHAR(100)');
-  ensureColumn('reward', 'last_synced_at', 'DATETIME');
-  ensureColumn('reward', 'sync_error_count', 'INTEGER DEFAULT 0');
-  ensureColumn('notifications', 'dismissed_at', 'DATETIME');
-  ensureColumn('notifications', 'read_at', 'DATETIME');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(read_at, dismissed_at)');
-
-  const allTables = [
-    'app_settings',
-    'seasons',
-    'seasonal_events',
-    'person',
-    'chore',
-    'reward',
-    'activity_log',
-    'chore_log',
-    'notifications',
-    'person_streak',
-    'person_badge',
-    'organise_item',
-    'vehicle_service',
-    'shopping_catalog',
-    'shopping_purchase_log',
-    'recipes',
-  ];
-  for (const tbl of allTables) {
-    try {
-      ensureTimestampColumns(tbl);
-    } catch (err) {
-      console.warn(`[initDatabase] Error ensuring timestamps for ${tbl}:`, err);
-    }
-  }
-
-  // Ensure historical existing chores have realistic created_at timestamps earlier than today
-  try {
-    db.prepare(`
-      UPDATE chore
-      SET created_at = '2026-10-01 00:00:00'
-      WHERE created_at >= date('now')
-    `).run();
-  } catch {
-    // ignore
-  }
-
-  const orgNewCols: Array<[string, string]> = [
-    ['photo_filename', 'VARCHAR(255)'],
-    ['vehicle_make', 'VARCHAR(100)'],
-    ['vehicle_model', 'VARCHAR(100)'],
-    ['vehicle_year', 'INTEGER'],
-    ['vehicle_rego', 'VARCHAR(20)'],
-    ['current_odometer', 'INTEGER'],
-    ['next_service_date', 'DATE'],
-    ['next_service_mileage', 'INTEGER'],
-    ['parent_id', 'INTEGER'],
-  ];
-  for (const [col, type] of orgNewCols) {
-    ensureColumn('organise_item', col, type);
-  }
-
-  ensureColumn('vehicle_service', 'next_service_date', 'DATE');
-  ensureColumn('vehicle_service', 'next_service_mileage', 'INTEGER');
-
-  // Ensure roles are populated and Family user exists
-  try {
-    db.prepare("UPDATE person SET role = 'parent' WHERE is_admin = 1 AND (role IS NULL OR role = '' OR role = 'child')").run();
-    db.prepare("UPDATE person SET role = 'child' WHERE (is_admin = 0 OR is_admin IS NULL) AND (role IS NULL OR role = '')").run();
-    const familyRow = db.prepare("SELECT id FROM person WHERE role = 'family' OR name = 'Family'").get();
-    if (!familyRow) {
-      db.prepare(`
-        INSERT INTO person (name, role, points, bonus_points, avatar, color, "order", is_admin)
-        VALUES ('Family', 'family', 0, 0, 'default_avatar.png', '#3b82f6', 99, 0)
-      `).run();
-    }
-  } catch (err) {
-    console.error('[startup] Error syncing person roles:', err);
-  }
-
-  // Clear stale upload references on startup
-  try {
-    const people = db.prepare('SELECT id, avatar FROM person').all() as Array<{ id: number; avatar: string | null }>;
-    let changed = 0;
-    for (const p of people) {
-      if (p.avatar && p.avatar !== 'default_avatar.png') {
-        const filePath = path.join(UPLOADS_DIR, p.avatar);
-        if (!fs.existsSync(filePath)) {
-          db.prepare('UPDATE person SET avatar = NULL WHERE id = ?').run(p.id);
-          changed++;
-        }
-      }
-    }
-    const rewards = db.prepare('SELECT id, image_url FROM reward').all() as Array<{ id: number; image_url: string | null }>;
-    for (const r of rewards) {
-      if (r.image_url && r.image_url.includes('/static/uploads/')) {
-        const rel = r.image_url.split('/static/uploads/').pop()!;
-        const filePath = path.join(UPLOADS_DIR, rel);
-        if (!fs.existsSync(filePath)) {
-          db.prepare('UPDATE reward SET image_url = NULL WHERE id = ?').run(r.id);
-          changed++;
-        }
-      }
-    }
-    if (changed > 0) {
-      console.log(`[startup] Cleared ${changed} stale upload reference(s) from DB.`);
-    }
-  } catch (err) {
-    console.error('[startup] Error checking stale uploads:', err);
-  }
-
-  // Retroactively clean up HTML entities and title/description artifacts in existing rewards
-  try {
-    const existingRewards = db.prepare('SELECT id, title, description, source_name, source_url FROM reward').all() as Array<{
-      id: number;
-      title: string;
-      description: string | null;
-      source_name: string | null;
-      source_url: string | null;
-    }>;
-    const updateStmt = db.prepare('UPDATE reward SET title = ?, description = ? WHERE id = ?');
-    let rewardsCleaned = 0;
-    for (const r of existingRewards) {
-      const cleanT = r.source_url ? cleanTitle(r.title, r.source_name || 'Store') : decodeEntities(r.title);
-      const cleanD = r.description ? cleanDescription(r.description) : r.description;
-      if (cleanT !== r.title || cleanD !== r.description) {
-        updateStmt.run(cleanT, cleanD, r.id);
-        rewardsCleaned++;
-      }
-    }
-    if (rewardsCleaned > 0) {
-      console.log(`[startup] Cleaned HTML entities in ${rewardsCleaned} existing reward record(s).`);
-    }
-  } catch (err) {
-    console.warn('[startup] Warning cleaning HTML entities on existing rewards:', err);
-  }
-
-  // Auto-seed household data migrated from http://homeassistant.local:8081 if DB is empty
-  try {
-    const countRow = db.prepare('SELECT COUNT(id) as cnt FROM person').get() as { cnt: number };
-    if (countRow.cnt === 0) {
-      console.log('[startup] Seeding migrated household data (Sarah, Abby, Gee)...');
-      const pinHash = bcrypt.hashSync('0212', 10);
-
-      const insPerson = db.prepare(
-        'INSERT INTO person (id, name, points, bonus_points, avatar, color, "order", is_admin, pin) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)'
-      );
-      insPerson.run(1, 'Sarah', 0, 'default_avatar.png', '#04201a', 0, 1, pinHash);
-      insPerson.run(2, 'Abby', 56, 'default_avatar.png', '#53234c', 1, 0, null);
-      insPerson.run(3, 'Gee', 6, 'default_avatar.png', '#3e1688', 2, 0, null);
-
-      const insStreak = db.prepare(
-        'INSERT INTO person_streak (person_id, current_streak, longest_streak, last_completed_date) VALUES (?, ?, ?, ?)'
-      );
-      insStreak.run(1, 0, 0, null);
-      insStreak.run(2, 2, 2, null);
-      insStreak.run(3, 1, 1, null);
-
-      const insChore = db.prepare(
-        'INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, deleted, icon, is_extra) VALUES (?, ?, ?, ?, 0, 1, 0, ?, 0)'
-      );
-      insChore.run('Make bed', 2, 'Abby', 1.0, '🛏️');
-      insChore.run('Brush teeth: Morning', 2, 'Abby', 0.0, '🦷');
-      insChore.run('Brush teeth: before bed', 2, 'Abby', 0.0, '🦷');
-      insChore.run('Brush Teeth before bed', 3, 'Gee', 1.0, '🦷');
-
-      AppSetting.set('person_ages_json', JSON.stringify({ '1': 37, '2': 6 }));
-      AppSetting.set('app_timezone', 'Australia/Brisbane');
-      AppSetting.set('reward_system', 'points');
-      AppSetting.set(
-        'meal_suggestions_json',
-        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
-      );
-      AppSetting.set(
-        'meal_ingredients_json',
-        JSON.stringify({
-          'sausage & veg': [
-            { name: 'Beef sausages', qty: '1', store: 'Aldi' },
-            { name: 'Potato', qty: '3', store: 'fruit an vege' },
-            { name: 'Broccoli', qty: '1', store: 'fruit an vege' },
-            { name: 'Carrot', qty: '2', store: 'fruit an vege' },
-          ],
-        })
-      );
-      AppSetting.set(
-        'shopping_stores_json',
-        JSON.stringify([
-          { icon: '/static/images/rewards/store_aldi.svg', id: 'aldi', name: 'Aldi' },
-          { icon: '/static/images/rewards/store_woolworths.svg', id: 'woolworths', name: 'Woolworths' },
-          { icon: '🛒', id: 'coles-7129', name: 'coles' },
-          { icon: '🛒', id: 'fruit-an-vege-4537', name: 'fruit an vege' },
-        ])
-      );
-    } else {
-      const sarah = db.prepare('SELECT id, pin FROM person WHERE name = ?').get('Sarah') as { id: number; pin: string | null } | undefined;
-      if (sarah?.pin && bcrypt.compareSync('1234', sarah.pin)) {
-        db.prepare('UPDATE person SET pin = ?, is_admin = 1 WHERE id = ?').run(bcrypt.hashSync('0212', 10), sarah.id);
-      }
-    }
-
-    // Ensure migrated badges & meal plan are present
-    const badgeCnt = (db.prepare('SELECT COUNT(id) as cnt FROM person_badge').get() as { cnt: number }).cnt;
-    if (badgeCnt === 0) {
-      const nowIso = new Date().toISOString();
-      const insBadge = db.prepare('INSERT OR IGNORE INTO person_badge (person_id, badge_key, earned_at) VALUES (?, ?, ?)');
-      insBadge.run(2, 'first_chore', nowIso);
-      insBadge.run(2, 'perfect_day', nowIso);
-      insBadge.run(3, 'first_chore', nowIso);
-      insBadge.run(3, 'perfect_day', nowIso);
-    }
-
-    if (!AppSetting.get('meal_planner_plan_json')) {
-      AppSetting.set(
-        'meal_planner_plan_json',
-        JSON.stringify({
-          '2026-10-12': { breakfast: '', lunch: 'Abby : lasanga', dinner: 'Lasanga' },
-          '2026-10-13': { breakfast: '', lunch: '', dinner: 'Lasanga' },
-          '2026-10-14': { breakfast: '', lunch: 'Abby : Pizza', dinner: 'Pizza' },
-          '2026-10-15': { breakfast: '', lunch: '', dinner: 'Sausage and veg' },
-          '2026-10-16': { breakfast: '', lunch: '', dinner: 'Sausage and vege' },
-        })
-      );
-    }
-    if (!AppSetting.get('meal_planner_suggestions_json')) {
-      AppSetting.set(
-        'meal_planner_suggestions_json',
-        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
-      );
-    }
-    if (!AppSetting.get('timezone')) {
-      AppSetting.set('timezone', AppSetting.get('app_timezone') || 'Australia/Brisbane');
-    }
-    if (!AppSetting.get('daily_reset_hour')) {
-      AppSetting.set('daily_reset_hour', '0');
-    }
-    if (!AppSetting.get('point_value')) {
-      AppSetting.set('point_value', '0.50');
-    }
-
-    // Seed shopping_catalog with household staples and existing meal ingredients if empty
-    const catCnt = (db.prepare('SELECT COUNT(id) as cnt FROM shopping_catalog').get() as { cnt: number }).cnt;
-    if (catCnt === 0) {
-      const nowIso = new Date().toISOString();
-      const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
-      const fifteenDaysAgo = new Date(Date.now() - 15 * 86400 * 1000).toISOString();
-      const staples: Array<{
-        name: string;
-        store: string;
-        added: number;
-        purchased: number;
-        lastPurchased: string | null;
-        avgDays: number | null;
-      }> = [
-        { name: 'Milk', store: 'aldi', added: 8, purchased: 7, lastPurchased: sevenDaysAgo, avgDays: 5 },
-        { name: 'Bread', store: 'aldi', added: 7, purchased: 6, lastPurchased: sevenDaysAgo, avgDays: 5 },
-        { name: 'Eggs', store: 'aldi', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Paper Towel', store: 'aldi', added: 4, purchased: 4, lastPurchased: fifteenDaysAgo, avgDays: 14 },
-        { name: 'Butter', store: 'aldi', added: 4, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
-        { name: 'Cheese', store: 'aldi', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Bananas', store: 'fruit-an-vege-4537', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 6 },
-        { name: 'Apples', store: 'fruit-an-vege-4537', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Toilet Paper', store: 'aldi', added: 3, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
-        { name: 'Laundry Powder', store: 'aldi', added: 2, purchased: 2, lastPurchased: fifteenDaysAgo, avgDays: 21 },
-        { name: 'Beef sausages', store: 'aldi', added: 3, purchased: 2, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Potato', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Broccoli', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
-        { name: 'Carrot', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
-      ];
-      const insCat = db.prepare(`
-        INSERT OR IGNORE INTO shopping_catalog
-        (name, normalized_key, default_store, times_added, times_purchased, last_added_at, last_purchased_at, avg_interval_days)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const s of staples) {
-        insCat.run(
-          s.name,
-          normalizeShoppingKey(s.name),
-          s.store,
-          s.added,
-          s.purchased,
-          nowIso,
-          s.lastPurchased,
-          s.avgDays
-        );
-      }
-    }
-
-    // Seed recipes table from existing meal_ingredients_json and starter meals if empty
-    const recCnt = (db.prepare('SELECT COUNT(id) as cnt FROM recipes').get() as { cnt: number }).cnt;
-    if (recCnt === 0) {
-      const insRec = db.prepare(`
-        INSERT OR IGNORE INTO recipes (meal_key, title, image_url, ingredients_json, instructions, servings, prep_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insRec.run(
-        'sausage & veg',
-        'Sausage & Veg',
-        null,
-        JSON.stringify([
-          { name: 'Beef sausages', qty: '1 pack', store: 'aldi' },
-          { name: 'Potato', qty: '3', store: 'fruit-an-vege-4537' },
-          { name: 'Broccoli', qty: '1 head', store: 'fruit-an-vege-4537' },
-          { name: 'Carrot', qty: '2', store: 'fruit-an-vege-4537' },
-        ]),
-        '1. Peel and chop potatoes into chunks; boil in salted water for 15 mins until tender, then mash with butter and milk.\n2. Pan-fry or grill the beef sausages over medium heat for 12–15 mins, turning until golden brown and cooked through.\n3. Slice carrots and broccoli florets; steam or microwave for 4–5 mins until tender-crisp.\n4. Serve sausages over warm mash with steamed greens and gravy.',
-        '4',
-        '25 mins'
-      );
-      insRec.run(
-        'lasanga',
-        'Lasagna',
-        null,
-        JSON.stringify([
-          { name: 'Beef mince', qty: '500g', store: 'aldi' },
-          { name: 'Lasagna sheets', qty: '1 box', store: 'aldi' },
-          { name: 'Passata / Pasta sauce', qty: '700g', store: 'aldi' },
-          { name: 'Mozzarella cheese', qty: '250g', store: 'aldi' },
-        ]),
-        '1. Preheat oven to 190°C.\n2. Brown the beef mince with onion and garlic, then stir in passata and simmer for 10 mins.\n3. Layer meat sauce, lasagna sheets, and béchamel/cheese in a baking dish.\n4. Top with mozzarella and bake for 35–40 mins until golden and bubbling.',
-        '6',
-        '50 mins'
-      );
-      insRec.run(
-        'pizza',
-        'Homemade Pizza',
-        null,
-        JSON.stringify([
-          { name: 'Pizza bases', qty: '2', store: 'aldi' },
-          { name: 'Pizza sauce', qty: '1 jar', store: 'aldi' },
-          { name: 'Shredded mozzarella', qty: '200g', store: 'aldi' },
-          { name: 'Ham or Pepperoni', qty: '150g', store: 'aldi' },
-        ]),
-        '1. Preheat oven to 220°C.\n2. Spread pizza sauce evenly over the bases.\n3. Scatter toppings and shredded mozzarella across each pizza.\n4. Bake for 10–12 mins until crust is crisp and cheese is melted.',
-        '4',
-        '20 mins'
-      );
-      insRec.run(
-        'spaghetti bolognese',
-        'Spaghetti Bolognese',
-        null,
-        JSON.stringify([
-          { name: 'Spaghetti', qty: '500g', store: 'aldi' },
-          { name: 'Beef mince', qty: '500g', store: 'aldi' },
-          { name: 'Tomato passata', qty: '700g', store: 'aldi' },
-          { name: 'Parmesan cheese', qty: '100g', store: 'aldi' },
-        ]),
-        '1. Brown beef mince with diced onion, garlic, and Italian herbs.\n2. Pour in passata and simmer gently for 15–20 mins.\n3. Cook spaghetti in salted boiling water until al dente, drain, and serve topped with bolognese and grated parmesan.',
-        '4',
-        '25 mins'
-      );
-    }
-  } catch (err) {
-    console.error('[startup] Error seeding migrated household data:', err);
-  }
-
-  seedSeasonalData();
-}
-
-/**
- * Default seasons are stored for the Southern Hemisphere (Australia). When the household
- * hemisphere setting is 'north', the season service shifts these dates by six months.
- * Events use a +/- day window so each theme lasts roughly a week around the date.
- */
-function seedSeasonalData() {
-  try {
-    const insSeason = db.prepare(
-      `INSERT OR IGNORE INTO seasons (key, name, start_md, end_md, emoji, accent, sound_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
-    insSeason.run('summer', 'Summer', '12-01', '02-29', '☀️', '#f59e0b', null);
-    insSeason.run('autumn', 'Autumn', '03-01', '05-31', '🍂', '#ea580c', null);
-    insSeason.run('winter', 'Winter', '06-01', '08-31', '❄️', '#38bdf8', null);
-    insSeason.run('spring', 'Spring', '09-01', '11-30', '🌸', '#ec4899', null);
-
-    const insEvent = db.prepare(
-      `INSERT OR IGNORE INTO seasonal_events (key, name, rule_type, month_day, days_before, days_after, emoji, accent, sound_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    );
-    insEvent.run('new_year', "New Year's", 'fixed', '01-01', 1, 0, '🎆', '#a855f7', 'fanfare');
-    insEvent.run('easter', 'Easter', 'easter', null, 7, 1, '🐣', '#a3e635', 'chimes');
-    insEvent.run('halloween', 'Halloween', 'fixed', '10-31', 7, 1, '🎃', '#f97316', 'spooky');
-    insEvent.run('christmas', 'Christmas', 'fixed', '12-25', 24, 1, '❄️', '#38bdf8', 'christmas');
-
-    // Migrate existing database seasonal window dates to precise rules
-    db.prepare("UPDATE seasonal_events SET days_before = 1, days_after = 0 WHERE key = 'new_year'").run();
-    db.prepare("UPDATE seasonal_events SET days_before = 7, days_after = 1 WHERE key = 'easter'").run();
-    db.prepare("UPDATE seasonal_events SET days_before = 7, days_after = 1 WHERE key = 'halloween'").run();
-    db.prepare("UPDATE seasonal_events SET days_before = 24, days_after = 1, emoji = '❄️', accent = '#38bdf8' WHERE key = 'christmas'").run();
-
-    // Ensure seasons have default sound themes
-    db.prepare("UPDATE seasons SET sound_key = 'christmas' WHERE key = 'winter' AND (sound_key IS NULL OR sound_key = '')").run();
-    db.prepare("UPDATE seasons SET sound_key = 'chimes' WHERE key = 'spring' AND (sound_key IS NULL OR sound_key = '')").run();
-    db.prepare("UPDATE seasons SET sound_key = 'chimes' WHERE key = 'autumn' AND (sound_key IS NULL OR sound_key = '')").run();
-    db.prepare("UPDATE seasons SET sound_key = 'default' WHERE key = 'summer' AND (sound_key IS NULL OR sound_key = '')").run();
-
-    // Clean obsolete duplicate legacy settings
-    db.prepare("DELETE FROM app_settings WHERE key IN ('meal_plan_json', 'meal_suggestions_json')").run();
-
-    const defaults: Record<string, string> = {
-      seasonal_themes_enabled: 'true',
-      hemisphere: 'south',
-      sound_theme: 'auto',
-    };
-    for (const [k, v] of Object.entries(defaults)) {
-      if (AppSetting.get(k) === null) AppSetting.set(k, v);
-    }
-  } catch (err) {
-    console.error('[startup] Error seeding seasonal data:', err);
-  }
+export function roundPoints(val: unknown): number {
+  const num = Number(val);
+  if (Number.isNaN(num)) return 0;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
 export function normalizeShoppingKey(raw: string): string {
@@ -716,46 +72,483 @@ export function normalizeShoppingKey(raw: string): string {
   return s || 'item';
 }
 
+/* ------------------------------------------------------------------ *
+ * Household settings (app_settings key/value store, cache-backed)
+ * ------------------------------------------------------------------ */
+
+const settingsCache = new Map<string, string>();
+/** Writes are serialised so a burst of `set()` calls lands in order. */
+let writeChain: Promise<void> = Promise.resolve();
+
 export const AppSetting = {
+  /** Hydrate the cache from Postgres (called once during boot). */
+  async load(): Promise<void> {
+    const rows = await getDb().select({ key: appSettings.key, value: appSettings.value }).from(appSettings);
+    settingsCache.clear();
+    for (const row of rows) settingsCache.set(row.key, row.value);
+    writeChain = Promise.resolve();
+  },
+
   get(key: string, defaultValue: string | null = null): string | null {
-    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as { value: string } | undefined;
-    return row !== undefined ? row.value : defaultValue;
+    const value = settingsCache.get(key);
+    return value !== undefined ? value : defaultValue;
   },
-  set(key: string, value: string): void {
-    db.prepare(`
-      INSERT INTO app_settings (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).run(key, String(value));
+
+  /** Writes are queued behind each other; the cache is updated synchronously. */
+  set(key: string, value: string): Promise<void> {
+    const stringValue = String(value);
+    settingsCache.set(key, stringValue);
+    const write = writeChain
+      .then(async () => {
+        await getDb()
+          .insert(appSettings)
+          .values({ key, value: stringValue })
+          .onConflictDoUpdate({ target: appSettings.key, set: { value: stringValue, updatedAt: nowNaive() } });
+      })
+      .catch((err) => {
+        // Never surface a rejected write to a handler that did not await it.
+        console.error(`[settings] Failed to persist '${key}':`, err?.message || err);
+      });
+    writeChain = write;
+    return write;
   },
+
+  /** Fire-and-forget variant for synchronous helpers (e.g. seeding the bonus-chore pool). */
+  setLazy(key: string, value: string): void {
+    void AppSetting.set(key, value).catch((err) => console.error('[settings] write failed:', err));
+  },
+
+  async delete(keys: string[]): Promise<void> {
+    for (const key of keys) settingsCache.delete(key);
+    if (!keys.length) return;
+    await getDb().delete(appSettings).where(sql`${appSettings.key} IN ${keys}`);
+  },
+
   getRewardSystem(): 'points' | 'cash' {
     const val = AppSetting.get('reward_system', 'points');
     return val === 'cash' ? 'cash' : 'points';
   },
-  setRewardSystem(system: string): void {
+
+  async setRewardSystem(system: string): Promise<void> {
     if (system !== 'points' && system !== 'cash') {
       throw new Error('Invalid reward system');
     }
-    AppSetting.set('reward_system', system);
+    await AppSetting.set('reward_system', system);
   },
 };
 
+/* ------------------------------------------------------------------ *
+ * Activity log
+ * ------------------------------------------------------------------ */
+
+/** Fire-and-forget so log lines never block a request or throw into a handler. */
 export function logActivity(type: string, description: string, userName: string | null = null): void {
+  void (async () => {
+    try {
+      await getDb().insert(activityLog).values({ date: nowNaive(), type, description, userName });
+      console.log(`[ActivityLog] type=${type} user=${userName} desc=${description}`);
+    } catch (err) {
+      console.error('Error logging activity:', err);
+    }
+  })();
+}
+
+/* ------------------------------------------------------------------ *
+ * Boot: migrations + one-time seeding
+ * ------------------------------------------------------------------ */
+
+/** Advance an identity sequence that was seeded with explicit ids. */
+async function resetIdentitySequence(tableName: string): Promise<void> {
+  await getDb().execute(
+    sql.raw(
+      `SELECT setval(pg_get_serial_sequence('"${tableName}"', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM "${tableName}"), 1))`
+    )
+  );
+}
+
+export async function initDatabase(): Promise<void> {
+  await runMigrations();
+  await AppSetting.load();
+  await seedHouseholdIfEmpty();
+  await seedSeasonalData();
+  await syncPersonRoles();
+  await cleanStaleUploadReferences();
+  await cleanRewardEntities();
+}
+
+
+/** First run on an empty database: demo household, starter chores and settings. */
+async function seedHouseholdIfEmpty(): Promise<void> {
+  const db = getDb();
   try {
-    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
-    db.prepare('INSERT INTO activity_log (date, type, description, user_name) VALUES (?, ?, ?, ?)').run(
-      nowIso,
-      type,
-      description,
-      userName
-    );
-    console.log(`[ActivityLog] type=${type} user=${userName} desc=${description}`);
+    const [{ value: peopleCount }] = await db.select({ value: count() }).from(person);
+    if (Number(peopleCount) === 0) {
+      console.log('[startup] Seeding starter household (Sarah, Abby, Gee)…');
+      const pinHash = bcrypt.hashSync('0212', 10);
+      await db.insert(person).values([
+        { id: 1, name: 'Sarah', points: 0, bonusPoints: 0, avatar: 'default_avatar.png', color: '#04201a', order: 0, isAdmin: true, pin: pinHash, role: 'parent' },
+        { id: 2, name: 'Abby', points: 56, bonusPoints: 0, avatar: 'default_avatar.png', color: '#53234c', order: 1, isAdmin: false, role: 'child' },
+        { id: 3, name: 'Gee', points: 6, bonusPoints: 0, avatar: 'default_avatar.png', color: '#3e1688', order: 2, isAdmin: false, role: 'child' },
+      ]);
+      await resetIdentitySequence('person');
+
+      await db.insert(personStreak).values([
+        { personId: 1, currentStreak: 0, longestStreak: 0 },
+        { personId: 2, currentStreak: 2, longestStreak: 2 },
+        { personId: 3, currentStreak: 1, longestStreak: 1 },
+      ]);
+
+      await db.insert(chore).values([
+        { title: 'Make bed', assignedToId: 2, assignedTo: 'Abby', points: 1, isDaily: true, icon: '🛏️' },
+        { title: 'Brush teeth: Morning', assignedToId: 2, assignedTo: 'Abby', points: 0, isDaily: true, icon: '🦷' },
+        { title: 'Brush teeth: before bed', assignedToId: 2, assignedTo: 'Abby', points: 0, isDaily: true, icon: '🦷' },
+        { title: 'Brush Teeth before bed', assignedToId: 3, assignedTo: 'Gee', points: 1, isDaily: true, icon: '🦷' },
+      ]);
+
+      await AppSetting.set('person_ages_json', JSON.stringify({ '1': 37, '2': 6 }));
+      await AppSetting.set('app_timezone', 'Australia/Brisbane');
+      await AppSetting.set('reward_system', 'points');
+      await AppSetting.set(
+        'meal_suggestions_json',
+        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
+      );
+      await AppSetting.set(
+        'meal_ingredients_json',
+        JSON.stringify({
+          'sausage & veg': [
+            { name: 'Beef sausages', qty: '1', store: 'Aldi' },
+            { name: 'Potato', qty: '3', store: 'fruit an vege' },
+            { name: 'Broccoli', qty: '1', store: 'fruit an vege' },
+            { name: 'Carrot', qty: '2', store: 'fruit an vege' },
+          ],
+        })
+      );
+      await AppSetting.set(
+        'shopping_stores_json',
+        JSON.stringify([
+          { icon: './static/images/rewards/store_aldi.svg', id: 'aldi', name: 'Aldi' },
+          { icon: './static/images/rewards/store_woolworths.svg', id: 'woolworths', name: 'Woolworths' },
+          { icon: '🛒', id: 'coles-7129', name: 'coles' },
+          { icon: '🛒', id: 'fruit-an-vege-4537', name: 'fruit an vege' },
+        ])
+      );
+    } else {
+      const [sarah] = await db.select({ id: person.id, pin: person.pin }).from(person).where(eq(person.name, 'Sarah')).limit(1);
+      if (sarah?.pin && bcrypt.compareSync('1234', sarah.pin)) {
+        await db
+          .update(person)
+          .set({ pin: bcrypt.hashSync('0212', 10), isAdmin: true })
+          .where(eq(person.id, sarah.id));
+      }
+    }
+
+    // Legacy household defaults carried over from the original SQLite install.
+    const [{ value: badgeCount }] = await db.select({ value: count() }).from(personBadge);
+    if (Number(badgeCount) === 0) {
+      await db
+        .insert(personBadge)
+        .values([
+          { personId: 2, badgeKey: 'first_chore' },
+          { personId: 2, badgeKey: 'perfect_day' },
+          { personId: 3, badgeKey: 'first_chore' },
+          { personId: 3, badgeKey: 'perfect_day' },
+        ])
+        .onConflictDoNothing();
+    }
+
+    if (!AppSetting.get('meal_planner_plan_json')) {
+      await AppSetting.set(
+        'meal_planner_plan_json',
+        JSON.stringify({
+          '2026-10-12': { breakfast: '', lunch: 'Abby : lasanga', dinner: 'Lasanga' },
+          '2026-10-13': { breakfast: '', lunch: '', dinner: 'Lasanga' },
+          '2026-10-14': { breakfast: '', lunch: 'Abby : Pizza', dinner: 'Pizza' },
+          '2026-10-15': { breakfast: '', lunch: '', dinner: 'Sausage and veg' },
+          '2026-10-16': { breakfast: '', lunch: '', dinner: 'Sausage and vege' },
+        })
+      );
+    }
+    if (!AppSetting.get('meal_planner_suggestions_json')) {
+      await AppSetting.set(
+        'meal_planner_suggestions_json',
+        JSON.stringify(['Pancakes', 'Sandwiches', 'Spaghetti Bolognese', 'Tacos', 'Stir Fry', 'sausage & veg'])
+      );
+    }
+    if (!AppSetting.get('timezone')) {
+      await AppSetting.set('timezone', AppSetting.get('app_timezone') || 'Australia/Brisbane');
+    }
+    if (!AppSetting.get('daily_reset_hour')) {
+      await AppSetting.set('daily_reset_hour', '0');
+    }
+    if (!AppSetting.get('point_value')) {
+      await AppSetting.set('point_value', '0.50');
+    }
+
+    await seedShoppingCatalogIfEmpty();
+    await seedRecipesIfEmpty();
   } catch (err) {
-    console.error('Error logging activity:', err);
+    console.error('[startup] Error seeding household data:', err);
   }
 }
 
-export function roundPoints(val: unknown): number {
-  const num = Number(val);
-  if (Number.isNaN(num)) return 0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+
+async function seedShoppingCatalogIfEmpty(): Promise<void> {
+  const db = getDb();
+  const [{ value: catalogCount }] = await db.select({ value: count() }).from(shoppingCatalog);
+  if (Number(catalogCount) > 0) return;
+
+  const nowIso = nowNaive();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const fifteenDaysAgo = new Date(Date.now() - 15 * 86400 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const staples = [
+    { name: 'Milk', store: 'aldi', added: 8, purchased: 7, lastPurchased: sevenDaysAgo, avgDays: 5 },
+    { name: 'Bread', store: 'aldi', added: 7, purchased: 6, lastPurchased: sevenDaysAgo, avgDays: 5 },
+    { name: 'Eggs', store: 'aldi', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Paper Towel', store: 'aldi', added: 4, purchased: 4, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+    { name: 'Butter', store: 'aldi', added: 4, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+    { name: 'Cheese', store: 'aldi', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Bananas', store: 'fruit-an-vege-4537', added: 6, purchased: 5, lastPurchased: sevenDaysAgo, avgDays: 6 },
+    { name: 'Apples', store: 'fruit-an-vege-4537', added: 5, purchased: 4, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Toilet Paper', store: 'aldi', added: 3, purchased: 3, lastPurchased: fifteenDaysAgo, avgDays: 14 },
+    { name: 'Laundry Powder', store: 'aldi', added: 2, purchased: 2, lastPurchased: fifteenDaysAgo, avgDays: 21 },
+    { name: 'Beef sausages', store: 'aldi', added: 3, purchased: 2, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Potato', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Broccoli', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+    { name: 'Carrot', store: 'fruit-an-vege-4537', added: 4, purchased: 3, lastPurchased: sevenDaysAgo, avgDays: 7 },
+  ];
+
+  await db
+    .insert(shoppingCatalog)
+    .values(
+      staples.map((s) => ({
+        name: s.name,
+        normalizedKey: normalizeShoppingKey(s.name),
+        defaultStore: s.store,
+        timesAdded: s.added,
+        timesPurchased: s.purchased,
+        lastAddedAt: nowIso,
+        lastPurchasedAt: s.lastPurchased,
+        avgIntervalDays: s.avgDays,
+      }))
+    )
+    .onConflictDoNothing();
 }
+
+async function seedRecipesIfEmpty(): Promise<void> {
+  const db = getDb();
+  const [{ value: recipeCount }] = await db.select({ value: count() }).from(recipes);
+  if (Number(recipeCount) > 0) return;
+
+  await db
+    .insert(recipes)
+    .values([
+      {
+        mealKey: 'sausage & veg',
+        title: 'Sausage & Veg',
+        ingredientsJson: JSON.stringify([
+          { name: 'Beef sausages', qty: '1 pack', store: 'aldi' },
+          { name: 'Potato', qty: '3', store: 'fruit-an-vege-4537' },
+          { name: 'Broccoli', qty: '1 head', store: 'fruit-an-vege-4537' },
+          { name: 'Carrot', qty: '2', store: 'fruit-an-vege-4537' },
+        ]),
+        instructions:
+          '1. Peel and chop potatoes into chunks; boil in salted water for 15 mins until tender, then mash with butter and milk.\n2. Pan-fry or grill the beef sausages over medium heat for 12–15 mins, turning until golden brown and cooked through.\n3. Slice carrots and broccoli florets; steam or microwave for 4–5 mins until tender-crisp.\n4. Serve sausages over warm mash with steamed greens and gravy.',
+        servings: '4',
+        prepTime: '25 mins',
+      },
+      {
+        mealKey: 'lasanga',
+        title: 'Lasagna',
+        ingredientsJson: JSON.stringify([
+          { name: 'Beef mince', qty: '500g', store: 'aldi' },
+          { name: 'Lasagna sheets', qty: '1 box', store: 'aldi' },
+          { name: 'Passata / Pasta sauce', qty: '700g', store: 'aldi' },
+          { name: 'Mozzarella cheese', qty: '250g', store: 'aldi' },
+        ]),
+        instructions:
+          '1. Preheat oven to 190°C.\n2. Brown the beef mince with onion and garlic, then stir in passata and simmer for 10 mins.\n3. Layer meat sauce, lasagna sheets, and béchamel/cheese in a baking dish.\n4. Top with mozzarella and bake for 35–40 mins until golden and bubbling.',
+        servings: '6',
+        prepTime: '50 mins',
+      },
+      {
+        mealKey: 'pizza',
+        title: 'Homemade Pizza',
+        ingredientsJson: JSON.stringify([
+          { name: 'Pizza bases', qty: '2', store: 'aldi' },
+          { name: 'Pizza sauce', qty: '1 jar', store: 'aldi' },
+          { name: 'Shredded mozzarella', qty: '200g', store: 'aldi' },
+          { name: 'Ham or Pepperoni', qty: '150g', store: 'aldi' },
+        ]),
+        instructions:
+          '1. Preheat oven to 220°C.\n2. Spread pizza sauce evenly over the bases.\n3. Scatter toppings and shredded mozzarella across each pizza.\n4. Bake for 10–12 mins until crust is crisp and cheese is melted.',
+        servings: '4',
+        prepTime: '20 mins',
+      },
+      {
+        mealKey: 'spaghetti bolognese',
+        title: 'Spaghetti Bolognese',
+        ingredientsJson: JSON.stringify([
+          { name: 'Spaghetti', qty: '500g', store: 'aldi' },
+          { name: 'Beef mince', qty: '500g', store: 'aldi' },
+          { name: 'Tomato passata', qty: '700g', store: 'aldi' },
+          { name: 'Parmesan cheese', qty: '100g', store: 'aldi' },
+        ]),
+        instructions:
+          '1. Brown beef mince with diced onion, garlic, and Italian herbs.\n2. Pour in passata and simmer gently for 15–20 mins.\n3. Cook spaghetti in salted boiling water until al dente, drain, and serve topped with bolognese and grated parmesan.',
+        servings: '4',
+        prepTime: '25 mins',
+      },
+    ])
+    .onConflictDoNothing();
+}
+
+
+/**
+ * Default seasons are stored for the Southern Hemisphere (Australia). When the household
+ * hemisphere setting is 'north', the season service shifts these dates by six months.
+ * Events use a +/- day window so each theme lasts roughly a week around the date.
+ */
+async function seedSeasonalData(): Promise<void> {
+  const db = getDb();
+  try {
+    await db
+      .insert(seasons)
+      .values([
+        { key: 'summer', name: 'Summer', startMd: '12-01', endMd: '02-29', emoji: '☀️', accent: '#f59e0b' },
+        { key: 'autumn', name: 'Autumn', startMd: '03-01', endMd: '05-31', emoji: '🍂', accent: '#ea580c' },
+        { key: 'winter', name: 'Winter', startMd: '06-01', endMd: '08-31', emoji: '❄️', accent: '#38bdf8' },
+        { key: 'spring', name: 'Spring', startMd: '09-01', endMd: '11-30', emoji: '🌸', accent: '#ec4899' },
+      ])
+      .onConflictDoNothing();
+
+    await db
+      .insert(seasonalEvents)
+      .values([
+        { key: 'new_year', name: "New Year's", ruleType: 'fixed', monthDay: '01-01', daysBefore: 1, daysAfter: 0, emoji: '🎆', accent: '#a855f7', soundKey: 'fanfare' },
+        { key: 'easter', name: 'Easter', ruleType: 'easter', monthDay: null, daysBefore: 7, daysAfter: 1, emoji: '🐣', accent: '#a3e635', soundKey: 'chimes' },
+        { key: 'halloween', name: 'Halloween', ruleType: 'fixed', monthDay: '10-31', daysBefore: 7, daysAfter: 1, emoji: '🎃', accent: '#f97316', soundKey: 'spooky' },
+        { key: 'christmas', name: 'Christmas', ruleType: 'fixed', monthDay: '12-25', daysBefore: 24, daysAfter: 1, emoji: '❄️', accent: '#38bdf8', soundKey: 'christmas' },
+      ])
+      .onConflictDoNothing();
+
+    // Seasons pick up a default sound theme unless the household chose one.
+    const seasonSoundDefaults: Record<string, string> = {
+      winter: 'christmas',
+      spring: 'chimes',
+      autumn: 'chimes',
+      summer: 'default',
+    };
+    for (const [key, soundKey] of Object.entries(seasonSoundDefaults)) {
+      await db.execute(
+        sql`UPDATE seasons SET sound_key = ${soundKey} WHERE key = ${key} AND (sound_key IS NULL OR sound_key = '')`
+      );
+    }
+
+    // Obsolete legacy keys that duplicated the meal planner.
+    await AppSetting.delete(['meal_plan_json', 'meal_suggestions_json']);
+
+    const defaults: Record<string, string> = {
+      seasonal_themes_enabled: 'true',
+      hemisphere: 'south',
+      sound_theme: 'auto',
+    };
+    for (const [k, v] of Object.entries(defaults)) {
+      if (AppSetting.get(k) === null) await AppSetting.set(k, v);
+    }
+  } catch (err) {
+    console.error('[startup] Error seeding seasonal data:', err);
+  }
+}
+
+/** Keep person.role in sync with is_admin and guarantee the shared 'Family' profile exists. */
+async function syncPersonRoles(): Promise<void> {
+  const db = getDb();
+  try {
+    await db.execute(
+      sql`UPDATE person SET role = 'parent' WHERE is_admin = true AND (role IS NULL OR role = '' OR role = 'child')`
+    );
+    await db.execute(
+      sql`UPDATE person SET role = 'child' WHERE (is_admin = false OR is_admin IS NULL) AND (role IS NULL OR role = '')`
+    );
+    const [family] = await db
+      .select({ id: person.id })
+      .from(person)
+      .where(sql`role = 'family' OR name = 'Family'`)
+      .limit(1);
+    if (!family) {
+      await db.insert(person).values({
+        name: 'Family',
+        role: 'family',
+        points: 0,
+        bonusPoints: 0,
+        avatar: 'default_avatar.png',
+        color: '#3b82f6',
+        order: 99,
+        isAdmin: false,
+      });
+    }
+  } catch (err) {
+    console.error('[startup] Error syncing person roles:', err);
+  }
+}
+
+/** Clear avatar / reward image references whose upload no longer exists on disk. */
+async function cleanStaleUploadReferences(): Promise<void> {
+  const db = getDb();
+  try {
+    let changed = 0;
+    const people = await db.select({ id: person.id, avatar: person.avatar }).from(person);
+    for (const p of people) {
+      if (p.avatar && p.avatar !== 'default_avatar.png' && !fs.existsSync(path.join(UPLOADS_DIR, p.avatar))) {
+        await db.update(person).set({ avatar: null }).where(eq(person.id, p.id));
+        changed++;
+      }
+    }
+    const rewards = await db.select({ id: reward.id, imageUrl: reward.imageUrl }).from(reward);
+    for (const r of rewards) {
+      if (r.imageUrl && r.imageUrl.includes('/static/uploads/')) {
+        const rel = r.imageUrl.split('/static/uploads/').pop()!;
+        if (!fs.existsSync(path.join(UPLOADS_DIR, rel))) {
+          await db.update(reward).set({ imageUrl: null }).where(eq(reward.id, r.id));
+          changed++;
+        }
+      }
+    }
+    if (changed > 0) {
+      console.log(`[startup] Cleared ${changed} stale upload reference(s) from DB.`);
+    }
+  } catch (err) {
+    console.error('[startup] Error checking stale uploads:', err);
+  }
+}
+
+/** Strip HTML entities / scraper artifacts that older reward rows were saved with. */
+async function cleanRewardEntities(): Promise<void> {
+  const db = getDb();
+  try {
+    const rows = await db
+      .select({
+        id: reward.id,
+        title: reward.title,
+        description: reward.description,
+        sourceName: reward.sourceName,
+        sourceUrl: reward.sourceUrl,
+      })
+      .from(reward);
+    let cleaned = 0;
+    for (const r of rows) {
+      const cleanTitleValue = r.sourceUrl ? cleanTitle(r.title, r.sourceName || 'Store') : decodeEntities(r.title);
+      const cleanDescriptionValue = r.description ? cleanDescription(r.description) : r.description;
+      if (cleanTitleValue !== r.title || cleanDescriptionValue !== r.description) {
+        await db.update(reward).set({ title: cleanTitleValue, description: cleanDescriptionValue }).where(eq(reward.id, r.id));
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      console.log(`[startup] Cleaned HTML entities in ${cleaned} existing reward record(s).`);
+    }
+  } catch (err) {
+    console.warn('[startup] Warning cleaning HTML entities on existing rewards:', err);
+  }
+}
+

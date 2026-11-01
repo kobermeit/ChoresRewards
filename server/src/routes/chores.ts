@@ -3,7 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { db, AppSetting, logActivity, roundPoints } from '../db';
+import { AppSetting, logActivity, roundPoints } from '../db';
+import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAuth, requireAdult } from './auth';
 import { getAppTimezone, getFamilyToday, getLocalNowNaive, addDays, isChoreOverdue, isDayOfWeekScheduled } from '../utils/time';
@@ -50,13 +51,13 @@ function formFlagIsTrue(val: unknown): boolean {
   return false;
 }
 
-function personForAssignment(assignedToId?: number | null, assignedTo?: string | null): any | null {
+async function personForAssignment(assignedToId?: number | null, assignedTo?: string | null): Promise<any | null> {
   if (assignedToId) {
-    const p = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(assignedToId));
+    const p = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(assignedToId)]);
     if (p) return p;
   }
   if (assignedTo) {
-    const p = db.prepare('SELECT * FROM person WHERE name = ?').get(String(assignedTo).trim());
+    const p = await sqlOne('SELECT * FROM person WHERE name = ?', [String(assignedTo).trim()]);
     if (p) return p;
   }
   return null;
@@ -64,7 +65,7 @@ function personForAssignment(assignedToId?: number | null, assignedTo?: string |
 
 export const choresRouter = Router();
 
-choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Response) => {
+choresRouter.get(['/get_chores', '/chores/get_chores'], async (req: Request, res: Response) => {
   const targetDate = req.query?.date ? String(req.query.date).trim() : null;
   // ?all=1 → every non-deleted chore regardless of today's schedule (used by Settings → All Chores Catalog)
   const includeAll = String(req.query?.all || '') === '1';
@@ -75,26 +76,23 @@ choresRouter.get(['/get_chores', '/chores/get_chores'], (req: Request, res: Resp
   let rows: Array<any>;
   if (isPastDate) {
     // Only return chores that existed on or before targetDate
-    rows = db
-      .prepare('SELECT * FROM chore WHERE deleted = 0 AND (created_at IS NULL OR created_at <= ?) ORDER BY due_date, id')
-      .all(`${effectiveDate} 23:59:59`) as Array<any>;
+    rows = await sqlAll('SELECT * FROM chore WHERE deleted = false AND (created_at IS NULL OR created_at <= ?) ORDER BY due_date, id', [`${effectiveDate} 23:59:59`]) as Array<any>;
   } else {
-    rows = db.prepare('SELECT * FROM chore WHERE deleted = 0 ORDER BY due_date, id').all() as Array<any>;
+    rows = await sqlAll('SELECT * FROM chore WHERE deleted = false ORDER BY due_date, id') as Array<any>;
   }
 
   // Get chore_log entries for the target date to know completion state for that date
-  const logs = db.prepare('SELECT * FROM chore_log WHERE for_date = ?').all(effectiveDate) as Array<any>;
+  const logs = await sqlAll('SELECT * FROM chore_log WHERE for_date = ?', [effectiveDate]) as Array<any>;
   const logByChoreId: Record<number, any> = {};
   for (const l of logs) {
     logByChoreId[l.chore_id] = l;
   }
 
   // Per-chore current streak (consecutive days with a completion, counting back from today)
-  const streakRows = db
-    .prepare(
-      "SELECT chore_id, for_date FROM chore_log WHERE for_date >= date(?, '-60 day') GROUP BY chore_id, for_date"
-    )
-    .all(familyToday) as Array<{ chore_id: number; for_date: string }>;
+  const streakRows = (await sqlAll(
+    "SELECT chore_id, for_date FROM chore_log WHERE for_date >= (CAST(? AS date) - INTERVAL '60 day') GROUP BY chore_id, for_date",
+    [familyToday]
+  )) as Array<{ chore_id: number; for_date: string }>;
   const daysByChore: Record<number, Set<string>> = {};
   for (const row of streakRows) {
     const key = Number(row.chore_id);
@@ -158,7 +156,7 @@ choresRouter.post(
     { name: 'image', maxCount: 1 },
   ]),
   requireAdult,
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const data = req.body || {};
       const title = String(data.title || '').trim();
@@ -190,7 +188,7 @@ choresRouter.post(
         return;
       }
 
-      const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+      const person = await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any;
       if (!person) {
         res.json({ success: false, error: 'Assigned person not found.' });
         return;
@@ -217,27 +215,21 @@ choresRouter.post(
       const durationSeconds = parsedDuration > 0 ? Math.max(10, parsedDuration) : null;
       const description = data.description !== undefined && data.description !== null ? String(data.description).trim() : null;
 
-      const info = db
-        .prepare(
-          `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          title,
+      const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
+           VALUES (?, ?, ?, ?, false, ?, ?, ?, ?, false, ?, ?, ?, ?, ?, ?)`, [title,
           person.id,
           person.name,
           points,
-          isDaily ? 1 : 0,
+          isDaily,
           daysOfWeekStr,
           dueDate,
           dueDatetime,
           icon,
           imageUrl,
-          formFlagIsTrue(data.is_extra) ? 1 : 0,
+          formFlagIsTrue(data.is_extra),
           data.extra_id ? String(data.extra_id).slice(0, 32) : null,
           durationSeconds,
-          description
-        );
+          description]);
 
       logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
 
@@ -265,7 +257,7 @@ choresRouter.post(
     { name: 'image', maxCount: 1 },
   ]),
   requireAdult,
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const data = req.body || {};
       const choreId = Number(data.chore_id ?? data.id);
@@ -278,13 +270,13 @@ choresRouter.post(
         return;
       }
 
-      const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+      const chore = await sqlOne('SELECT * FROM chore WHERE id = ?', [choreId]) as any;
       if (!chore) {
         res.status(404).json({ success: false, error: 'Chore not found' });
         return;
       }
 
-      const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+      const person = await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any;
       const assignedToId = person ? person.id : null;
 
       const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -346,9 +338,7 @@ choresRouter.post(
 
       const description = 'description' in data ? (data.description ? String(data.description).trim() : null) : (chore.description || null);
 
-      db.prepare(
-        `UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ?, description = ? WHERE id = ?`
-      ).run(title, assignedTo, assignedToId, points, daysOfWeek, isDaily ? 1 : 0, icon, imageUrl, dueDate, dueDatetime, durationSeconds, description, choreId);
+      await sqlRun(`UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = ?, icon = ?, image_url = ?, due_date = ?, due_datetime = ?, duration_seconds = ?, description = ? WHERE id = ?`, [title, assignedTo, assignedToId, points, daysOfWeek, isDaily, icon, imageUrl, dueDate, dueDatetime, durationSeconds, description, choreId]);
 
       logActivity('chore_edited', `Chore '${title}' was edited for ${assignedTo}`, assignedTo);
       res.json({
@@ -364,7 +354,7 @@ choresRouter.post(
   }
 );
 
-choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) => {
+choresRouter.post('/delete_chore', requireAdult, async (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const choreId = Number(data.chore_id || data.id);
@@ -373,7 +363,7 @@ choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) =
       res.status(400).json({ success: false, error: 'Chore ID is required' });
       return;
     }
-    const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+    const chore = await sqlOne('SELECT * FROM chore WHERE id = ?', [choreId]) as any;
     if (!chore) {
       res.status(404).json({ success: false, error: 'Chore not found' });
       return;
@@ -382,17 +372,17 @@ choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) =
     let message = '';
     if (chore.is_daily) {
       if (permanent) {
-        db.prepare('UPDATE chore SET deleted = 1 WHERE id = ?').run(choreId);
+        await sqlRun('UPDATE chore SET deleted = true WHERE id = ?', [choreId]);
         logActivity('daily_chore_deleted', `Daily chore '${chore.title}' was permanently deleted`, chore.assigned_to);
         message = `Daily chore '${chore.title}' has been permanently deleted`;
       } else {
         const tomorrow = addDays(getFamilyToday(), 1);
-        db.prepare('UPDATE chore SET due_date = ?, completed = 0 WHERE id = ?').run(tomorrow, choreId);
+        await sqlRun('UPDATE chore SET due_date = ?, completed = false WHERE id = ?', [tomorrow, choreId]);
         logActivity('daily_chore_skipped', `Daily chore '${chore.title}' skipped for today`, chore.assigned_to);
         message = `Daily chore '${chore.title}' removed for today and will return tomorrow`;
       }
     } else {
-      db.prepare('DELETE FROM chore WHERE id = ?').run(choreId);
+      await sqlRun('DELETE FROM chore WHERE id = ?', [choreId]);
       logActivity('chore_deleted', `Chore '${chore.title}' was deleted`, chore.assigned_to);
       message = `Chore '${chore.title}' deleted successfully`;
     }
@@ -403,7 +393,7 @@ choresRouter.post('/delete_chore', requireAdult, (req: Request, res: Response) =
   }
 });
 
-choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, (req: Request, res: Response) => {
+choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, async (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const title = String(data.title || '').trim();
@@ -413,16 +403,12 @@ choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, (req: Req
       res.status(400).json({ success: false, error: 'Title and Assigned To are required' });
       return;
     }
-    const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+    const person = await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any;
     const today = getFamilyToday();
-    const info = db
-      .prepare(
-        'INSERT INTO chore (title, assigned_to_id, assigned_to, points, is_daily, due_date, completed, deleted) VALUES (?, ?, ?, ?, 1, ?, 0, 0)'
-      )
-      .run(title, person ? person.id : null, assignedTo, points, today);
+    const info = await sqlRun('INSERT INTO chore (title, assigned_to_id, assigned_to, points, is_daily, due_date, completed, deleted) VALUES (?, ?, ?, ?, true, ?, false, false)', [title, person ? person.id : null, assignedTo, points, today]);
 
     logActivity('daily_chore_added', `Daily chore '${title}' added for ${assignedTo}`, assignedTo);
-    const progress = calculateWeeklyProgress(assignedTo);
+    const progress = await calculateWeeklyProgress(assignedTo);
     res.json({
       success: true,
       chore_id: Number(info.lastInsertRowid),
@@ -433,11 +419,11 @@ choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, (req: Req
   }
 });
 
-choresRouter.post('/edit_daily_chore', requireAdult, (req: Request, res: Response) => {
+choresRouter.post('/edit_daily_chore', requireAdult, async (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     const choreId = Number(data.chore_id || data.id);
-    const chore = db.prepare('SELECT * FROM chore WHERE id = ? AND is_daily = 1').get(choreId) as any;
+    const chore = await sqlOne('SELECT * FROM chore WHERE id = ? AND is_daily = true', [choreId]) as any;
     if (!chore) {
       res.status(404).json({ success: false, error: 'Daily chore not found' });
       return;
@@ -445,13 +431,11 @@ choresRouter.post('/edit_daily_chore', requireAdult, (req: Request, res: Respons
     const title = String(data.title || chore.title).trim();
     const assignedTo = String(data.assigned_to || chore.assigned_to).trim();
     const points = Math.max(0, roundPoints(data.points ?? chore.points));
-    const person = db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any;
+    const person = await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any;
     const daysRaw = Array.isArray(data.days_of_week) ? data.days_of_week : [];
     const cleanedDays = daysRaw.map((d: any) => String(d).trim().toLowerCase()).filter(Boolean);
 
-    db.prepare(
-      'UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = 1 WHERE id = ?'
-    ).run(title, assignedTo, person ? person.id : null, points, cleanedDays.length ? cleanedDays.join(',') : null, choreId);
+    await sqlRun('UPDATE chore SET title = ?, assigned_to = ?, assigned_to_id = ?, points = ?, days_of_week = ?, is_daily = true WHERE id = ?', [title, assignedTo, person ? person.id : null, points, cleanedDays.length ? cleanedDays.join(',') : null, choreId]);
 
     logActivity('daily_chore_edited', `Daily chore '${title}' was edited for ${assignedTo}`, assignedTo);
     res.json({ success: true });
@@ -460,13 +444,13 @@ choresRouter.post('/edit_daily_chore', requireAdult, (req: Request, res: Respons
   }
 });
 
-choresRouter.post('/delete_daily_chore', requireAdult, (req: Request, res: Response) => {
+choresRouter.post('/delete_daily_chore', requireAdult, async (req: Request, res: Response) => {
   const choreId = Number(req.body?.chore_id);
   if (!choreId) {
     res.status(400).json({ success: false, error: 'Chore ID is required' });
     return;
   }
-  const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+  const chore = await sqlOne('SELECT * FROM chore WHERE id = ?', [choreId]) as any;
   if (!chore) {
     res.status(404).json({ success: false, error: 'Chore not found' });
     return;
@@ -475,7 +459,7 @@ choresRouter.post('/delete_daily_chore', requireAdult, (req: Request, res: Respo
     res.status(400).json({ success: false, error: 'This endpoint is only for daily chores' });
     return;
   }
-  db.prepare('UPDATE chore SET deleted = 1 WHERE id = ?').run(choreId);
+  await sqlRun('UPDATE chore SET deleted = true WHERE id = ?', [choreId]);
   logActivity('daily_chore_deleted', `Daily chore '${chore.title}' was permanently deleted for ${chore.assigned_to}`, chore.assigned_to);
   res.json({
     success: true,
@@ -484,10 +468,10 @@ choresRouter.post('/delete_daily_chore', requireAdult, (req: Request, res: Respo
   });
 });
 
-choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) => {
+choresRouter.post('/complete_chore', requireAuth, async (req: Request, res: Response) => {
   try {
     const choreId = Number(req.body?.chore_id);
-    const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+    const chore = await sqlOne('SELECT * FROM chore WHERE id = ?', [choreId]) as any;
     if (!chore) {
       res.status(404).json({ success: false, error: 'Chore not found' });
       return;
@@ -500,7 +484,7 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
     const isPastDate = forDate < dateStr;
 
     // Check if chore was already completed for the target date
-    const existingLog = db.prepare('SELECT id FROM chore_log WHERE chore_id = ? AND for_date = ?').get(choreId, forDate) as any;
+    const existingLog = await sqlOne('SELECT id FROM chore_log WHERE chore_id = ? AND for_date = ?', [choreId, forDate]) as any;
     if (isPastDate ? Boolean(existingLog) : (Boolean(chore.completed) || Boolean(existingLog))) {
       res.status(409).json({ success: false, already_completed: true, error: 'This chore is already completed for that date' });
       return;
@@ -511,7 +495,7 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
       return;
     }
 
-    const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
+    const person = await personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
     const completedBy = req.body?.completed_by ? String(req.body.completed_by).trim() : null;
     const isCompletedForAnother = Boolean(completedBy && completedBy.toLowerCase() !== assignedName.toLowerCase());
@@ -533,11 +517,9 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
 
     // Only update chore table completed flag if completed for today
     if (!isPastDate) {
-      db.prepare('UPDATE chore SET completed = 1, date_completed = ?, assigned_to = ? WHERE id = ?').run(
-        isoNaive,
+      await sqlRun('UPDATE chore SET completed = true, date_completed = ?, assigned_to = ? WHERE id = ?', [isoNaive,
         assignedName,
-        choreId
-      );
+        choreId]);
     }
 
     let pointsAwarded = 0;
@@ -552,7 +534,7 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
       if (!overdue) {
         pointsAwarded = roundPoints(chore.points);
         const updatedPts = roundPoints(Number(person.points || 0) + pointsAwarded);
-        db.prepare('UPDATE person SET points = ? WHERE id = ?').run(updatedPts, person.id);
+        await sqlRun('UPDATE person SET points = ? WHERE id = ?', [updatedPts, person.id]);
         newPoints = roundPoints(updatedPts + Number(person.bonus_points || 0));
 
         if (req.session) {
@@ -582,7 +564,7 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
         }
 
         if (!isPastDate) {
-          const badgeRes = checkAndAwardBadges(person.id, dateStr, hour, weekdayLower);
+          const badgeRes = await checkAndAwardBadges(person.id, dateStr, hour, weekdayLower);
           newBadges = badgeRes.newBadges;
           currentStreak = badgeRes.currentStreak;
         }
@@ -596,15 +578,14 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
     }
 
     // Insert structured immutable completion entry in chore_log
-    db.prepare(`
+    await sqlRun(`
       INSERT INTO chore_log (
         chore_id, chore_title, person_id, person_name,
         completed_by_id, completed_by_name, points_awarded,
         for_date, completed_at, target_seconds, actual_seconds,
         seconds_saved, timer_status, was_overdue
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      choreId,
+    `, [choreId,
       chore.title,
       person ? person.id : null,
       assignedName,
@@ -617,10 +598,9 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
       actualSeconds,
       secondsSaved,
       timerStatus,
-      overdue ? 1 : 0
-    );
+      Boolean(overdue)]);
 
-    const progress = calculateWeeklyProgress(assignedName);
+    const progress = await calculateWeeklyProgress(assignedName);
 
     res.json({
       success: true,
@@ -645,10 +625,10 @@ choresRouter.post('/complete_chore', requireAuth, (req: Request, res: Response) 
   }
 });
 
-choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Response) => {
+choresRouter.post('/undo_complete_chore', requireAuth, async (req: Request, res: Response) => {
   try {
     const choreId = Number(req.body?.chore_id);
-    const chore = db.prepare('SELECT * FROM chore WHERE id = ?').get(choreId) as any;
+    const chore = await sqlOne('SELECT * FROM chore WHERE id = ?', [choreId]) as any;
     if (!chore) {
       res.status(404).json({ success: false, error: 'Chore not found' });
       return;
@@ -660,8 +640,8 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
 
     // Find chore_log entry to undo
     const choreLog = forDate
-      ? (db.prepare('SELECT * FROM chore_log WHERE chore_id = ? AND for_date = ? ORDER BY id DESC LIMIT 1').get(choreId, forDate) as any)
-      : (db.prepare('SELECT * FROM chore_log WHERE chore_id = ? ORDER BY id DESC LIMIT 1').get(choreId) as any);
+      ? (await sqlOne('SELECT * FROM chore_log WHERE chore_id = ? AND for_date = ? ORDER BY id DESC LIMIT 1', [choreId, forDate]) as any)
+      : (await sqlOne('SELECT * FROM chore_log WHERE chore_id = ? ORDER BY id DESC LIMIT 1', [choreId]) as any);
 
     if (!choreLog && !chore.completed) {
       res.status(400).json({ success: false, error: 'Chore is not completed' });
@@ -669,18 +649,16 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
     }
 
     if (choreLog) {
-      db.prepare('DELETE FROM chore_log WHERE id = ?').run(choreLog.id);
+      await sqlRun('DELETE FROM chore_log WHERE id = ?', [choreLog.id]);
     }
 
-    const person = personForAssignment(chore.assigned_to_id, chore.assigned_to);
+    const person = await personForAssignment(chore.assigned_to_id, chore.assigned_to);
     const assignedName = person ? person.name : chore.assigned_to;
 
     // Only reset chore.completed if undoing for today or no specific past date
     if (!forDate || forDate === dateStr) {
-      db.prepare('UPDATE chore SET completed = 0, date_completed = NULL, assigned_to = ? WHERE id = ?').run(
-        assignedName,
-        choreId
-      );
+      await sqlRun('UPDATE chore SET completed = false, date_completed = NULL, assigned_to = ? WHERE id = ?', [assignedName,
+        choreId]);
     }
 
     const pointsToDeduct = choreLog ? Number(choreLog.points_awarded || 0) : Number(chore.points || 0);
@@ -688,7 +666,7 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
     let newPoints = 0;
     if (person && pointsToDeduct > 0) {
       const updatedPts = roundPoints(Math.max(0, Number(person.points || 0) - pointsToDeduct));
-      db.prepare('UPDATE person SET points = ? WHERE id = ?').run(updatedPts, person.id);
+      await sqlRun('UPDATE person SET points = ? WHERE id = ?', [updatedPts, person.id]);
       newPoints = roundPoints(updatedPts + Number(person.bonus_points || 0));
       logActivity(
         'chore_undone',
@@ -704,7 +682,7 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
       );
     }
 
-    const progress = calculateWeeklyProgress(assignedName);
+    const progress = await calculateWeeklyProgress(assignedName);
     res.json({
       success: true,
       assigned_to: assignedName,
@@ -719,39 +697,35 @@ choresRouter.post('/undo_complete_chore', requireAuth, (req: Request, res: Respo
   }
 });
 
-choresRouter.post('/clear_completed_chores', requireAdult, (req: Request, res: Response) => {
+choresRouter.post('/clear_completed_chores', requireAdult, async (req: Request, res: Response) => {
   try {
     const personId = req.body?.person_id ? Number(req.body.person_id) : null;
     if (personId) {
-      const person = db.prepare('SELECT * FROM person WHERE id = ?').get(personId) as any;
+      const person = await sqlOne('SELECT * FROM person WHERE id = ?', [personId]) as any;
       if (person) {
         // Delete non-daily completed chores for this person
-        const info = db
-          .prepare('DELETE FROM chore WHERE (assigned_to_id = ? OR assigned_to = ?) AND completed = 1 AND is_daily = 0')
-          .run(person.id, person.name);
+        const info = await sqlRun('DELETE FROM chore WHERE (assigned_to_id = ? OR assigned_to = ?) AND completed = true AND is_daily = false', [person.id, person.name]);
         res.json({ success: true, deleted_count: info.changes });
         return;
       }
     }
-    const info = db.prepare('DELETE FROM chore WHERE completed = 1 AND is_daily = 0').run();
+    const info = await sqlRun('DELETE FROM chore WHERE completed = true AND is_daily = false');
     res.json({ success: true, deleted_count: info.changes });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
   }
 });
 
-choresRouter.get('/completed_chores_fragment', (_req: Request, res: Response) => {
+choresRouter.get('/completed_chores_fragment', async (_req: Request, res: Response) => {
   const today = getFamilyToday();
-  const completedChores = db
-    .prepare('SELECT * FROM chore WHERE completed = 1 AND date_completed IS NOT NULL AND date_completed >= ?')
-    .all(today) as Array<any>;
+  const completedChores = await sqlAll('SELECT * FROM chore WHERE completed = true AND date_completed IS NOT NULL AND date_completed >= ?', [today]) as Array<any>;
   res.json({ success: true, chores: completedChores });
 });
 
-choresRouter.get(['/api/extra_chores', '/extra_chores'], requireAuth, (req: Request, res: Response) => {
+choresRouter.get(['/api/extra_chores', '/extra_chores'], requireAuth, async (req: Request, res: Response) => {
   const personIdRaw = req.query.person_id;
   if (personIdRaw !== undefined && personIdRaw !== '') {
-    const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(personIdRaw)) as any;
+    const person = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(personIdRaw)]) as any;
     if (!person) {
       res.status(404).json({ success: false, error: 'Person not found' });
       return;
@@ -767,7 +741,7 @@ choresRouter.get(['/api/extra_chores', '/extra_chores'], requireAuth, (req: Requ
 choresRouter.post(
   ['/claim_extra_chore', '/api/claim_extra_chore', '/extra_chores/claim', '/api/extra_chores/claim'],
   requireAuth,
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const body = req.body || {};
     const extraKey = body.extra_id || body.extra_chore_id;
     const personId = body.person_id;
@@ -775,7 +749,7 @@ choresRouter.post(
       res.status(400).json({ success: false, error: 'extra_id and person_id are required' });
       return;
     }
-    const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(personId)) as any;
+    const person = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(personId)]) as any;
     if (!person) {
       res.status(404).json({ success: false, error: 'Person not found' });
       return;
@@ -792,9 +766,7 @@ choresRouter.post(
       return;
     }
 
-    const openExtras = db
-      .prepare('SELECT * FROM chore WHERE assigned_to_id = ? AND is_extra = 1 AND completed = 0 AND deleted = 0')
-      .all(person.id) as Array<any>;
+    const openExtras = await sqlAll('SELECT * FROM chore WHERE assigned_to_id = ? AND is_extra = true AND completed = false AND deleted = false', [person.id]) as Array<any>;
 
     if (openExtras.some((c) => c.extra_id === extra.id)) {
       res.status(409).json({ success: false, error: 'That extra is already on their list' });
@@ -806,12 +778,8 @@ choresRouter.post(
     }
 
     const today = getFamilyToday();
-    const info = db
-      .prepare(
-        `INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, due_date, deleted, icon, is_extra, extra_id)
-         VALUES (?, ?, ?, ?, 0, 0, ?, 0, ?, 1, ?)`
-      )
-      .run(extra.title, person.id, person.name, extra.points, today, extra.icon || null, extra.id);
+    const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, due_date, deleted, icon, is_extra, extra_id)
+         VALUES (?, ?, ?, ?, false, false, ?, false, ?, true, ?)`, [extra.title, person.id, person.name, extra.points, today, extra.icon || null, extra.id]);
 
     logActivity('chore_added', `Extra chore '${extra.title}' claimed by ${person.name}`, person.name);
 

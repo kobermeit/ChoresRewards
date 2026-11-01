@@ -46,6 +46,38 @@ export async function closePool(): Promise<void> {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Legacy-shape read helpers
+ *
+ * The route handlers are written against the original SQLite row shape
+ * (`assigned_to_id`, `is_admin`, …) and that snake_case shape is also the JSON
+ * contract the React client consumes. These helpers run a Drizzle query and
+ * hand back rows with the column names the rest of the code already expects, so
+ * a ported call site keeps the identical response payload.
+ * ------------------------------------------------------------------ */
+
+type Row = Record<string, unknown>;
+
+const snakeKey = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+
+function snakeRow(row: Row): Row {
+  const out: Row = {};
+  for (const [key, value] of Object.entries(row)) out[snakeKey(key)] = value;
+  return out;
+}
+
+/** Await a Drizzle query builder and return every row with snake_case columns. */
+export async function many<T = any>(query: PromiseLike<unknown[]>): Promise<T[]> {
+  const rows = (await query) as Row[];
+  return rows.map(snakeRow) as T[];
+}
+
+/** Await a Drizzle query builder and return the first row (`.get()` equivalent). */
+export async function one<T = any>(query: PromiseLike<unknown[]>): Promise<T | undefined> {
+  const rows = (await query) as Row[];
+  return rows.length > 0 ? (snakeRow(rows[0]) as T) : undefined;
+}
+
 /** Cheap liveness probe used by /api/health. */
 export async function pingDatabase(): Promise<boolean> {
   try {

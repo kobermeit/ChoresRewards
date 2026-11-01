@@ -1,4 +1,5 @@
-import { AppSetting, db } from '../db';
+import { AppSetting } from '../db';
+import { sqlAll } from '../db/sql';
 import { getAppTimezone, getFamilyToday, addDays } from '../utils/time';
 import { parseIcsContent } from '../utils/icalParser';
 
@@ -90,9 +91,7 @@ export async function getGoogleCalendarData(forceRefresh = false): Promise<{
   const explicitEnabled = (AppSetting.get('google_calendar_enabled', '') || '').toLowerCase();
   const isExplicitlyDisabled = explicitEnabled === 'false' || explicitEnabled === '0' || explicitEnabled === 'off';
 
-  const peopleRows = db
-    .prepare("SELECT id, name, avatar, color, calendar_ical_url FROM person WHERE role != 'family'")
-    .all() as Array<{
+  const peopleRows = await sqlAll("SELECT id, name, avatar, color, calendar_ical_url FROM person WHERE role != 'family'") as Array<{
       id: number;
       name: string;
       avatar: string;

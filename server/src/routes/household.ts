@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { db, AppSetting, logActivity, normalizeShoppingKey } from '../db';
+import { AppSetting, logActivity, normalizeShoppingKey } from '../db';
+import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { getMondayOfWeek, addDays } from '../utils/time';
 
@@ -294,8 +295,8 @@ export function getMealPlanForWeek(weekStartIso: string) {
   return { plan, cards_by_day: cardsByDay, recurring };
 }
 
-export function getAllRecipes(): Record<string, RecipeItem> {
-  const rows = db.prepare('SELECT * FROM recipes ORDER BY title').all() as Array<any>;
+export async function getAllRecipes(): Promise<Record<string, RecipeItem>> {
+  const rows = await sqlAll('SELECT * FROM recipes ORDER BY title') as Array<any>;
   const map: Record<string, RecipeItem> = {};
   const ingMap = getMealIngredients();
   const imgMap = getMealImages();
@@ -340,7 +341,7 @@ export function getAllRecipes(): Record<string, RecipeItem> {
   return map;
 }
 
-export function upsertRecipe(input: {
+export async function upsertRecipe(input: {
   meal_key?: string;
   title: string;
   image_url?: string | null;
@@ -349,10 +350,10 @@ export function upsertRecipe(input: {
   servings?: string;
   prep_time?: string;
   notion_id?: string | null;
-}): RecipeItem {
+}): Promise<RecipeItem> {
   const title = String(input.title || '').trim() || 'Untitled Recipe';
   const mealKey = String(input.meal_key || title).toLowerCase().trim();
-  const existing = db.prepare('SELECT * FROM recipes WHERE meal_key = ?').get(mealKey) as any;
+  const existing = await sqlOne('SELECT * FROM recipes WHERE meal_key = ?', [mealKey]) as any;
 
   let ingredients = input.ingredients;
   if (!ingredients) {
@@ -391,7 +392,7 @@ export function upsertRecipe(input: {
   const prepTime = input.prep_time !== undefined ? String(input.prep_time) : existing?.prep_time || '';
   const notionId = input.notion_id !== undefined ? input.notion_id : existing?.notion_id || null;
 
-  db.prepare(`
+  await sqlRun(`
     INSERT INTO recipes (meal_key, title, image_url, ingredients_json, instructions, servings, prep_time, notion_id, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(meal_key) DO UPDATE SET
@@ -403,7 +404,7 @@ export function upsertRecipe(input: {
       prep_time = excluded.prep_time,
       notion_id = COALESCE(excluded.notion_id, recipes.notion_id),
       updated_at = CURRENT_TIMESTAMP
-  `).run(mealKey, title, imageUrl, JSON.stringify(cleanedIngs), instructions, servings, prepTime, notionId);
+  `, [mealKey, title, imageUrl, JSON.stringify(cleanedIngs), instructions, servings, prepTime, notionId]);
 
   // Sync back to meal_ingredients_json and meal_planner_suggestions_json so shopping list & suggestions stay in sync
   const ingMap = getMealIngredients();
@@ -434,46 +435,46 @@ export function upsertRecipe(input: {
   };
 }
 
-export function touchCatalogItemOnAdd(rawName: string, store = 'aldi', incrementCount = true) {
+export async function touchCatalogItemOnAdd(rawName: string, store = 'aldi', incrementCount = true) {
   const { buyName } = cleanIngredientBuyName(rawName);
   const cleanName = buyName || String(rawName || '').trim();
   if (!cleanName) return null;
   const norm = normalizeShoppingKey(cleanName);
   const nowIso = new Date().toISOString();
-  const existing = db.prepare('SELECT * FROM shopping_catalog WHERE normalized_key = ?').get(norm) as any;
+  const existing = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]) as any;
   if (existing) {
     if (incrementCount) {
-      db.prepare(`
+      await sqlRun(`
         UPDATE shopping_catalog
         SET times_added = COALESCE(times_added, 0) + 1,
             last_added_at = ?,
             default_store = COALESCE(?, default_store)
         WHERE id = ?
-      `).run(nowIso, store || existing.default_store, existing.id);
+      `, [nowIso, store || existing.default_store, existing.id]);
     }
-    return db.prepare('SELECT * FROM shopping_catalog WHERE id = ?').get(existing.id) as any;
+    return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [existing.id]) as any;
   } else {
-    const info = db.prepare(`
+    const info = await sqlRun(`
       INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at)
       VALUES (?, ?, ?, 1, 0, ?)
-    `).run(cleanName, norm, store || 'aldi', nowIso);
-    return db.prepare('SELECT * FROM shopping_catalog WHERE id = ?').get(info.lastInsertRowid) as any;
+    `, [cleanName, norm, store || 'aldi', nowIso]);
+    return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [info.lastInsertRowid]) as any;
   }
 }
 
-export function recordCatalogPurchase(rawName: string, store = 'aldi', qty = '') {
+export async function recordCatalogPurchase(rawName: string, store = 'aldi', qty = '') {
   const cleanName = String(rawName || '').trim();
   if (!cleanName) return;
   const norm = normalizeShoppingKey(cleanName);
   const now = new Date();
   const nowIso = now.toISOString();
-  let cat = db.prepare('SELECT * FROM shopping_catalog WHERE normalized_key = ?').get(norm) as any;
+  let cat = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]) as any;
   if (!cat) {
-    const info = db.prepare(`
+    const info = await sqlRun(`
       INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at, last_purchased_at)
       VALUES (?, ?, ?, 1, 1, ?, ?)
-    `).run(cleanName, norm, store || 'aldi', nowIso, nowIso);
-    cat = db.prepare('SELECT * FROM shopping_catalog WHERE id = ?').get(info.lastInsertRowid) as any;
+    `, [cleanName, norm, store || 'aldi', nowIso, nowIso]);
+    cat = await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [info.lastInsertRowid]) as any;
   } else {
     let nextAvg = cat.avg_interval_days;
     if (cat.last_purchased_at) {
@@ -485,27 +486,25 @@ export function recordCatalogPurchase(rawName: string, store = 'aldi', qty = '')
     } else if (!nextAvg) {
       nextAvg = 14;
     }
-    db.prepare(`
+    await sqlRun(`
       UPDATE shopping_catalog
       SET times_purchased = COALESCE(times_purchased, 0) + 1,
           last_purchased_at = ?,
           avg_interval_days = ?,
           default_store = COALESCE(?, default_store)
       WHERE id = ?
-    `).run(nowIso, nextAvg, store || cat.default_store, cat.id);
+    `, [nowIso, nextAvg, store || cat.default_store, cat.id]);
   }
 
-  db.prepare(`
+  await sqlRun(`
     INSERT INTO shopping_purchase_log (catalog_id, purchased_at, store, qty)
     VALUES (?, ?, ?, ?)
-  `).run(cat.id, nowIso, store || cat.default_store || 'aldi', qty || '');
+  `, [cat.id, nowIso, store || cat.default_store || 'aldi', qty || '']);
 }
 
-export function getShoppingIntelligence(activeGeneralItems: Array<{ name: string }>) {
+export async function getShoppingIntelligence(activeGeneralItems: Array<{ name: string }>) {
   const activeNorms = new Set(activeGeneralItems.map((g) => normalizeShoppingKey(g.name)));
-  const catalog = db
-    .prepare('SELECT * FROM shopping_catalog ORDER BY times_added DESC, name ASC')
-    .all() as Array<any>;
+  const catalog = await sqlAll('SELECT * FROM shopping_catalog ORDER BY times_added DESC, name ASC') as Array<any>;
 
   const frequentlyAdded = catalog
     .filter((c) => (c.times_added || 0) >= 2)
@@ -535,15 +534,13 @@ export function getShoppingIntelligence(activeGeneralItems: Array<{ name: string
     .filter(Boolean)
     .slice(0, 25);
 
-  const recentlyPurchased = db
-    .prepare(`
+  const recentlyPurchased = await sqlAll(`
       SELECT l.id, l.purchased_at, l.store, l.qty, c.name, c.normalized_key, c.default_store
       FROM shopping_purchase_log l
       JOIN shopping_catalog c ON c.id = l.catalog_id
       ORDER BY l.purchased_at DESC, l.id DESC
       LIMIT 40
-    `)
-    .all() as Array<any>;
+    `) as Array<any>;
 
   return {
     catalog,
@@ -674,7 +671,7 @@ export function getDashboardNotes() {
 
 export const householdRouter = Router();
 
-householdRouter.get('/api/meal_planner', (req: Request, res: Response) => {
+householdRouter.get('/api/meal_planner', async (req: Request, res: Response) => {
   const weekParam = String(req.query.week_start || req.query.week || '');
   const weekStart = getMondayOfWeek(weekParam);
   const weekDays = getWeekDaysList(weekStart);
@@ -688,7 +685,7 @@ householdRouter.get('/api/meal_planner', (req: Request, res: Response) => {
     cards_by_day,
     recurring,
     suggestions,
-    recipes: getAllRecipes(),
+    recipes: await getAllRecipes(),
   });
 });
 
@@ -834,18 +831,18 @@ householdRouter.post('/api/delete_meal_suggestion', (req: Request, res: Response
 });
 
 // Recipes CRUD + Notion Sync + Google Apps Script / Discord Webhook Import
-householdRouter.get('/api/recipes', (_req: Request, res: Response) => {
-  res.json({ success: true, recipes: getAllRecipes() });
+householdRouter.get('/api/recipes', async (_req: Request, res: Response) => {
+  res.json({ success: true, recipes: await getAllRecipes() });
 });
 
-householdRouter.post('/api/recipes', (req: Request, res: Response) => {
+householdRouter.post('/api/recipes', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     if (!body.title) {
       res.status(400).json({ success: false, error: 'Recipe title is required' });
       return;
     }
-    const saved = upsertRecipe({
+    const saved = await upsertRecipe({
       meal_key: body.meal_key,
       title: body.title,
       image_url: body.image_url,
@@ -856,25 +853,25 @@ householdRouter.post('/api/recipes', (req: Request, res: Response) => {
       notion_id: body.notion_id,
     });
     logActivity('settings_updated', `Saved recipe "${saved.title}"`);
-    res.json({ success: true, recipe: saved, recipes: getAllRecipes() });
+    res.json({ success: true, recipe: saved, recipes: await getAllRecipes() });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message || 'Failed to save recipe' });
   }
 });
 
-householdRouter.post('/api/recipes/delete', (req: Request, res: Response) => {
+householdRouter.post('/api/recipes/delete', async (req: Request, res: Response) => {
   const mealKey = String(req.body?.meal_key || '').trim().toLowerCase();
   if (mealKey) {
-    db.prepare('DELETE FROM recipes WHERE meal_key = ?').run(mealKey);
+    await sqlRun('DELETE FROM recipes WHERE meal_key = ?', [mealKey]);
     const ingMap = getMealIngredients();
     delete ingMap[mealKey];
     AppSetting.set('meal_ingredients_json', JSON.stringify(ingMap));
   }
-  res.json({ success: true, recipes: getAllRecipes() });
+  res.json({ success: true, recipes: await getAllRecipes() });
 });
 
 // Webhook endpoint for Google Apps Script / Discord Recipe Transcriber
-householdRouter.post('/api/recipes/import', (req: Request, res: Response) => {
+householdRouter.post('/api/recipes/import', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const list = Array.isArray(body.recipes) ? body.recipes : [body];
@@ -904,7 +901,7 @@ householdRouter.post('/api/recipes/import', (req: Request, res: Response) => {
       const instructions = Array.isArray(item.instructions)
         ? item.instructions.join('\n')
         : String(item.instructions || item.method || item.steps || '').trim();
-      const rec = upsertRecipe({
+      const rec = await upsertRecipe({
         title,
         image_url: item.image_url || item.image || null,
         ingredients: ings,
@@ -1251,7 +1248,7 @@ householdRouter.post('/api/recipes/sync_notion', async (req: Request, res: Respo
         // block read error fallback
       }
 
-      upsertRecipe({
+      await upsertRecipe({
         title,
         image_url: imageUrl,
         ingredients,
@@ -1267,21 +1264,21 @@ householdRouter.post('/api/recipes/sync_notion', async (req: Request, res: Respo
     res.json({
       success: true,
       synced_count: syncedCount,
-      recipes: getAllRecipes(),
+      recipes: await getAllRecipes(),
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Notion sync failed' });
   }
 });
 
-householdRouter.post('/api/save_meal_ingredients', (req: Request, res: Response) => {
+householdRouter.post('/api/save_meal_ingredients', async (req: Request, res: Response) => {
   const mealKey = String(req.body?.meal || '').trim().toLowerCase().slice(0, 80);
   const items = Array.isArray(req.body?.ingredients) ? req.body.ingredients : [];
   if (!mealKey) {
     res.status(400).json({ success: false, error: 'Meal key required' });
     return;
   }
-  const existingRecipes = getAllRecipes();
+  const existingRecipes = await getAllRecipes();
   const existingRec = existingRecipes[mealKey];
   upsertRecipe({
     meal_key: mealKey,
@@ -1292,14 +1289,14 @@ householdRouter.post('/api/save_meal_ingredients', (req: Request, res: Response)
   res.json({ success: true, ingredients: getMealIngredients() });
 });
 
-householdRouter.post('/api/save_recipe', (req: Request, res: Response) => {
+householdRouter.post('/api/save_recipe', async (req: Request, res: Response) => {
   const title = String(req.body?.title || '').trim().slice(0, 120);
   if (!title) {
     res.status(400).json({ success: false, error: 'Recipe title required' });
     return;
   }
   const mealKey = String(req.body?.meal_key || title).toLowerCase().trim().slice(0, 80);
-  const existingRecipes = getAllRecipes();
+  const existingRecipes = await getAllRecipes();
   const existingRec = existingRecipes[mealKey];
 
   // If synced from Notion, reject edits to preserve sync integrity
@@ -1326,11 +1323,11 @@ householdRouter.post('/api/save_recipe', (req: Request, res: Response) => {
   });
 
   logActivity('settings_updated', `Updated recipe "${title}"`);
-  res.json({ success: true, recipe: saved, recipes: getAllRecipes() });
+  res.json({ success: true, recipe: saved, recipes: await getAllRecipes() });
 });
 
 // Smart Shopping List Endpoints (Deduplication, Frequently Added, Suggested, Archive Checked, Recently Purchased)
-householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Response) => {
+householdRouter.post('/api/add_general_shopping_item', async (req: Request, res: Response) => {
   const rawInput = String(req.body?.name || '').trim().slice(0, 120);
   let qty = String(req.body?.qty || '').trim().slice(0, 40);
   if (qty.startsWith('.')) qty = '0' + qty;
@@ -1356,7 +1353,7 @@ householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Respo
 
   const targetStore = detectedStore || storeInput || 'aldi';
   const norm = normalizeShoppingKey(cleanName);
-  const catEntry = touchCatalogItemOnAdd(cleanName, targetStore, true);
+  const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
   const canonicalName = catEntry?.name || cleanName;
   const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
@@ -1394,7 +1391,7 @@ householdRouter.post('/api/add_general_shopping_item', (req: Request, res: Respo
   });
 });
 
-householdRouter.post('/api/shopping/batch_add', (req: Request, res: Response) => {
+householdRouter.post('/api/shopping/batch_add', async (req: Request, res: Response) => {
   const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
   const current = getShoppingData();
   const stores = getShoppingStores();
@@ -1424,7 +1421,7 @@ householdRouter.post('/api/shopping/batch_add', (req: Request, res: Response) =>
     }
 
     const norm = normalizeShoppingKey(cleanName);
-    const catEntry = touchCatalogItemOnAdd(cleanName, targetStore, true);
+    const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
     const canonicalName = catEntry?.name || cleanName;
     const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
@@ -1507,7 +1504,7 @@ householdRouter.post('/api/remove_shopping_item', (req: Request, res: Response) 
 });
 
 // Archive all checked items (marks them as Purchased in relational SQLite purchase log, increments stats, and clears from active list)
-function handleArchiveCheckedShopping(_req: Request, res: Response) {
+async function handleArchiveCheckedShopping(_req: Request, res: Response) {
   const current = getShoppingData();
   const remainingGeneral: any[] = [];
   let purchasedCount = 0;
@@ -1516,7 +1513,7 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
     const itemKey = `general::${String(g.name || '').toLowerCase()}`;
     const isChecked = Boolean(g.checked || current.checked[itemKey]);
     if (isChecked) {
-      recordCatalogPurchase(g.name, g.store || 'aldi', g.qty || '');
+      await recordCatalogPurchase(g.name, g.store || 'aldi', g.qty || '');
       delete current.checked[itemKey];
       purchasedCount++;
     } else {
@@ -1535,7 +1532,7 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
       const matchIng = (ingMap[mealKey] || []).find((i) => i.name.toLowerCase() === ingLower);
       const displayName = matchIng?.name || ingLower;
       const store = matchIng?.store || 'aldi';
-      recordCatalogPurchase(displayName, store, matchIng?.qty || '');
+      await recordCatalogPurchase(displayName, store, matchIng?.qty || '');
       // Hide checked meal ingredient until unchecked or re-added
       current.hidden[chkKey] = true;
       delete current.checked[chkKey];
@@ -1552,7 +1549,7 @@ function handleArchiveCheckedShopping(_req: Request, res: Response) {
 householdRouter.post('/api/shopping/archive_checked', handleArchiveCheckedShopping);
 householdRouter.post('/api/clear_shopping_checked', handleArchiveCheckedShopping);
 
-householdRouter.post('/api/shopping/catalog/delete', (req: Request, res: Response) => {
+householdRouter.post('/api/shopping/catalog/delete', async (req: Request, res: Response) => {
   const rawIds = Array.isArray(req.body?.ids)
     ? req.body.ids
     : req.body?.id !== undefined
@@ -1570,18 +1567,18 @@ householdRouter.post('/api/shopping/catalog/delete', (req: Request, res: Respons
 
   const placeholders = ids.map(() => '?').join(',');
   // Find names/keys of deleted items to also remove them from active shopping list if present
-  const itemsToDelete = db.prepare(`SELECT id, name, normalized_key FROM shopping_catalog WHERE id IN (${placeholders})`).all(...ids) as any[];
+  const itemsToDelete = await sqlAll(`SELECT id, name, normalized_key FROM shopping_catalog WHERE id IN (${placeholders})`, [...ids]) as any[];
   const deletedNormKeys = new Set(itemsToDelete.map((it) => it.normalized_key));
 
-  db.prepare(`DELETE FROM shopping_purchase_log WHERE catalog_id IN (${placeholders})`).run(...ids);
-  const result = db.prepare(`DELETE FROM shopping_catalog WHERE id IN (${placeholders})`).run(...ids);
+  await sqlRun(`DELETE FROM shopping_purchase_log WHERE catalog_id IN (${placeholders})`, [...ids]);
+  const result = await sqlRun(`DELETE FROM shopping_catalog WHERE id IN (${placeholders})`, [...ids]);
 
   logActivity('shopping_catalog_deleted', `Deleted ${result.changes} items from shopping catalog`);
   const shopping = getShoppingData();
   shopping.general = (shopping.general || []).filter((g: any) => !deletedNormKeys.has(normalizeShoppingKey(g.name)));
   delete (shopping as any).archived;
   AppSetting.set('shopping_list_json', JSON.stringify(shopping));
-  const intelligence = getShoppingIntelligence(shopping.general || []);
+  const intelligence = await getShoppingIntelligence(shopping.general || []);
 
   res.json({ success: true, deleted: result.changes, catalog: intelligence.catalog, intelligence });
 });
@@ -1757,9 +1754,9 @@ householdRouter.post('/api/delete_dashboard_note', (req: Request, res: Response)
  * the purchase item (e.g. "Fresh ginger") from preparation instructions (e.g. "grated"),
  * and standardizes active shopping list items.
  */
-export function migrateExistingRecipeIngredients() {
+export async function migrateExistingRecipeIngredients() {
   try {
-    const rows = db.prepare('SELECT id, meal_key, ingredients_json FROM recipes').all() as any[];
+    const rows = await sqlAll('SELECT id, meal_key, ingredients_json FROM recipes') as any[];
     let recipesMigrated = 0;
     const ingMap = getMealIngredients();
     const stores = getShoppingStores();
@@ -1791,10 +1788,8 @@ export function migrateExistingRecipeIngredients() {
         });
 
         if (changed) {
-          db.prepare('UPDATE recipes SET ingredients_json = ? WHERE id = ?').run(
-            JSON.stringify(restored),
-            row.id
-          );
+          await sqlRun('UPDATE recipes SET ingredients_json = ? WHERE id = ?', [JSON.stringify(restored),
+            row.id]);
           if (row.meal_key) {
             ingMap[row.meal_key.toLowerCase().trim()] = restored;
           }
@@ -1862,4 +1857,4 @@ export function migrateExistingRecipeIngredients() {
 }
 
 // Run migration on startup
-migrateExistingRecipeIngredients();
+void migrateExistingRecipeIngredients();

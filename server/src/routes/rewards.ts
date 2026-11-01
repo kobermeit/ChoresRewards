@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { db, AppSetting, logActivity, roundPoints } from '../db';
+import { AppSetting, logActivity, roundPoints } from '../db';
+import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
 import { getAppTimezone, getLocalNowNaive, getFamilyToday, formatDateInTz, getConfiguredTimezone } from '../utils/time';
@@ -34,7 +35,7 @@ rewardsRouter.post(
     { name: 'reward_image_file', maxCount: 1 },
     { name: 'image', maxCount: 1 },
   ]),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const data = req.body || {};
       const sourceUrl = data.source_url ? String(data.source_url).trim() : null;
@@ -64,16 +65,12 @@ rewardsRouter.post(
       }
 
       const isEveryone = !assignedTo || assignedTo.toLowerCase() === 'everyone' || assignedTo.toLowerCase() === 'all';
-      const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(assignedTo) as any);
+      const person = isEveryone ? null : (await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any);
       const finalAssignee = isEveryone ? 'Everyone' : (person ? person.name : assignedTo);
       const isRecurring = data.is_recurring === undefined || data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1';
 
-      const info = db
-        .prepare(
-          `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, is_recurring, source_url, source_name)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
-        )
-        .run(title, pointsRequired, finalImageUrl, description, person ? person.id : null, finalAssignee, isRecurring ? 1 : 0, sourceUrl, sourceName);
+      const info = await sqlRun(`INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, is_recurring, source_url, source_name)
+           VALUES (?, ?, ?, ?, ?, ?, false, ?, ?, ?)`, [title, pointsRequired, finalImageUrl, description, person ? person.id : null, finalAssignee, isRecurring, sourceUrl, sourceName]);
 
       logActivity(
         'reward_added',
@@ -112,7 +109,7 @@ rewardsRouter.post(
     { name: 'image', maxCount: 1 },
     { name: 'photo', maxCount: 1 },
   ]),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const data = req.body || {};
       const rewardId = Number(data.reward_id ?? data.id);
@@ -120,7 +117,7 @@ rewardsRouter.post(
         res.status(400).json({ success: false, error: 'Missing reward_id' });
         return;
       }
-      const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+      const reward = await sqlOne('SELECT * FROM reward WHERE id = ?', [rewardId]) as any;
       if (!reward) {
         res.status(404).json({ success: false, error: 'Reward not found' });
         return;
@@ -135,11 +132,11 @@ rewardsRouter.post(
         data.points_required !== undefined ? roundPoints(data.points_required) : reward.points_required;
       const rawAssignedTo = data.assigned_to !== undefined ? String(data.assigned_to).trim() : reward.assigned_to;
       const isEveryone = !rawAssignedTo || rawAssignedTo.toLowerCase() === 'everyone' || rawAssignedTo.toLowerCase() === 'all';
-      const person = isEveryone ? null : (db.prepare('SELECT * FROM person WHERE name = ?').get(rawAssignedTo) as any);
+      const person = isEveryone ? null : (await sqlOne('SELECT * FROM person WHERE name = ?', [rawAssignedTo]) as any);
       const assignedTo = isEveryone ? 'Everyone' : (person ? person.name : rawAssignedTo);
       const isRecurring = data.is_recurring !== undefined
-        ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1' ? 1 : 0)
-        : (reward.is_recurring !== 0 ? 1 : 0);
+        ? (data.is_recurring === 'true' || data.is_recurring === true || data.is_recurring === 1 || data.is_recurring === '1')
+        : reward.is_recurring !== false;
 
       const files = req.files as Record<string, Express.Multer.File[]> | undefined;
       const uploadedFile = files?.reward_image_file?.[0] || files?.image?.[0] || files?.photo?.[0];
@@ -150,9 +147,7 @@ rewardsRouter.post(
         finalImageUrl = data.image_url ? String(data.image_url).trim() : null;
       }
 
-      db.prepare(
-        'UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ?, source_url = ?, source_name = ?, image_url = ? WHERE id = ?'
-      ).run(title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, sourceUrl, sourceName, finalImageUrl, rewardId);
+      await sqlRun('UPDATE reward SET title = ?, description = ?, points_required = ?, assigned_to = ?, assigned_to_id = ?, is_recurring = ?, source_url = ?, source_name = ?, image_url = ? WHERE id = ?', [title, description, pointsRequired, assignedTo, person ? person.id : null, isRecurring, sourceUrl, sourceName, finalImageUrl, rewardId]);
 
       res.json({ success: true, reward_id: rewardId, image_url: finalImageUrl });
     } catch (err: any) {
@@ -186,7 +181,7 @@ export async function syncRewardById(rewardId: number): Promise<{
   message: string;
   error?: string;
 }> {
-  const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+  const reward = await sqlOne('SELECT * FROM reward WHERE id = ?', [rewardId]) as any;
   if (!reward) {
     throw new Error('Reward not found');
   }
@@ -203,7 +198,7 @@ export async function syncRewardById(rewardId: number): Promise<{
       const oldPoints = roundPoints(reward.points_required);
       const newPoints = roundPoints(scraped.points);
 
-      db.prepare(`
+      await sqlRun(`
         UPDATE reward
         SET points_required = ?,
             last_synced_at = ?,
@@ -212,7 +207,7 @@ export async function syncRewardById(rewardId: number): Promise<{
             title = COALESCE(?, title),
             description = COALESCE(?, description)
         WHERE id = ?
-      `).run(newPoints, nowIso, scraped.source_name, scraped.title || null, scraped.description || null, reward.id);
+      `, [newPoints, nowIso, scraped.source_name, scraped.title || null, scraped.description || null, reward.id]);
 
       if (oldPoints !== newPoints) {
         logActivity(
@@ -236,12 +231,12 @@ export async function syncRewardById(rewardId: number): Promise<{
       };
     } else {
       // Scraped but no price found
-      db.prepare(`
+      await sqlRun(`
         UPDATE reward
         SET sync_error_count = COALESCE(sync_error_count, 0) + 1,
             last_synced_at = ?
         WHERE id = ?
-      `).run(nowIso, reward.id);
+      `, [nowIso, reward.id]);
 
       return {
         success: false,
@@ -255,12 +250,12 @@ export async function syncRewardById(rewardId: number): Promise<{
       };
     }
   } catch (err: any) {
-    db.prepare(`
+    await sqlRun(`
       UPDATE reward
       SET sync_error_count = COALESCE(sync_error_count, 0) + 1,
           last_synced_at = ?
       WHERE id = ?
-    `).run(nowIso, reward.id);
+    `, [nowIso, reward.id]);
 
     throw new Error(err?.message || 'Error fetching store page');
   }
@@ -268,18 +263,14 @@ export async function syncRewardById(rewardId: number): Promise<{
 
 export async function runDailyRewardPriceSync(): Promise<{ total: number; updated: number; failed: number }> {
   console.log('[RewardSyncCron] Running daily reward price sync...');
-  const rewardsToSync = db
-    .prepare(
-      `
+  const rewardsToSync = await sqlAll(`
     SELECT id, title, source_url, sync_error_count
     FROM reward
     WHERE source_url IS NOT NULL
       AND source_url != ''
-      AND (completed = 0 OR is_recurring = 1)
+      AND (completed = false OR is_recurring = true)
       AND (sync_error_count IS NULL OR sync_error_count < 3)
-  `
-    )
-    .all() as Array<{ id: number; title: string; source_url: string; sync_error_count: number }>;
+  `) as Array<{ id: number; title: string; source_url: string; sync_error_count: number }>;
 
   let updated = 0;
   let failed = 0;
@@ -323,14 +314,14 @@ rewardsRouter.post(['/sync_reward', '/rewards/sync_reward'], async (req: Request
 rewardsRouter.post(
   '/edit_reward_image',
   rewardUpload.single('image'),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const rewardId = Number(req.body?.reward_id);
       if (!rewardId) {
         res.status(400).json({ success: false, error: 'Missing reward_id' });
         return;
       }
-      const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+      const reward = await sqlOne('SELECT * FROM reward WHERE id = ?', [rewardId]) as any;
       if (!reward) {
         res.status(404).json({ success: false, error: 'Reward not found' });
         return;
@@ -346,7 +337,7 @@ rewardsRouter.post(
         return;
       }
 
-      db.prepare('UPDATE reward SET image_url = ? WHERE id = ?').run(imageUrl, rewardId);
+      await sqlRun('UPDATE reward SET image_url = ? WHERE id = ?', [imageUrl, rewardId]);
       res.json({ success: true, image_url: imageUrl });
     } catch (err: any) {
       res.status(400).json({ success: false, error: err?.message });
@@ -354,19 +345,19 @@ rewardsRouter.post(
   }
 );
 
-rewardsRouter.post(['/delete_reward', '/rewards/delete_reward'], (req: Request, res: Response) => {
+rewardsRouter.post(['/delete_reward', '/rewards/delete_reward'], async (req: Request, res: Response) => {
   try {
     const rewardId = Number(req.body?.reward_id);
     if (!rewardId) {
       res.status(400).json({ success: false, error: 'Reward ID is required' });
       return;
     }
-    const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(rewardId) as any;
+    const reward = await sqlOne('SELECT * FROM reward WHERE id = ?', [rewardId]) as any;
     if (!reward) {
       res.status(404).json({ success: false, error: 'Reward not found' });
       return;
     }
-    db.prepare('DELETE FROM reward WHERE id = ?').run(rewardId);
+    await sqlRun('DELETE FROM reward WHERE id = ?', [rewardId]);
     logActivity('reward_deleted', `Reward '${reward.title}' was deleted`, reward.assigned_to);
     res.json({ success: true, message: 'Reward deleted successfully' });
   } catch (err: any) {
@@ -374,16 +365,16 @@ rewardsRouter.post(['/delete_reward', '/rewards/delete_reward'], (req: Request, 
   }
 });
 
-rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
+rewardsRouter.post('/complete_reward', async (req: Request, res: Response) => {
   try {
     const { reward_id, assigned_to_id, person_id, person_name } = req.body || {};
-    const reward = db.prepare('SELECT * FROM reward WHERE id = ?').get(Number(reward_id)) as any;
+    const reward = await sqlOne('SELECT * FROM reward WHERE id = ?', [Number(reward_id)]) as any;
     if (!reward) {
       res.status(404).json({ success: false, error: 'Reward not found' });
       return;
     }
 
-    const isRecurring = reward.is_recurring !== 0 && reward.is_recurring !== false;
+    const isRecurring = Boolean(reward.is_recurring);
     if (!isRecurring && reward.completed) {
       res.status(409).json({ success: false, error: 'This one-time reward was already redeemed' });
       return;
@@ -392,20 +383,20 @@ rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
     let person: any = null;
     const targetPersonId = person_id || assigned_to_id;
     if (targetPersonId) {
-      person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(targetPersonId));
+      person = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(targetPersonId)]);
     }
     if (!person && person_name) {
-      person = db.prepare('SELECT * FROM person WHERE name = ?').get(String(person_name).trim());
+      person = await sqlOne('SELECT * FROM person WHERE name = ?', [String(person_name).trim()]);
     }
     if (!person && reward.assigned_to_id) {
-      person = db.prepare('SELECT * FROM person WHERE id = ?').get(reward.assigned_to_id);
+      person = await sqlOne('SELECT * FROM person WHERE id = ?', [reward.assigned_to_id]);
     }
-    const isGroupReward = (name: string) => {
+    const isGroupReward = async (name: string) => {
       const l = (name || '').toLowerCase();
       return l === 'everyone' || l === 'all' || l === 'kids' || l === 'parents' || l === 'adults';
     };
     if (!person && reward.assigned_to && !isGroupReward(reward.assigned_to)) {
-      person = db.prepare('SELECT * FROM person WHERE name = ?').get(reward.assigned_to);
+      person = await sqlOne('SELECT * FROM person WHERE name = ?', [reward.assigned_to]);
     }
     if (!person) {
       res.status(404).json({ success: false, error: 'Please choose which family member is redeeming this reward' });
@@ -424,14 +415,10 @@ rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
     if (isRecurring) {
       // Create a redemption record in the reward table so it shows in Redeemed Rewards history,
       // while the primary template reward remains completed = 0 in Available Rewards!
-      db.prepare(
-        `INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, date_completed, is_recurring)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1)`
-      ).run(reward.title, reward.points_required, reward.image_url, reward.description, person.id, person.name, isoNaive);
+      await sqlRun(`INSERT INTO reward (title, points_required, image_url, description, assigned_to_id, assigned_to, completed, date_completed, is_recurring)
+         VALUES (?, ?, ?, ?, ?, ?, true, ?, true)`, [reward.title, reward.points_required, reward.image_url, reward.description, person.id, person.name, isoNaive]);
     } else {
-      const claimInfo = db
-        .prepare('UPDATE reward SET completed = 1, date_completed = ?, assigned_to_id = ?, assigned_to = ? WHERE id = ? AND completed = 0')
-        .run(isoNaive, person.id, person.name, reward.id);
+      const claimInfo = await sqlRun('UPDATE reward SET completed = true, date_completed = ?, assigned_to_id = ?, assigned_to = ? WHERE id = ? AND completed = false', [isoNaive, person.id, person.name, reward.id]);
 
       if (claimInfo.changes === 0) {
         res.status(409).json({ success: false, error: 'This reward was already redeemed' });
@@ -440,7 +427,7 @@ rewardsRouter.post('/complete_reward', (req: Request, res: Response) => {
     }
 
     const newPoints = roundPoints(currentPoints - requiredPoints);
-    db.prepare('UPDATE person SET points = ? WHERE id = ?').run(newPoints, person.id);
+    await sqlRun('UPDATE person SET points = ? WHERE id = ?', [newPoints, person.id]);
 
     logActivity(
       'reward_redeemed',
@@ -477,9 +464,9 @@ rewardsRouter.get('/api/bonus_settings', (_req: Request, res: Response) => {
   });
 });
 
-rewardsRouter.post('/check_bonus_today', (req: Request, res: Response) => {
+rewardsRouter.post('/check_bonus_today', async (req: Request, res: Response) => {
   const personId = Number(req.body?.person_id);
-  const person = personId ? (db.prepare('SELECT * FROM person WHERE id = ?').get(personId) as any) : null;
+  const person = personId ? (await sqlOne('SELECT * FROM person WHERE id = ?', [personId]) as any) : null;
   const bonusMode = AppSetting.get('bonus_mode', 'static') || 'static';
   const oncePerDay = (AppSetting.get('bonus_once_per_day', 'true') || 'true').toLowerCase() === 'true';
   let awardedToday = false;
@@ -495,14 +482,14 @@ rewardsRouter.post('/check_bonus_today', (req: Request, res: Response) => {
   });
 });
 
-function handleAwardBonus(req: Request, res: Response) {
+async function handleAwardBonus(req: Request, res: Response) {
   try {
     const { person_id, bonus_points } = req.body || {};
     if (!person_id) {
       res.status(400).json({ success: false, message: 'Missing person_id' });
       return;
     }
-    const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+    const person = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(person_id)]) as any;
     if (!person) {
       res.status(404).json({ success: false, message: 'Person not found' });
       return;
@@ -548,11 +535,9 @@ function handleAwardBonus(req: Request, res: Response) {
 
     const awarded = roundPoints(pts);
     const newTotal = roundPoints(Number(person.points || 0) + awarded);
-    db.prepare('UPDATE person SET points = ?, bonus_points = 0, last_bonus_awarded = ? WHERE id = ?').run(
-      newTotal,
+    await sqlRun('UPDATE person SET points = ?, bonus_points = 0, last_bonus_awarded = ? WHERE id = ?', [newTotal,
       today,
-      person.id
-    );
+      person.id]);
 
     logActivity('bonus_points_awarded', `${awarded} bonus points awarded to ${person.name}`, person.name);
 
@@ -570,7 +555,7 @@ function handleAwardBonus(req: Request, res: Response) {
 rewardsRouter.post('/award_bonus_points', handleAwardBonus);
 rewardsRouter.post('/award_bonus', handleAwardBonus);
 
-rewardsRouter.post('/log_quiz_result', (req: Request, res: Response) => {
+rewardsRouter.post('/log_quiz_result', async (req: Request, res: Response) => {
   const { person_id, result } = req.body || {};
   if (!person_id || !result) {
     res.status(400).json({ success: false, message: 'Missing person_id or result' });
@@ -580,7 +565,7 @@ rewardsRouter.post('/log_quiz_result', (req: Request, res: Response) => {
     res.status(400).json({ success: false, message: 'Invalid result. Must be correct, incorrect, or skipped' });
     return;
   }
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const person = await sqlOne('SELECT * FROM person WHERE id = ?', [Number(person_id)]) as any;
   if (!person) {
     res.status(404).json({ success: false, message: 'Person not found' });
     return;

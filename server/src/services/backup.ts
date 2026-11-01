@@ -1,502 +1,385 @@
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import zlib from 'zlib';
-import Database from 'better-sqlite3';
 import * as tar from 'tar-stream';
-import { db } from '../db';
-import { APP_VERSION, DATA_DIR, DB_PATH, UPLOADS_DIR } from '../config';
+import { getPool } from '../db/client';
+import { AppSetting } from '../db';
+import { APP_VERSION, DATA_DIR, UPLOADS_DIR } from '../config';
 
 /**
- * Household backup / restore.
+ * Household backup / restore (Postgres edition).
  *
- * A backup is a single gzipped tar archive produced by this app:
+ * The archive is a single `.tar.gz`:
+ *   manifest.json  — format metadata + per-table row counts
+ *   database.json  — logical dump of every household table (Postgres rows)
+ *   secret_key     — so existing device logins survive a migration
+ *   uploads/**     — avatars, reward/chore photos, sounds, screensaver media
  *
- *   manifest.json     metadata (format id, version, app version, checksums)
- *   database.db       consistent SQLite snapshot (better-sqlite3 online backup)
- *   secret_key        optional; keeps existing device sessions valid
- *   uploads/**        media: avatars, reward/chore photos, sounds, screensaver
+ * A v1 archive (SQLite `database.db` instead of `database.json`) is still
+ * accepted: it is loaded through the same table mapping so households can move
+ * off the old add-on without a CLI step.
  *
- * Restore never parses or executes SQL from the archive: it only replaces files
- * after validating the SQLite header, a PRAGMA quick_check and the presence of
- * the expected tables. Anything that is not one of the whitelisted entries
- * (symlinks, absolute paths, path traversal, unknown files) is rejected.
+ * Nothing in the archive is ever executed as SQL — rows are validated against a
+ * fixed table/column whitelist and written through parameterised inserts.
  */
 
-export const BACKUP_FORMAT = 'choresrewards-backup';
-export const BACKUP_FORMAT_VERSION = 1;
 export const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
-export const RESTORE_DIR = path.join(DATA_DIR, 'restore');
 
-const SQLITE_MAGIC = 'SQLite format 3\u0000';
-const REQUIRED_TABLES = ['person', 'chore', 'app_settings'];
-const MAX_ENTRIES = 20000;
-const MAX_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024;
+/** Insertion order (FK-safe); deletes run in reverse. */
+const TABLES = [
+  'person',
+  'seasons',
+  'seasonal_events',
+  'app_settings',
+  'shopping_catalog',
+  'recipes',
+  'reward',
+  'chore',
+  'chore_log',
+  'shopping_purchase_log',
+  'person_streak',
+  'person_badge',
+  'notifications',
+  'activity_log',
+  'organise_item',
+  'vehicle_service',
+  'applied_mutation',
+] as const;
+
+/** 0/1 columns in the legacy SQLite database (Postgres uses real booleans). */
+const BOOLEAN_COLUMNS: Record<string, string[]> = {
+  person: ['is_admin'],
+  chore: ['completed', 'is_daily', 'deleted', 'is_extra'],
+  chore_log: ['was_overdue'],
+  reward: ['completed', 'is_recurring'],
+  notifications: ['admin_only'],
+  organise_item: ['paid'],
+};
+
+const ALLOWED_FILES = new Set(['manifest.json', 'database.json', 'database.db', 'secret_key']);
 
 export interface BackupManifest {
-  format: string;
+  app: string;
   format_version: number;
   app_version: string;
   created_at: string;
   includes_media: boolean;
-  database: { file: string; bytes: number; sha256: string };
-  media?: { files: number; bytes: number };
+  tables?: Record<string, number>;
 }
 
-export interface BackupStats {
-  database_bytes: number;
-  uploads_files: number;
-  uploads_bytes: number;
-}
-
-export interface RestoreResult {
-  manifest: BackupManifest;
-  database_bytes: number;
-  media_files: number;
-  pre_restore_backup: string | null;
-}
-
-function secretKeyPath(): string {
-  return path.join(DATA_DIR, 'secret_key');
-}
-
-function ensureDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function sha256File(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('error', reject);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-  });
-}
-
-interface WalkedFile {
-  absolute: string;
-  relative: string;
-  bytes: number;
-}
-
-/** Recursively list regular files (symlinks skipped) with POSIX-style relative paths. */
-async function walkFiles(root: string, limit = MAX_ENTRIES): Promise<WalkedFile[]> {
-  const out: WalkedFile[] = [];
-
-  async function visit(dir: string, prefix: string): Promise<void> {
-    if (out.length >= limit) return;
-    let entries: fs.Dirent[];
-    try {
-      entries = await fs.promises.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (out.length >= limit) return;
-      const absolute = path.join(dir, entry.name);
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isSymbolicLink()) continue;
-      if (entry.isDirectory()) {
-        await visit(absolute, relative);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      let stats: fs.Stats;
-      try {
-        stats = await fs.promises.stat(absolute);
-      } catch {
-        continue;
-      }
-      out.push({ absolute, relative, bytes: stats.size });
-    }
-  }
-
-  await visit(root, '');
-  return out;
-}
-
-/** Sizes shown in the settings UI before exporting. */
-export async function describeDataFootprint(): Promise<BackupStats> {
-  let databaseBytes = 0;
-  try {
-    databaseBytes = (await fs.promises.stat(DB_PATH)).size;
-  } catch {
-    // ignore
-  }
-  const uploads = await walkFiles(UPLOADS_DIR);
-  return {
-    database_bytes: databaseBytes,
-    uploads_files: uploads.length,
-    uploads_bytes: uploads.reduce((sum, file) => sum + file.bytes, 0),
-  };
-}
-
-function addFileToArchive(pack: tar.Pack, absolute: string, name: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let size: number;
-    try {
-      size = fs.statSync(absolute).size;
-    } catch (err) {
-      reject(err);
-      return;
-    }
-    const entry = pack.entry({ name, mode: 0o644, size }, (err?: Error | null) => {
-      if (err) reject(err);
-      else resolve();
-    });
-    const source = fs.createReadStream(absolute);
-    source.on('error', reject);
-    source.pipe(entry);
-  });
-}
-
-export interface BackupStream {
+export interface BackupHandle {
   stream: NodeJS.ReadableStream;
   filename: string;
   manifest: BackupManifest;
   cleanup: () => void;
 }
 
-/** Removes snapshot temp files left behind by a crash or a killed download. */
-function sweepStaleSnapshots(maxAgeMs = 60 * 60 * 1000): void {
-  try {
-    const now = Date.now();
-    for (const name of fs.readdirSync(BACKUPS_DIR)) {
-      if (!name.startsWith('.snapshot-')) continue;
-      const file = path.join(BACKUPS_DIR, name);
-      try {
-        if (now - fs.statSync(file).mtimeMs > maxAgeMs) fs.unlinkSync(file);
-      } catch {
-        // ignore individual failures
-      }
-    }
-  } catch {
-    // ignore: directory may not exist yet
+async function dumpTables(): Promise<{ tables: Record<string, unknown[]>; counts: Record<string, number> }> {
+  const tables: Record<string, unknown[]> = {};
+  const counts: Record<string, number> = {};
+  for (const table of TABLES) {
+    const result = await getPool().query(`SELECT * FROM "${table}"`);
+    tables[table] = result.rows;
+    counts[table] = result.rowCount ?? result.rows.length;
   }
+  return { tables, counts };
 }
 
-/**
- * Builds the archive as a stream so the download starts immediately.
- * The SQLite snapshot is written into DATA_DIR/backups first (a consistent copy
- * that does not block the live database) and removed once the stream finishes.
- */
-export async function buildBackupStream(includeMedia: boolean): Promise<BackupStream> {
-  ensureDir(BACKUPS_DIR);
-  sweepStaleSnapshots();
-  const snapshotPath = path.join(BACKUPS_DIR, `.snapshot-${Date.now()}-${process.pid}.db`);
-
-  await db.backup(snapshotPath);
-
-  const cleanup = () => {
-    try {
-      fs.unlinkSync(snapshotPath);
-    } catch {
-      // already gone
+export async function describeDataFootprint(): Promise<Record<string, unknown>> {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  const { counts } = await dumpTables();
+  let uploadsBytes = 0;
+  let uploadsFiles = 0;
+  const walk = (dir: string): void => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else {
+        uploadsFiles += 1;
+        uploadsBytes += fs.statSync(full).size;
+      }
     }
   };
+  walk(UPLOADS_DIR);
 
-  const databaseBytes = (await fs.promises.stat(snapshotPath)).size;
-  const uploads = includeMedia ? await walkFiles(UPLOADS_DIR) : [];
+  return {
+    database: 'postgres',
+    tables: counts,
+    total_rows: Object.values(counts).reduce((a, b) => a + b, 0),
+    uploads_files: uploadsFiles,
+    uploads_bytes: uploadsBytes,
+    backups_dir: BACKUPS_DIR,
+    format_version: 2,
+  };
+}
 
+/* ------------------------------------------------------------------ *
+ * Export
+ * ------------------------------------------------------------------ */
+
+export async function buildBackupStream(includeMedia: boolean): Promise<BackupHandle> {
+  const { tables, counts } = await dumpTables();
   const manifest: BackupManifest = {
-    format: BACKUP_FORMAT,
-    format_version: BACKUP_FORMAT_VERSION,
+    app: 'choresrewards',
+    format_version: 2,
     app_version: APP_VERSION,
     created_at: new Date().toISOString(),
     includes_media: includeMedia,
-    database: {
-      file: 'database.db',
-      bytes: databaseBytes,
-      sha256: await sha256File(snapshotPath),
-    },
-    media: {
-      files: uploads.length,
-      bytes: uploads.reduce((sum, file) => sum + file.bytes, 0),
-    },
+    tables: counts,
   };
 
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  const filename = `choresrewards-backup-${APP_VERSION}-${stamp}.tar.gz`;
-
+  const tarGz = zlib.createGzip({ level: 6 });
   const pack = tar.pack();
+  pack.pipe(tarGz);
 
-  (async () => {
-    pack.entry({ name: 'manifest.json', mode: 0o644 }, JSON.stringify(manifest, null, 2));
-    await addFileToArchive(pack, snapshotPath, 'database.db');
+  const writeEntry = (name: string, content: Buffer | string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
+      pack.entry({ name, size: body.length }, body, (err) => (err ? reject(err) : resolve()));
+    });
 
-    const keyFile = secretKeyPath();
-    if (fs.existsSync(keyFile)) {
-      await addFileToArchive(pack, keyFile, 'secret_key');
-    }
+  void (async () => {
+    try {
+      await writeEntry('manifest.json', JSON.stringify(manifest, null, 2));
+      await writeEntry('database.json', JSON.stringify({ tables }, null, 2));
 
-    for (const file of uploads) {
-      await addFileToArchive(pack, file.absolute, `uploads/${file.relative}`);
-    }
-
-    pack.finalize();
-  })().catch((err) => {
-    pack.destroy(err);
-    cleanup();
-  });
-
-  const gzip = zlib.createGzip({ level: 6 });
-  pack.pipe(gzip);
-  pack.on('error', (err) => gzip.destroy(err));
-  // cleanup is idempotent; 'end' fires as soon as the archive is fully read
-  gzip.on('end', cleanup);
-  gzip.on('close', cleanup);
-  gzip.on('error', cleanup);
-
-  return { stream: gzip, filename, manifest, cleanup };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Restore                                                                     */
-/* -------------------------------------------------------------------------- */
-
-interface ExtractedArchive {
-  manifest: BackupManifest;
-  databasePath: string;
-  secretKeyFile: string | null;
-  uploadsRoot: string | null;
-}
-
-/** Normalises an archive entry name, or returns null when it is unsafe to use. */
-function safeEntryName(rawName: string): string | null {
-  const name = String(rawName || '').replace(/\\/g, '/');
-  if (!name || name.startsWith('/') || name.includes('\u0000')) return null;
-  const parts = name.split('/').filter((part) => part && part !== '.');
-  if (parts.length === 0) return null;
-  if (parts.some((part) => part === '..')) return null;
-  return parts.join('/');
-}
-
-/** Only the entries this app writes are accepted — anything else aborts the restore. */
-function assertAllowedEntry(name: string): void {
-  if (name === 'manifest.json' || name === 'database.db' || name === 'secret_key') return;
-  if (name.startsWith('uploads/') && name.length > 'uploads/'.length) return;
-  throw new Error(`Backup contains an unexpected file: ${name}`);
-}
-
-async function extractArchive(archivePath: string, stageDir: string): Promise<ExtractedArchive> {
-  ensureDir(stageDir);
-  const state = { failure: null as Error | null, entries: 0, bytes: 0 };
-
-  await new Promise<void>((resolve, reject) => {
-    const extract = tar.extract();
-
-    extract.on('entry', (header: any, stream: any, next: any) => {
-      const bail = (message: string) => {
-        if (!state.failure) state.failure = new Error(message);
-        stream.resume();
-        next();
-      };
-
-      if (state.failure) return bail('Rejected after an earlier invalid entry.');
-
-      const type = String(header.type || 'file');
-      if (type === 'symlink' || type === 'link') {
-        return bail('Backup contains links, which are not allowed.');
+      const secretPath = path.join(DATA_DIR, 'secret_key');
+      if (fs.existsSync(secretPath)) {
+        await writeEntry('secret_key', fs.readFileSync(secretPath));
       }
 
-      const name = safeEntryName(String(header.name || ''));
-      if (!name) return bail('Backup contains an unsafe file path.');
+      if (includeMedia && fs.existsSync(UPLOADS_DIR)) {
+        const walk = async (dir: string): Promise<void> => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) await walk(full);
+            else await writeEntry(path.relative(DATA_DIR, full).split(path.sep).join('/'), fs.readFileSync(full));
+          }
+        };
+        await walk(UPLOADS_DIR);
+      }
+      pack.finalize();
+    } catch (err) {
+      pack.destroy(err as Error);
+    }
+  })();
 
-      state.entries += 1;
-      if (state.entries > MAX_ENTRIES) return bail('Backup contains too many files.');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return {
+    stream: tarGz,
+    filename: `choresrewards-backup-${stamp}.tar.gz`,
+    manifest,
+    cleanup: () => tarGz.destroy(),
+  };
+}
 
-      if (type === 'directory') {
+
+/* ------------------------------------------------------------------ *
+ * Restore
+ * ------------------------------------------------------------------ */
+
+async function extractArchive(archivePath: string, dest: string): Promise<string[]> {
+  const extracted: string[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const extract = tar.extract();
+    const gunzip = zlib.createGunzip();
+    extract.on('entry', (header, stream, next) => {
+      const name = header.name.replace(/\\/g, '/');
+      const isUpload = name.startsWith('uploads/');
+      const safeName = !name.startsWith('/') && !name.split('/').includes('..');
+      if (header.type !== 'file' || !safeName || (!ALLOWED_FILES.has(name) && !isUpload)) {
         stream.resume();
         next();
         return;
       }
-
-      try {
-        assertAllowedEntry(name);
-      } catch (err) {
-        return bail((err as Error).message);
-      }
-
-      state.bytes += Number(header.size || 0);
-      if (state.bytes > MAX_ARCHIVE_BYTES) return bail('Backup is too large to restore.');
-
-      const destination = path.join(stageDir, ...name.split('/'));
-      if (!destination.startsWith(stageDir)) return bail('Backup contains an unsafe file path.');
-
-      ensureDir(path.dirname(destination));
-      let settled = false;
-      const finishEntry = () => {
-        if (settled) return;
-        settled = true;
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk) => chunks.push(chunk as Buffer));
+      stream.on('error', reject);
+      stream.on('end', () => {
+        const target = path.join(dest, name);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, Buffer.concat(chunks));
+        extracted.push(name);
         next();
-      };
-      const sink = fs.createWriteStream(destination);
-      sink.on('error', (err) => {
-        if (!state.failure) state.failure = err;
-        stream.resume();
-        finishEntry();
       });
-      sink.on('finish', finishEntry);
-      stream.pipe(sink);
     });
-
-    extract.on('finish', () => (state.failure ? reject(state.failure) : resolve()));
-    extract.on('error', (err) => reject(err));
-
-    const gunzip = zlib.createGunzip();
-    gunzip.on('error', (err) =>
-      reject(new Error(`Backup is not a valid .tar.gz archive (${err.message}).`))
-    );
-    fs.createReadStream(archivePath)
-      .on('error', reject)
-      .pipe(gunzip)
-      .pipe(extract);
+    extract.on('finish', () => resolve());
+    extract.on('error', reject);
+    gunzip.on('error', reject);
+    fs.createReadStream(archivePath).pipe(gunzip).pipe(extract);
   });
-
-  const manifestPath = path.join(stageDir, 'manifest.json');
-  const databasePath = path.join(stageDir, 'database.db');
-  if (!fs.existsSync(databasePath)) {
-    throw new Error('Backup is missing database.db — it does not look like a ChoresRewards backup.');
-  }
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error('Backup is missing manifest.json — it does not look like a ChoresRewards backup.');
-  }
-
-  let manifest: BackupManifest;
-  try {
-    if (fs.statSync(manifestPath).size > 1024 * 1024) {
-      throw new Error('Backup manifest is unreasonably large.');
-    }
-    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  } catch {
-    throw new Error('Backup manifest is not valid JSON.');
-  }
-  if (manifest?.format !== BACKUP_FORMAT) {
-    throw new Error('Backup was not created by ChoresRewards; refusing to restore it.');
-  }
-  if (Number(manifest.format_version) > BACKUP_FORMAT_VERSION) {
-    throw new Error('Backup was created by a newer version of ChoresRewards. Update this server first.');
-  }
-
-  const secretKeyFile = path.join(stageDir, 'secret_key');
-  const uploadsRoot = path.join(stageDir, 'uploads');
-
-  return {
-    manifest,
-    databasePath,
-    secretKeyFile: fs.existsSync(secretKeyFile) ? secretKeyFile : null,
-    uploadsRoot: fs.existsSync(uploadsRoot) ? uploadsRoot : null,
-  };
+  return extracted;
 }
 
-/**
- * Verifies the file really is a healthy SQLite database for this app.
- * Read-only inspection: no SQL from the archive is ever executed.
- */
-function validateDatabaseFile(dbFilePath: string): number {
-  const handle = fs.openSync(dbFilePath, 'r');
-  const magic = Buffer.alloc(16);
-  try {
-    fs.readSync(handle, magic, 0, 16, 0);
-  } finally {
-    fs.closeSync(handle);
+function coerceRow(table: string, row: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...row };
+  for (const column of BOOLEAN_COLUMNS[table] || []) {
+    const value = out[column];
+    if (value === null || value === undefined) continue;
+    out[column] = value === true || value === 1 || value === '1' || value === 'true';
   }
-  if (magic.toString('latin1') !== SQLITE_MAGIC) {
-    throw new Error('The database inside the backup is not a SQLite file.');
+  // Postgres rejects empty strings for date/timestamp columns that came from SQLite as ''
+  for (const [key, value] of Object.entries(out)) {
+    if (value === '') out[key] = null;
   }
-
-  let probe: InstanceType<typeof Database> | null = null;
-  try {
-    probe = new Database(dbFilePath, { readonly: true, fileMustExist: true });
-    const quickCheck = String(probe.pragma('quick_check', { simple: true })).toLowerCase();
-    if (quickCheck !== 'ok') {
-      throw new Error(`Backup database failed its integrity check: ${quickCheck}`);
-    }
-    const rows = probe
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all() as Array<{ name: string }>;
-    const names = new Set(rows.map((row) => row.name));
-    const missing = REQUIRED_TABLES.filter((table) => !names.has(table));
-    if (missing.length > 0) {
-      throw new Error(`Backup database is missing tables: ${missing.join(', ')}.`);
-    }
-  } finally {
-    try {
-      probe?.close();
-    } catch {
-      // ignore
-    }
-  }
-
-  return fs.statSync(dbFilePath).size;
+  return out;
 }
 
-/**
- * Restores a backup over the live household data.
- *
- * The current database is snapshotted into DATA_DIR/backups first, then the
- * database handle is closed, the WAL removed and the restored files swapped in.
- * The caller restarts the process afterwards so the new database is opened
- * cleanly (the route answers first, then exits; Docker/Coolify restarts it).
- */
-export async function restoreFromArchive(archivePath: string): Promise<RestoreResult> {
-  ensureDir(RESTORE_DIR);
-  const stageDir = path.join(RESTORE_DIR, `stage-${Date.now()}-${process.pid}`);
-
+async function replaceTables(tables: Record<string, Record<string, unknown>[]>): Promise<Record<string, number>> {
+  const client = await getPool().connect();
+  const counts: Record<string, number> = {};
   try {
-    const extracted = await extractArchive(archivePath, stageDir);
-    const databaseBytes = validateDatabaseFile(extracted.databasePath);
-
-    const expectedBytes = Number(extracted.manifest.database?.bytes || 0);
-    if (expectedBytes > 0 && expectedBytes !== databaseBytes) {
-      throw new Error('Backup database size does not match its manifest — the file may be corrupt.');
+    await client.query('BEGIN');
+    for (const table of [...TABLES].reverse()) {
+      await client.query(`DELETE FROM "${table}"`);
     }
-
-    ensureDir(BACKUPS_DIR);
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    let preRestoreBackup: string | null = path.join(BACKUPS_DIR, `pre-restore-${stamp}.db`);
-    try {
-      await db.backup(preRestoreBackup);
-    } catch {
-      preRestoreBackup = null;
-    }
-
-    db.close();
-    for (const suffix of ['-wal', '-shm']) {
-      try {
-        fs.unlinkSync(`${DB_PATH}${suffix}`);
-      } catch {
-        // ignore: file may not exist
+    for (const table of TABLES) {
+      const rows = Array.isArray(tables[table]) ? tables[table] : [];
+      counts[table] = rows.length;
+      for (const raw of rows) {
+        const row = coerceRow(table, raw);
+        const columns = Object.keys(row);
+        if (columns.length === 0) continue;
+        const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
+        const sql = `INSERT INTO "${table}" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders})`;
+        await client.query(sql, columns.map((c) => row[c]));
       }
+      await client
+        .query(
+          `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM "${table}"), 1))`
+        )
+        .catch(() => undefined);
     }
-    fs.copyFileSync(extracted.databasePath, DB_PATH);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+  return counts;
+}
 
-    if (extracted.secretKeyFile) {
-      fs.copyFileSync(extracted.secretKeyFile, secretKeyPath());
+/** Read the tables out of a v1 (SQLite) archive member. */
+async function readSqliteTables(dbPath: string): Promise<Record<string, Record<string, unknown>[]>> {
+  const { default: Database } = await import('better-sqlite3');
+  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const check = sqlite.pragma('quick_check', { simple: true });
+    if (String(check).toLowerCase() !== 'ok') {
+      throw new Error('The archive database failed its integrity check.');
     }
+    const present = new Set(
+      (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(
+        (row) => row.name
+      )
+    );
+    const out: Record<string, Record<string, unknown>[]> = {};
+    for (const table of TABLES) {
+      if (!present.has(table)) continue;
+      out[table] = sqlite.prepare(`SELECT * FROM "${table}"`).all() as Record<string, unknown>[];
+    }
+    return out;
+  } finally {
+    sqlite.close();
+  }
+}
+
+export interface RestoreResult {
+  manifest: BackupManifest;
+  tables: Record<string, number>;
+  media_files: number;
+  database_bytes: number;
+  pre_restore_backup: string | null;
+}
+
+
+export async function restoreFromArchive(archivePath: string): Promise<RestoreResult> {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(DATA_DIR, 'restore-'));
+  try {
+    await extractArchive(archivePath, tempDir);
+
+    const manifestPath = path.join(tempDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error('Not a ChoresRewards backup — manifest.json is missing.');
+    }
+    let manifest: BackupManifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch {
+      throw new Error('The backup manifest is not valid JSON.');
+    }
+    if (manifest.app !== 'choresrewards') {
+      throw new Error('This archive was created by another application.');
+    }
+
+    // Safety net: keep a logical copy of the current household before replacing it.
+    const preRestore = path.join(BACKUPS_DIR, `pre-restore-${Date.now()}.json`);
+    fs.writeFileSync(preRestore, JSON.stringify(await dumpTables(), null, 2));
+
+    let tables: Record<string, Record<string, unknown>[]>;
+    const jsonPath = path.join(tempDir, 'database.json');
+    const sqlitePath = path.join(tempDir, 'database.db');
+    if (fs.existsSync(jsonPath)) {
+      const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      if (!parsed || typeof parsed.tables !== 'object' || parsed.tables === null) {
+        throw new Error('The backup database payload is malformed.');
+      }
+      tables = parsed.tables;
+    } else if (fs.existsSync(sqlitePath)) {
+      tables = await readSqliteTables(sqlitePath);
+    } else {
+      throw new Error('The backup contains no database payload.');
+    }
+
+    const counts = await replaceTables(tables);
+    // Settings are cache-backed — reload them from the restored rows.
+    await AppSetting.load();
 
     let mediaFiles = 0;
-    if (extracted.uploadsRoot) {
-      for (const file of await walkFiles(extracted.uploadsRoot)) {
-        const destination = path.join(UPLOADS_DIR, ...file.relative.split('/'));
-        ensureDir(path.dirname(destination));
-        fs.copyFileSync(file.absolute, destination);
-        mediaFiles += 1;
+    const restoredUploads = path.join(tempDir, 'uploads');
+    if (fs.existsSync(restoredUploads)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      const copy = (dir: string): void => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            copy(full);
+            continue;
+          }
+          const rel = path.relative(restoredUploads, full);
+          const target = path.join(UPLOADS_DIR, rel);
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.copyFileSync(full, target);
+          mediaFiles += 1;
+        }
+      };
+      copy(restoredUploads);
+    }
+
+    const restoredSecret = path.join(tempDir, 'secret_key');
+    if (fs.existsSync(restoredSecret)) {
+      if (process.env.CR_SECRET_KEY) {
+        console.warn('[backup] CR_SECRET_KEY is set — the restored signing key will NOT be used.');
+      } else {
+        fs.writeFileSync(path.join(DATA_DIR, 'secret_key'), fs.readFileSync(restoredSecret), { mode: 0o600 });
+        console.log('[backup] Restored session signing key from the archive.');
       }
     }
 
+    console.log(`[backup] Restore complete: ${Object.values(counts).reduce((a, b) => a + b, 0)} rows, ${mediaFiles} media file(s).`);
+
     return {
-      manifest: extracted.manifest,
-      database_bytes: databaseBytes,
+      manifest,
+      tables: counts,
       media_files: mediaFiles,
-      pre_restore_backup: preRestoreBackup,
+      database_bytes: fs.statSync(manifestPath).size,
+      pre_restore_backup: preRestore,
     };
   } finally {
-    // Await the cleanup so no staging directories are left behind on failure.
-    await fs.promises.rm(stageDir, { recursive: true, force: true }).catch(() => undefined);
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
-
-
 

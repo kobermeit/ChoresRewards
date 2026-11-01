@@ -1,6 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { db, AppSetting } from '../db';
+import { eq } from 'drizzle-orm';
+import { AppSetting } from '../db';
+import { getDb } from '../db/client';
+import { person as personTable } from '../db/schema';
 
 declare module 'express-session' {
   interface SessionData {
@@ -73,22 +76,36 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   res.status(401).json({ success: false, error: 'Login required' });
 }
 
-export function requireAdult(req: Request, res: Response, next: NextFunction): void {
-  if (req.session?.adult_mode) {
-    next();
-    return;
-  }
-  if (req.session?.person_id) {
-    const masterPin = AppSetting.get('master_pin');
-    const person = db.prepare('SELECT role, is_admin, name, pin FROM person WHERE id = ?').get(req.session.person_id) as any;
-    if (person && (person.role === 'parent' || person.is_admin === 1) && !person.pin && !masterPin) {
-      req.session.adult_mode = true;
-      req.session.adult_name = person.name;
+/** Minimal person projection used by the auth gates. */
+async function authRowFor(personId: number) {
+  const [row] = await getDb()
+    .select({ role: personTable.role, isAdmin: personTable.isAdmin, name: personTable.name, pin: personTable.pin })
+    .from(personTable)
+    .where(eq(personTable.id, personId))
+    .limit(1);
+  return row;
+}
+
+export async function requireAdult(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.session?.adult_mode) {
       next();
       return;
     }
+    if (req.session?.person_id) {
+      const masterPin = AppSetting.get('master_pin');
+      const person = await authRowFor(req.session.person_id);
+      if (person && (person.role === 'parent' || person.isAdmin) && !person.pin && !masterPin) {
+        req.session.adult_mode = true;
+        req.session.adult_name = person.name;
+        next();
+        return;
+      }
+    }
+    res.status(403).json({ success: false, error: 'Adult authorisation required' });
+  } catch (err) {
+    next(err);
   }
-  res.status(403).json({ success: false, error: 'Adult authorisation required' });
 }
 
 export const authRouter = Router();
@@ -99,11 +116,11 @@ authRouter.get('/api/check_auth', (req: Request, res: Response) => {
   res.json({ authenticated });
 });
 
-authRouter.get('/api/auth_status', (req: Request, res: Response) => {
+authRouter.get('/api/auth_status', async (req: Request, res: Response) => {
   const masterPin = AppSetting.get('master_pin');
   if (req.session?.person_id && !req.session?.adult_mode) {
-    const person = db.prepare('SELECT role, is_admin, name, pin FROM person WHERE id = ?').get(req.session.person_id) as any;
-    if (person && (person.role === 'parent' || person.is_admin === 1) && !person.pin && !masterPin) {
+    const person = await authRowFor(req.session.person_id);
+    if (person && (person.role === 'parent' || person.isAdmin) && !person.pin && !masterPin) {
       req.session.adult_mode = true;
       req.session.adult_name = person.name;
     }
@@ -126,7 +143,7 @@ authRouter.get('/api/keep_alive', (req: Request, res: Response) => {
   });
 });
 
-authRouter.post('/api/person_login', (req: Request, res: Response) => {
+authRouter.post('/api/person_login', async (req: Request, res: Response) => {
   const rlKey = getRlKey(req);
   const { ok, retryAfter } = rlCheck(rlKey);
   if (!ok) {
@@ -144,7 +161,7 @@ authRouter.post('/api/person_login', (req: Request, res: Response) => {
     return;
   }
 
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const [person] = await getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1);
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
@@ -171,8 +188,8 @@ authRouter.post('/api/person_login', (req: Request, res: Response) => {
   req.session.authenticated = true;
   req.session.person_id = person.id;
   req.session.person_name = person.name;
-  req.session.adult_mode = Boolean(person.is_admin);
-  if (person.is_admin) {
+  req.session.adult_mode = Boolean(person.isAdmin);
+  if (person.isAdmin) {
     req.session.adult_name = person.name;
   } else {
     delete req.session.adult_name;
@@ -181,11 +198,11 @@ authRouter.post('/api/person_login', (req: Request, res: Response) => {
   res.json({
     success: true,
     person_name: person.name,
-    is_admin: Boolean(person.is_admin),
+    is_admin: Boolean(person.isAdmin),
   });
 });
 
-authRouter.post('/api/adult_login', (req: Request, res: Response) => {
+authRouter.post('/api/adult_login', async (req: Request, res: Response) => {
   const rlKey = getRlKey(req);
   const { ok, retryAfter } = rlCheck(rlKey);
   if (!ok) {
@@ -203,7 +220,7 @@ authRouter.post('/api/adult_login', (req: Request, res: Response) => {
     return;
   }
 
-  const admins = db.prepare('SELECT * FROM person WHERE is_admin = 1').all() as Array<any>;
+  const admins = await getDb().select().from(personTable).where(eq(personTable.isAdmin, true));
   for (const admin of admins) {
     if (admin.pin && checkPinHash(String(pin), admin.pin)) {
       rlSuccess(rlKey);
@@ -238,7 +255,7 @@ authRouter.post('/api/adult_login', (req: Request, res: Response) => {
   res.status(401).json({ success: false, error: `Incorrect PIN — ${remaining} ${word} left` });
 });
 
-authRouter.post('/api/login', (req: Request, res: Response) => {
+authRouter.post('/api/login', async (req: Request, res: Response) => {
   const rlKey = getRlKey(req);
   const { ok, retryAfter } = rlCheck(rlKey);
   if (!ok) {
@@ -258,7 +275,7 @@ authRouter.post('/api/login', (req: Request, res: Response) => {
 
   const masterPinHash = AppSetting.get('master_pin');
   // Also allow any admin PIN to unlock /api/login
-  const admins = db.prepare('SELECT * FROM person WHERE is_admin = 1').all() as Array<any>;
+  const admins = await getDb().select().from(personTable).where(eq(personTable.isAdmin, true));
   for (const admin of admins) {
     if (admin.pin && checkPinHash(String(pin), admin.pin)) {
       rlSuccess(rlKey);
@@ -305,7 +322,7 @@ authRouter.post('/api/adult_logout', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-authRouter.post('/api/switch_user', (req: Request, res: Response) => {
+authRouter.post('/api/switch_user', async (req: Request, res: Response) => {
   const { person_id, pin } = req.body || {};
   if (person_id === undefined || person_id === null) {
     res.status(400).json({ success: false, error: 'person_id is required' });
@@ -319,7 +336,11 @@ authRouter.post('/api/switch_user', (req: Request, res: Response) => {
     req.session.adult_mode = false;
     delete req.session.adult_name;
 
-    const kioskRow = db.prepare("SELECT * FROM person WHERE role = 'family'").get() as any;
+    const [kioskRow] = await getDb()
+      .select()
+      .from(personTable)
+      .where(eq(personTable.role, 'family'))
+      .limit(1);
     const kioskUser = {
       id: kioskRow?.id || -1,
       name: kioskRow?.name || 'Family Kiosk',
@@ -337,13 +358,13 @@ authRouter.post('/api/switch_user', (req: Request, res: Response) => {
     return;
   }
 
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const [person] = await getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1);
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
   }
 
-  const isParent = person.role === 'parent' || person.is_admin === 1;
+  const isParent = person.role === 'parent' || Boolean(person.isAdmin);
 
   if (person.pin) {
     if (!checkPinHash(String(pin || ''), person.pin)) {
@@ -378,7 +399,7 @@ authRouter.post('/api/switch_user', (req: Request, res: Response) => {
       role: person.role || (isParent ? 'parent' : 'child'),
       avatar: person.avatar || 'default_avatar.png',
       color: person.color || '#ffffff',
-      is_admin: Boolean(person.is_admin),
+      is_admin: Boolean(person.isAdmin),
       has_pin: Boolean(person.pin),
     },
   });

@@ -36,7 +36,8 @@ choresrewards/
 ├── server/                     # Node.js + Express + TypeScript Backend
 │   ├── src/
 │   │   ├── config.ts           # Port/paths/version resolution (PORT, DATA_DIR, DB_PATH, UPLOADS_DIR, CR_SECRET_KEY)
-│   │   ├── db.ts               # SQLite schema, migrations, connection pool (better-sqlite3)
+│   │   ├── db.ts               # Boot (Drizzle migrations + seeds), AppSetting cache, logActivity
+│   │   ├── db/                 # Postgres layer: schema.ts, client.ts (pool + many/one), migrate.ts, sql.ts
 │   │   ├── routes/             # Express API route handlers (health.ts = /api/health + /api/ping probes, backup.ts = export/import)
 │   │   └── services/           # Background services (gotify push, seasons/Easter engine, scraper, mutationDedupe, backup/restore archives)
 │   └── package.json
@@ -72,7 +73,7 @@ choresrewards/
 | **Full-Screen Overlays** | `client/src/features/overlays/ScreensaverOverlay.tsx`<br>`features/overlays/VisualTimerModal.tsx`<br>`features/overlays/KidsPlayWidgetModal.tsx`<br>`features/overlays/SyncSplashOverlay.tsx` | `components/Overlays.tsx` | Redux / `TimerRing.tsx` |
 | **Header, Weather & Clock** | `client/src/features/header/WeatherWidget.tsx`<br>`features/header/ClockWidget.tsx`<br>`features/header/WeatherForecastModal.tsx` | `components/Header.tsx` | Open-Meteo API + device clock |
 | **Health Probes (containers & offline)** | - | - | `server/src/routes/health.ts` — `/api/health` (`200`/`503` + version + DB status, used by the Docker `HEALTHCHECK` and Coolify) and `/api/ping` (`204`, the client's reconnect/wake probe) |
-| **Backup & Restore (household export/import)** | `client/src/features/settings/tabs/BackupSettingsTab.tsx` | `features/settings/SettingsView.tsx` (`tab === 'backup'`) | `/api/backup/info`, `/api/backup/export`, `/api/backup/import` (`server/src/routes/backup.ts` → `server/src/services/backup.ts`)<br>Archive = `manifest.json` + `database.db` (online backup snapshot) + `secret_key` + `uploads/**`<br>Restore: whitelist-validated tar → `quick_check` → safety copy in `backups/` → swap files → exit so the container restarts |
+| **Backup & Restore (household export/import)** | `client/src/features/settings/tabs/BackupSettingsTab.tsx` | `features/settings/SettingsView.tsx` (`tab === 'backup'`) | `/api/backup/info`, `/api/backup/export`, `/api/backup/import` (`server/src/routes/backup.ts` → `server/src/services/backup.ts`)<br>Archive = `manifest.json` + `database.json` (logical dump of every table) + `secret_key` + `uploads/**`<br>Restore: whitelist-validated tar (v1 SQLite `database.db` still accepted) → safety copy `backups/pre-restore-*.json` → transactional table replace in Postgres + media copy back (no restart) |
 | **Notification Bell (Alerts)** | `client/src/components/Header.tsx` (`header-notif-*`, mark read / dismiss; panel is a direct child of `.header-nav-actions` so the tablet burger menu can open it at 769–1400px) | - | `/api/notifications`, `/api/notifications/mark_read`, `/api/notifications/delete` (`server/src/routes/organise.ts`)<br>Table: `notifications` (`dedupe_key`, `read_at`, `dismissed_at`) |
 
 ---
@@ -109,7 +110,7 @@ All domain types are cleanly separated:
   - `AppContext.tsx`: Household server payload (`data`), session role gating (`isParent`, `isChild`), toasts, and confirmation dialogs.
   - `TimerContext.tsx`: High-precision choreography timer tick engine synced to Redux storage.
 - **Backend Session Persistence** (`server/src/services/sessionStore.ts`):
-  - `SqliteSessionStore`: Custom SQLite-persisted session store (`session_store` table). Ensures parent unlock sessions survive backend restarts, reloads, and multi-device sync without dropping back to kiosk mode.
+  - `PgSessionStore`: `connect-pg-simple` store on the shared Postgres pool (`session` table, created by the Drizzle migrations). Parent unlock sessions survive backend restarts, redeploys and multi-device use without dropping back to kiosk mode.
 - **Rules**:
   - ZERO direct `localStorage` calls.
   - Mobile Navigation: Thumb-reachable bottom bar (`[ Today | Chores | Rewards | Shopping | ☰ Menu ]`) opens unified `MobileDrawer` containing primary/secondary navigation, quick tools (Timer, Clock, Sound), and active profile card with switcher.

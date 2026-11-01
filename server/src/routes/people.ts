@@ -3,7 +3,16 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { db, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
+import { getDb, many, one } from '../db/client';
+import {
+  chore as choreTable,
+  person as personTable,
+  personBadge,
+  personStreak,
+  reward as rewardTable,
+} from '../db/schema';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult, hashPin } from './auth';
 import { invalidateGcalCache } from '../services/googleCalendar';
@@ -24,13 +33,13 @@ const avatarUpload = multer({
 
 export const peopleRouter = Router();
 
-peopleRouter.get('/api/person_points', (req: Request, res: Response) => {
+peopleRouter.get('/api/person_points', async (req: Request, res: Response) => {
   const name = String(req.query.name || '').trim();
   if (!name) {
     res.status(400).json({ success: false, error: 'Name is required' });
     return;
   }
-  const person = db.prepare('SELECT * FROM person WHERE name = ?').get(name) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.name, name)).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
@@ -41,7 +50,7 @@ peopleRouter.get('/api/person_points', (req: Request, res: Response) => {
   });
 });
 
-peopleRouter.post('/add_person', (req: Request, res: Response) => {
+peopleRouter.post('/add_person', async (req: Request, res: Response) => {
   try {
     const data = req.body || {};
     let names: string[] = [];
@@ -61,12 +70,12 @@ peopleRouter.post('/add_person', (req: Request, res: Response) => {
 
     const addedPeople: any[] = [];
     for (const name of names) {
-      const existing = db.prepare('SELECT id FROM person WHERE name = ?').get(name);
+      const existing = await one(getDb().select({ id: personTable.id }).from(personTable).where(eq(personTable.name, name)).limit(1));
       if (existing) continue;
-      const info = db
-        .prepare("INSERT INTO person (name, points, bonus_points, avatar, color, \"order\") VALUES (?, 0, 0, 'default_avatar.png', '#ffffff', 0)")
-        .run(name);
-      const newPerson = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(info.lastInsertRowid)) as any;
+      const [newPerson] = await getDb()
+        .insert(personTable)
+        .values({ name, points: 0, bonusPoints: 0, avatar: 'default_avatar.png', color: '#ffffff', order: 0 })
+        .returning();
       logActivity('family_member_added', `Family member '${name}' was added`, name);
       addedPeople.push({
         id: newPerson.id,
@@ -83,24 +92,29 @@ peopleRouter.post('/add_person', (req: Request, res: Response) => {
   }
 });
 
-peopleRouter.post('/delete_person', (req: Request, res: Response) => {
+peopleRouter.post('/delete_person', async (req: Request, res: Response) => {
   try {
     const personId = Number(req.body?.person_id);
     if (!personId) {
       res.status(400).json({ success: false, error: 'person_id is required' });
       return;
     }
-    const person = db.prepare('SELECT * FROM person WHERE id = ?').get(personId) as any;
+    const person = await one(getDb().select().from(personTable).where(eq(personTable.id, personId)).limit(1));
     if (!person) {
       res.status(404).json({ success: false, error: 'Person not found' });
       return;
     }
 
-    db.prepare('DELETE FROM person_streak WHERE person_id = ?').run(personId);
-    db.prepare('DELETE FROM person_badge WHERE person_id = ?').run(personId);
-    db.prepare('DELETE FROM chore WHERE assigned_to_id = ? OR assigned_to = ?').run(personId, person.name);
-    db.prepare('DELETE FROM reward WHERE assigned_to_id = ? OR assigned_to = ?').run(personId, person.name);
-    db.prepare('DELETE FROM person WHERE id = ?').run(personId);
+    const db = getDb();
+    await db.delete(personStreak).where(eq(personStreak.personId, personId));
+    await db.delete(personBadge).where(eq(personBadge.personId, personId));
+    await db
+      .delete(choreTable)
+      .where(or(eq(choreTable.assignedToId, personId), eq(choreTable.assignedTo, person.name)));
+    await db
+      .delete(rewardTable)
+      .where(or(eq(rewardTable.assignedToId, personId), eq(rewardTable.assignedTo, person.name)));
+    await db.delete(personTable).where(eq(personTable.id, personId));
 
     logActivity('family_member_deleted', `Family member '${person.name}' was deleted`, person.name);
     res.json({ success: true });
@@ -109,7 +123,7 @@ peopleRouter.post('/delete_person', (req: Request, res: Response) => {
   }
 });
 
-peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
+peopleRouter.post('/api/save_person', async (req: Request, res: Response) => {
   try {
     const { id, name, dob, age, color, role, pin, clear_pin, calendar_ical_url } = req.body || {};
     const trimmedName = String(name || '').trim();
@@ -118,14 +132,14 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
       return;
     }
     const cleanRole = (role === 'parent' || role === 'family') ? role : 'child';
-    const isAdmin = cleanRole === 'parent' ? 1 : 0;
+    const isAdmin = cleanRole === 'parent';
     const cleanColor = String(color || '#ffffff');
     const cleanDob = dob !== undefined ? (String(dob).trim().slice(0, 10) || null) : undefined;
     const cleanAge = age !== undefined && age !== null && age !== '' ? Number(age) : null;
     const cleanIcalUrl = calendar_ical_url !== undefined ? (String(calendar_ical_url).trim() || null) : undefined;
 
     if (id) {
-      const existing = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(id)) as any;
+      const existing = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(id))).limit(1));
       if (!existing) {
         res.status(404).json({ success: false, error: 'Person not found' });
         return;
@@ -141,15 +155,24 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
       const finalAge = calculateAge(finalDob, cleanAge !== null ? cleanAge : existing.age);
       const finalIcalUrl = cleanIcalUrl !== undefined ? cleanIcalUrl : existing.calendar_ical_url;
 
-      db.prepare(`
-        UPDATE person
-        SET name = ?, dob = ?, age = ?, color = ?, role = ?, is_admin = ?, pin = ?, calendar_ical_url = ?
-        WHERE id = ?
-      `).run(trimmedName, finalDob, finalAge, cleanColor, cleanRole, isAdmin, pinHash, finalIcalUrl, Number(id));
+      await getDb()
+        .update(personTable)
+        .set({
+          name: trimmedName,
+          dob: finalDob ?? null,
+          age: finalAge,
+          color: cleanColor,
+          role: cleanRole,
+          isAdmin,
+          pin: pinHash,
+          calendarIcalUrl: finalIcalUrl ?? null,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(eq(personTable.id, Number(id)));
 
       logActivity('family_member_updated', `Family member '${trimmedName}' details updated`, trimmedName);
       invalidateGcalCache();
-      const updated = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(id)) as any;
+      const updated = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(id))).limit(1));
       if (updated) updated.age = calculateAge(updated.dob, updated.age);
       res.json({ success: true, person: updated });
     } else {
@@ -158,16 +181,29 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
         pinHash = hashPin(String(pin).trim());
       }
       const finalAge = calculateAge(cleanDob, cleanAge);
-      const ins = db.prepare(`
-        INSERT INTO person (name, role, points, bonus_points, avatar, color, "order", is_admin, pin, age, dob, calendar_ical_url)
-        VALUES (?, ?, 0, 0, 'default_avatar.png', ?, (SELECT COALESCE(MAX("order"), 0) + 1 FROM person), ?, ?, ?, ?, ?)
-      `).run(trimmedName, cleanRole, cleanColor, isAdmin, pinHash, finalAge, cleanDob || null, cleanIcalUrl || null);
+      const [ins] = await getDb()
+        .insert(personTable)
+        .values({
+          name: trimmedName,
+          role: cleanRole,
+          points: 0,
+          bonusPoints: 0,
+          avatar: 'default_avatar.png',
+          color: cleanColor,
+          order: sql<number>`(SELECT COALESCE(MAX("order"), 0) + 1 FROM person)`,
+          isAdmin,
+          pin: pinHash,
+          age: finalAge,
+          dob: cleanDob || null,
+          calendarIcalUrl: cleanIcalUrl || null,
+        })
+        .returning({ id: personTable.id });
 
-      const newId = Number(ins.lastInsertRowid);
-      db.prepare('INSERT INTO person_streak (person_id, current_streak, longest_streak) VALUES (?, 0, 0)').run(newId);
+      const newId = ins.id;
+      await getDb().insert(personStreak).values({ personId: newId, currentStreak: 0, longestStreak: 0 });
       logActivity('family_member_added', `Family member '${trimmedName}' was added`, trimmedName);
       invalidateGcalCache();
-      const inserted = db.prepare('SELECT * FROM person WHERE id = ?').get(newId) as any;
+      const inserted = await one(getDb().select().from(personTable).where(eq(personTable.id, newId)).limit(1));
       if (inserted) inserted.age = calculateAge(inserted.dob, inserted.age);
       res.json({ success: true, person: inserted });
     }
@@ -179,10 +215,10 @@ peopleRouter.post('/api/save_person', (req: Request, res: Response) => {
 peopleRouter.post(
   '/upload_avatar/:personId',
   avatarUpload.single('avatar'),
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const personId = Number(req.params.personId);
-      const person = db.prepare('SELECT * FROM person WHERE id = ?').get(personId) as any;
+      const person = await one(getDb().select().from(personTable).where(eq(personTable.id, personId)).limit(1));
       if (!person) {
         res.status(404).json({ success: false, error: 'Person not found' });
         return;
@@ -203,7 +239,7 @@ peopleRouter.post(
         }
       }
 
-      db.prepare('UPDATE person SET avatar = ? WHERE id = ?').run(req.file.filename, personId);
+      await getDb().update(personTable).set({ avatar: req.file.filename }).where(eq(personTable.id, personId));
       logActivity('avatar_updated', `Avatar updated for ${person.name}`, person.name);
       res.json({
         success: true,
@@ -216,20 +252,20 @@ peopleRouter.post(
   }
 );
 
-peopleRouter.post('/save_column_color', (req: Request, res: Response) => {
+peopleRouter.post('/save_column_color', async (req: Request, res: Response) => {
   const { person_id, color } = req.body || {};
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
   }
-  db.prepare('UPDATE person SET color = ? WHERE id = ?').run(String(color || '#ffffff'), person.id);
+  await getDb().update(personTable).set({ color: String(color || '#ffffff') }).where(eq(personTable.id, person.id));
   logActivity('color_updated', `Column color was changed to ${color} for ${person.name}`, person.name);
   res.json({ success: true });
 });
 
-peopleRouter.get('/get_column_color/:personId', (req: Request, res: Response) => {
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(req.params.personId)) as any;
+peopleRouter.get('/get_column_color/:personId', async (req: Request, res: Response) => {
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(req.params.personId))).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
@@ -237,63 +273,67 @@ peopleRouter.get('/get_column_color/:personId', (req: Request, res: Response) =>
   res.json({ success: true, color: person.color });
 });
 
-peopleRouter.post('/update_order', (req: Request, res: Response) => {
+peopleRouter.post('/update_order', async (req: Request, res: Response) => {
   const { person_id, order } = req.body || {};
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
   }
   const newOrder = parseInt(String(order ?? 0), 10) || 0;
-  db.prepare('UPDATE person SET "order" = ? WHERE id = ?').run(newOrder, person.id);
+  await getDb().update(personTable).set({ order: newOrder }).where(eq(personTable.id, person.id));
   logActivity('order_updated', `Column order was updated to position ${newOrder} for ${person.name}`, person.name);
   res.json({ success: true, message: `Order updated to ${newOrder} for ${person.name}` });
 });
 
-peopleRouter.post('/update_person_order', (req: Request, res: Response) => {
+peopleRouter.post('/update_person_order', async (req: Request, res: Response) => {
   const orderList = req.body?.order;
   if (Array.isArray(orderList)) {
-    const stmt = db.prepare('UPDATE person SET "order" = ? WHERE id = ?');
+    const db = getDb();
     for (const item of orderList) {
       if (item && item.id !== undefined) {
-        stmt.run(Number(item.order || 0), Number(item.id));
+        await db
+          .update(personTable)
+          .set({ order: Number(item.order || 0) })
+          .where(eq(personTable.id, Number(item.id)));
       }
     }
   }
   res.json({ success: true });
 });
 
-function handleUpdateName(req: Request, res: Response) {
+async function handleUpdateName(req: Request, res: Response) {
   const { person_id, new_name } = req.body || {};
   const trimmed = String(new_name || '').trim();
   if (!trimmed) {
     res.status(400).json({ success: false, error: 'New name cannot be empty' });
     return;
   }
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
   }
-  const taken = db.prepare('SELECT id FROM person WHERE id != ? AND name = ?').get(person.id, trimmed);
+  const taken = await one(
+    getDb()
+      .select({ id: personTable.id })
+      .from(personTable)
+      .where(and(ne(personTable.id, person.id), eq(personTable.name, trimmed)))
+      .limit(1)
+  );
   if (taken) {
     res.status(400).json({ success: false, error: 'That name is already used by someone else' });
     return;
   }
 
   const oldName = person.name;
-  db.prepare('UPDATE person SET name = ? WHERE id = ?').run(trimmed, person.id);
+  const db = getDb();
+  await db.update(personTable).set({ name: trimmed }).where(eq(personTable.id, person.id));
   if (oldName !== trimmed) {
-    db.prepare('UPDATE chore SET assigned_to = ? WHERE assigned_to_id = ? OR assigned_to = ?').run(
-      trimmed,
-      person.id,
-      oldName
-    );
-    db.prepare('UPDATE reward SET assigned_to = ? WHERE assigned_to_id = ? OR assigned_to = ?').run(
-      trimmed,
-      person.id,
-      oldName
-    );
+    const choreMatch = or(eq(choreTable.assignedToId, person.id), eq(choreTable.assignedTo, oldName));
+    await db.update(choreTable).set({ assignedTo: trimmed }).where(choreMatch);
+    const rewardMatch = or(eq(rewardTable.assignedToId, person.id), eq(rewardTable.assignedTo, oldName));
+    await db.update(rewardTable).set({ assignedTo: trimmed }).where(rewardMatch);
   }
 
   logActivity('name_updated', `Name was changed from '${oldName}' to '${trimmed}'`, trimmed);
@@ -303,9 +343,9 @@ function handleUpdateName(req: Request, res: Response) {
 peopleRouter.post('/update_name', handleUpdateName);
 peopleRouter.post('/edit_person_name', handleUpdateName);
 
-peopleRouter.post('/reset_points', requireAdult, (req: Request, res: Response) => {
+peopleRouter.post('/reset_points', requireAdult, async (req: Request, res: Response) => {
   const { person_id, new_points } = req.body || {};
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(Number(person_id)) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, Number(person_id))).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
@@ -317,7 +357,7 @@ peopleRouter.post('/reset_points', requireAdult, (req: Request, res: Response) =
   }
   const oldPoints = roundPoints(person.points);
   const rounded = roundPoints(parsed);
-  db.prepare('UPDATE person SET points = ?, bonus_points = 0 WHERE id = ?').run(rounded, person.id);
+  await getDb().update(personTable).set({ points: rounded, bonusPoints: 0 }).where(eq(personTable.id, person.id));
   logActivity(
     'points_reset',
     `Points were reset from ${oldPoints} to ${rounded} for ${person.name} (bonus points also reset)`,
@@ -330,17 +370,20 @@ peopleRouter.post('/reset_points', requireAdult, (req: Request, res: Response) =
   });
 });
 
-peopleRouter.get('/api/person/:personId/badges', (req: Request, res: Response) => {
+peopleRouter.get('/api/person/:personId/badges', async (req: Request, res: Response) => {
   const personId = Number(req.params.personId);
-  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(personId) as any;
+  const person = await one(getDb().select().from(personTable).where(eq(personTable.id, personId)).limit(1));
   if (!person) {
     res.status(404).json({ success: false, error: 'Person not found' });
     return;
   }
 
-  const earnedRows = db
-    .prepare('SELECT badge_key, earned_at FROM person_badge WHERE person_id = ?')
-    .all(personId) as Array<{ badge_key: string; earned_at: string }>;
+  const earnedRows = await many<{ badge_key: string; earned_at: string }>(
+    getDb()
+      .select({ badge_key: personBadge.badgeKey, earned_at: personBadge.earnedAt })
+      .from(personBadge)
+      .where(eq(personBadge.personId, personId))
+  );
   const earnedMap = new Map(earnedRows.map((r) => [r.badge_key, r.earned_at]));
 
   const badges = Object.entries(BADGE_DEFINITIONS).map(([key, def]) => ({
@@ -353,11 +396,16 @@ peopleRouter.get('/api/person/:personId/badges', (req: Request, res: Response) =
     earned_date: earnedMap.get(key) || null,
   }));
 
-  const countRow = db
-    .prepare('SELECT COUNT(*) as cnt FROM chore WHERE assigned_to_id = ? AND completed = 1')
-    .get(personId) as { cnt: number };
+  const countRow = await one<{ cnt: number }>(
+    getDb()
+      .select({ cnt: sql<number>`COUNT(*)::int` })
+      .from(choreTable)
+      .where(and(eq(choreTable.assignedToId, personId), eq(choreTable.completed, true)))
+  );
 
-  const streakRow = db.prepare('SELECT * FROM person_streak WHERE person_id = ?').get(personId) as any;
+  const streakRow = await one(
+    getDb().select().from(personStreak).where(eq(personStreak.personId, personId)).limit(1)
+  );
 
   res.json({
     success: true,

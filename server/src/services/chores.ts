@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { db, AppSetting, BADGE_DEFINITIONS, logActivity } from '../db';
+import { and, eq, sql } from 'drizzle-orm';
+import { AppSetting, BADGE_DEFINITIONS, logActivity } from '../db';
+import { getDb } from '../db/client';
+import { chore as choreTable, personBadge, personStreak } from '../db/schema';
 import { DATA_DIR } from '../config';
 import { getFamilyToday, getMondayOfWeek, addDays, isDayOfWeekScheduled, getNextScheduledDate } from '../utils/time';
 import { sendGotifyNotification, shouldNotifyPerson } from './gotify';
@@ -80,7 +83,8 @@ export function seedExtraChores(): ExtraChoreItem[] {
 }
 
 export function saveExtraChores(extras: ExtraChoreItem[]): void {
-  AppSetting.set('extra_chores_json', JSON.stringify(Array.isArray(extras) ? extras : []));
+  // Settings are cache-backed, so the write can be fire-and-forget without a stale read.
+  AppSetting.setLazy('extra_chores_json', JSON.stringify(Array.isArray(extras) ? extras : []));
 }
 
 export function getExtraChores(): ExtraChoreItem[] {
@@ -174,39 +178,41 @@ export function saveQuizQuestions(questions: any[]): void {
   fs.writeFileSync(QUIZ_QUESTIONS_PATH, JSON.stringify(questions, null, 2), 'utf-8');
 }
 
-export function calculateWeeklyProgress(personName: string): { completed: number; total: number } {
+export async function calculateWeeklyProgress(personName: string): Promise<{ completed: number; total: number }> {
   const weekStart = getMondayOfWeek();
-  const rows = db
-    .prepare('SELECT completed FROM chore WHERE assigned_to = ? AND date_completed >= ?')
-    .all(personName, weekStart) as Array<{ completed: number }>;
+  const rows = await getDb()
+    .select({ completed: choreTable.completed })
+    .from(choreTable)
+    .where(and(eq(choreTable.assignedTo, personName), sql`${choreTable.dateCompleted} >= ${weekStart}`));
   const total = rows.length;
   const completed = rows.filter((r) => Boolean(r.completed)).length;
   return { completed, total };
 }
 
-export function resetDailyChores(): void {
+export async function resetDailyChores(): Promise<void> {
   const today = getFamilyToday();
   console.log(`[reset_daily_chores] Running daily chore reset for ${today}`);
 
-  const dailyChores = db
-    .prepare('SELECT * FROM chore WHERE is_daily = 1 AND deleted = 0')
-    .all() as Array<any>;
+  const dailyChores = await getDb()
+    .select()
+    .from(choreTable)
+    .where(and(eq(choreTable.isDaily, true), eq(choreTable.deleted, false)));
 
   let resetCount = 0;
-  const overdueChores: any[] = [];
+  const overdueChores: Array<{ title: string; assignedTo: string; assignedToId: number | null; dueDate: string | null }> = [];
   const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-  for (const chore of dailyChores) {
-    const choreDate = chore.due_date ? String(chore.due_date).slice(0, 10) : null;
-    const wasIncomplete = !chore.completed;
+  for (const row of dailyChores) {
+    const choreDate = row.dueDate ? String(row.dueDate).slice(0, 10) : null;
+    const wasIncomplete = !row.completed;
 
-    let completed = Boolean(chore.completed);
+    let completed = Boolean(row.completed);
     let dueDate = choreDate;
-    let dueDatetime = chore.due_datetime ? String(chore.due_datetime) : null;
+    let dueDatetime = row.dueDatetime ? String(row.dueDatetime) : null;
     let rowChanged = false;
 
-    const isDueToday = isDayOfWeekScheduled(today, chore.days_of_week);
-    const targetDate = isDueToday ? today : getNextScheduledDate(today, chore.days_of_week);
+    const isDueToday = isDayOfWeekScheduled(today, row.daysOfWeek);
+    const targetDate = isDueToday ? today : getNextScheduledDate(today, row.daysOfWeek);
 
     if (!choreDate || choreDate < today || (choreDate === today && !isDueToday)) {
       completed = false;
@@ -224,16 +230,16 @@ export function resetDailyChores(): void {
     }
 
     if (rowChanged) {
-      db.prepare('UPDATE chore SET completed = ?, due_date = ?, due_datetime = ? WHERE id = ?').run(
-        completed ? 1 : 0,
-        dueDate,
-        dueDatetime,
-        chore.id
-      );
+      await getDb().update(choreTable).set({ completed, dueDate, dueDatetime }).where(eq(choreTable.id, row.id));
     }
 
     if (wasIncomplete && dueDatetime && dueDatetime.replace('T', ' ') < nowIso) {
-      overdueChores.push(chore);
+      overdueChores.push({
+        title: row.title,
+        assignedTo: row.assignedTo || 'Unassigned',
+        assignedToId: row.assignedToId,
+        dueDate,
+      });
     }
   }
 
@@ -244,40 +250,41 @@ export function resetDailyChores(): void {
   // Send overdue notifications asynchronously if configured
   const notifyExpired = AppSetting.get('gotify_notify_due_chores_expired', 'false') === 'true';
   if (notifyExpired && overdueChores.length > 0) {
-    for (const chore of overdueChores) {
-      const assignedTo = chore.assigned_to || 'Unassigned';
-      if (shouldNotifyPerson(assignedTo) || shouldNotifyPerson(chore.assigned_to_id)) {
+    for (const item of overdueChores) {
+      if (shouldNotifyPerson(item.assignedTo) || shouldNotifyPerson(item.assignedToId)) {
         sendGotifyNotification(
           'Chore Overdue',
-          `Chore '${chore.title}' assigned to ${assignedTo} was not completed before its due date (${chore.due_date}).`
+          `Chore '${item.title}' assigned to ${item.assignedTo} was not completed before its due date (${item.dueDate}).`
         ).catch(() => {});
       }
     }
   }
 }
 
-export function ensureDailyReset(): string {
+export async function ensureDailyReset(): Promise<string> {
   const familyToday = getFamilyToday();
   if (AppSetting.get('last_daily_reset', '') !== familyToday) {
-    resetDailyChores();
-    AppSetting.set('last_daily_reset', familyToday);
+    await resetDailyChores();
+    await AppSetting.set('last_daily_reset', familyToday);
   }
   return familyToday;
 }
 
-export function checkAndAwardBadges(
+export async function checkAndAwardBadges(
   personId: number,
   todayStr: string,
   hour: number,
   weekdayLower: string
-): { newBadges: Array<{ key: string; emoji: string; name: string; desc: string }>; currentStreak: number } {
+): Promise<{ newBadges: Array<{ key: string; emoji: string; name: string; desc: string }>; currentStreak: number }> {
+  const db = getDb();
   const newlyEarned: string[] = [];
 
   // Total chore count badges
-  const countRow = db
-    .prepare('SELECT COUNT(*) as cnt FROM chore WHERE assigned_to_id = ? AND completed = 1')
-    .get(personId) as { cnt: number };
-  const totalCompleted = countRow?.cnt || 0;
+  const countRow = await db
+    .select({ cnt: sql<number>`COUNT(*)::int` })
+    .from(choreTable)
+    .where(and(eq(choreTable.assignedToId, personId), eq(choreTable.completed, true)));
+  const totalCompleted = Number(countRow[0]?.cnt || 0);
 
   const thresholds: Array<[string, number]> = [
     ['first_chore', 1],
@@ -286,26 +293,41 @@ export function checkAndAwardBadges(
     ['chores_100', 100],
   ];
 
-  const hasBadgeStmt = db.prepare('SELECT 1 FROM person_badge WHERE person_id = ? AND badge_key = ?');
-  const addBadgeStmt = db.prepare('INSERT OR IGNORE INTO person_badge (person_id, badge_key) VALUES (?, ?)');
+  const hasBadge = async (key: string): Promise<boolean> => {
+    const rows = await db
+      .select({ id: personBadge.id })
+      .from(personBadge)
+      .where(and(eq(personBadge.personId, personId), eq(personBadge.badgeKey, key)))
+      .limit(1);
+    return rows.length > 0;
+  };
+  const addBadge = async (key: string): Promise<void> => {
+    await db.insert(personBadge).values({ personId, badgeKey: key }).onConflictDoNothing();
+  };
 
   for (const [key, threshold] of thresholds) {
-    if (totalCompleted >= threshold && !hasBadgeStmt.get(personId, key)) {
-      addBadgeStmt.run(personId, key);
+    if (totalCompleted >= threshold && !(await hasBadge(key))) {
+      await addBadge(key);
       newlyEarned.push(key);
     }
   }
 
   // Check if all of today's chores for this person are done
-  const remainingRows = db
-    .prepare(
-      'SELECT * FROM chore WHERE assigned_to_id = ? AND completed = 0 AND deleted = 0 AND (is_daily = 0 OR due_date <= ?)'
-    )
-    .all(personId, todayStr) as Array<any>;
+  const remainingRows = await db
+    .select()
+    .from(choreTable)
+    .where(
+      and(
+        eq(choreTable.assignedToId, personId),
+        eq(choreTable.completed, false),
+        eq(choreTable.deleted, false),
+        sql`(is_daily = false OR due_date <= ${todayStr})`
+      )
+    );
 
   const remainingFiltered = remainingRows.filter((c) => {
-    if (!c.days_of_week || !String(c.days_of_week).trim()) return true;
-    const days = String(c.days_of_week)
+    if (!c.daysOfWeek || !String(c.daysOfWeek).trim()) return true;
+    const days = String(c.daysOfWeek)
       .split(',')
       .map((d) => d.trim().toLowerCase());
     return days.includes(weekdayLower);
@@ -313,22 +335,22 @@ export function checkAndAwardBadges(
 
   const allDoneToday = remainingFiltered.length === 0;
 
-  let streakRow = db
-    .prepare('SELECT * FROM person_streak WHERE person_id = ?')
-    .get(personId) as { id: number; current_streak: number; longest_streak: number; last_completed_date: string | null } | undefined;
+  let streakRow = (
+    await db.select().from(personStreak).where(eq(personStreak.personId, personId)).limit(1)
+  )[0];
 
   if (!streakRow) {
-    db.prepare('INSERT INTO person_streak (person_id, current_streak, longest_streak) VALUES (?, 0, 0)').run(personId);
-    streakRow = db.prepare('SELECT * FROM person_streak WHERE person_id = ?').get(personId) as any;
+    await db.insert(personStreak).values({ personId, currentStreak: 0, longestStreak: 0 });
+    streakRow = (await db.select().from(personStreak).where(eq(personStreak.personId, personId)).limit(1))[0];
   }
 
-  let cur = streakRow?.current_streak || 0;
-  let best = streakRow?.longest_streak || 0;
+  let cur = streakRow?.currentStreak || 0;
+  let best = streakRow?.longestStreak || 0;
   let currentStreak = cur;
 
   if (allDoneToday) {
     const yesterdayStr = addDays(todayStr, -1);
-    const lastDate = streakRow?.last_completed_date ? String(streakRow.last_completed_date).slice(0, 10) : null;
+    const lastDate = streakRow?.lastCompletedDate ? String(streakRow.lastCompletedDate).slice(0, 10) : null;
     if (lastDate === todayStr) {
       // already updated today
     } else if (lastDate === yesterdayStr) {
@@ -339,17 +361,18 @@ export function checkAndAwardBadges(
     best = Math.max(best, cur);
     currentStreak = cur;
 
-    db.prepare(
-      'UPDATE person_streak SET current_streak = ?, longest_streak = ?, last_completed_date = ? WHERE person_id = ?'
-    ).run(cur, best, todayStr, personId);
+    await db
+      .update(personStreak)
+      .set({ currentStreak: cur, longestStreak: best, lastCompletedDate: todayStr })
+      .where(eq(personStreak.personId, personId));
 
-    if (!hasBadgeStmt.get(personId, 'perfect_day')) {
-      addBadgeStmt.run(personId, 'perfect_day');
+    if (!(await hasBadge('perfect_day'))) {
+      await addBadge('perfect_day');
       newlyEarned.push('perfect_day');
     }
 
-    if (hour < 12 && !hasBadgeStmt.get(personId, 'early_bird')) {
-      addBadgeStmt.run(personId, 'early_bird');
+    if (hour < 12 && !(await hasBadge('early_bird'))) {
+      await addBadge('early_bird');
       newlyEarned.push('early_bird');
     }
 
@@ -359,8 +382,8 @@ export function checkAndAwardBadges(
       ['streak_30', 30],
     ];
     for (const [key, threshold] of streakMilestones) {
-      if (cur >= threshold && !hasBadgeStmt.get(personId, key)) {
-        addBadgeStmt.run(personId, key);
+      if (cur >= threshold && !(await hasBadge(key))) {
+        await addBadge(key);
         newlyEarned.push(key);
       }
     }

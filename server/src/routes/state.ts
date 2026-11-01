@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { db, AppSetting, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
+import { AppSetting, BADGE_DEFINITIONS, logActivity, roundPoints } from '../db';
+import { sqlAll, sqlRun } from '../db/sql';
 import { UPLOADS_DIR, APP_VERSION } from '../config';
 import { hashPin } from './auth';
 import { getAppTimezone, getMondayOfWeek, isChoreOverdue, isDayOfWeekScheduled, addDays } from '../utils/time';
@@ -42,23 +43,20 @@ export const stateRouter = Router();
 
 stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
   try {
-    const familyToday = ensureDailyReset();
-    const peopleRows = db.prepare('SELECT * FROM person ORDER BY "order", id').all() as Array<any>;
+    const familyToday = await ensureDailyReset();
+    const peopleRows = await sqlAll('SELECT * FROM person ORDER BY "order", id') as Array<any>;
     const needsSetup = peopleRows.length === 0;
 
     const choresRows = (
-      db
-        .prepare('SELECT * FROM chore WHERE deleted = 0 AND (is_daily = 0 OR due_date IS NULL OR due_date <= ?) ORDER BY due_date, id')
-        .all(familyToday) as Array<any>
+      await sqlAll('SELECT * FROM chore WHERE deleted = false AND (is_daily = false OR due_date IS NULL OR due_date <= ?) ORDER BY due_date, id', [familyToday]) as Array<any>
     ).filter((c) => !c.is_daily || isDayOfWeekScheduled(familyToday, c.days_of_week));
 
     const overdueChoreIds: number[] = [];
     // Per-chore current streak (consecutive days with a completion) — powers the 🔥 chip on the card
-    const streakRows = db
-      .prepare(
-        "SELECT chore_id, for_date FROM chore_log WHERE for_date >= date(?, '-60 day') GROUP BY chore_id, for_date"
-      )
-      .all(familyToday) as Array<{ chore_id: number; for_date: string }>;
+    const streakRows = (await sqlAll(
+      "SELECT chore_id, for_date FROM chore_log WHERE for_date >= (CAST(? AS date) - INTERVAL '60 day') GROUP BY chore_id, for_date",
+      [familyToday]
+    )) as Array<{ chore_id: number; for_date: string }>;
     const streakDaysByChore: Record<number, Set<string>> = {};
     for (const row of streakRows) {
       const key = Number(row.chore_id);
@@ -103,7 +101,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       };
     });
 
-    const rewardsRows = db.prepare('SELECT * FROM reward ORDER BY id').all() as Array<any>;
+    const rewardsRows = await sqlAll('SELECT * FROM reward ORDER BY id') as Array<any>;
     const rewards = rewardsRows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -114,7 +112,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       assigned_to: r.assigned_to,
       completed: Boolean(r.completed),
       date_completed: r.date_completed || null,
-      is_recurring: r.is_recurring !== 0 && r.is_recurring !== false,
+      is_recurring: Boolean(r.is_recurring),
       source_url: r.source_url || null,
       source_name: r.source_name || null,
       last_synced_at: r.last_synced_at || null,
@@ -130,7 +128,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       familyProgress[p.name] = { completed: completedCnt, total: personChores.length };
     }
 
-    const streaksRows = db.prepare('SELECT * FROM person_streak').all() as Array<any>;
+    const streaksRows = await sqlAll('SELECT * FROM person_streak') as Array<any>;
     const personStreaks: Record<number, { current_streak: number; longest_streak: number; last_completed_date: string | null }> = {};
     for (const s of streaksRows) {
       personStreaks[s.person_id] = {
@@ -140,7 +138,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       };
     }
 
-    const badgesRows = db.prepare('SELECT * FROM person_badge ORDER BY earned_at').all() as Array<any>;
+    const badgesRows = await sqlAll('SELECT * FROM person_badge ORDER BY earned_at') as Array<any>;
     const personBadges: Record<number, Array<{ key: string; emoji: string; name: string; desc: string }>> = {};
     const personEarnedKeys: Record<string, string[]> = {};
     for (const b of badgesRows) {
@@ -158,11 +156,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
       personEarnedKeys[pidStr].push(b.badge_key);
     }
 
-    const totalCompletedRows = db
-      .prepare(
-        'SELECT assigned_to_id, COUNT(id) as cnt FROM chore WHERE completed = 1 AND assigned_to_id IS NOT NULL GROUP BY assigned_to_id'
-      )
-      .all() as Array<{ assigned_to_id: number; cnt: number }>;
+    const totalCompletedRows = await sqlAll('SELECT assigned_to_id, COUNT(id) as cnt FROM chore WHERE completed = true AND assigned_to_id IS NOT NULL GROUP BY assigned_to_id') as Array<{ assigned_to_id: number; cnt: number }>;
     const personTotalCompleted: Record<string, number> = {};
     for (const row of totalCompletedRows) {
       personTotalCompleted[String(row.assigned_to_id)] = row.cnt;
@@ -241,8 +235,8 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
     const mealWeekDays = getWeekDaysList(weekStart);
     const { plan: mealPlan, recurring: mealRecurring } = getMealPlanForWeek(weekStart);
     const shopping = getShoppingData();
-    const shoppingIntel = getShoppingIntelligence(shopping.general || []);
-    const recipes = getAllRecipes();
+    const shoppingIntel = await getShoppingIntelligence(shopping.general || []);
+    const recipes = await getAllRecipes();
     const notesKanban = getNotesKanban();
     const gcal = await getGoogleCalendarData();
     const masterPinSet = Boolean(AppSetting.get('master_pin'));
@@ -324,7 +318,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
   }
 });
 
-function handleSetupPost(req: Request, res: Response) {
+async function handleSetupPost(req: Request, res: Response) {
   try {
     const body = req.body || {};
 
@@ -368,7 +362,7 @@ function handleSetupPost(req: Request, res: Response) {
 
     const errors: string[] = [];
     // Support both initial setup and re-running Setup Wizard from Settings (updating existing people)
-    const existingPeople = db.prepare('SELECT * FROM person').all() as Array<any>;
+    const existingPeople = await sqlAll('SELECT * FROM person') as Array<any>;
     const existingHasAdminWithPin = existingPeople.some((ep) => Boolean(ep.is_admin && ep.pin));
 
     if (existingPeople.length === 0 && peopleInput.length === 0) {
@@ -395,7 +389,8 @@ function handleSetupPost(req: Request, res: Response) {
     }
 
     let firstAdminPinHash: string | null = null;
-    peopleInput.forEach((p: any, idx: number) => {
+    for (let idx = 0; idx < peopleInput.length; idx += 1) {
+    const p: any = peopleInput[idx];
       const pinHash = p.is_admin && p.pin && /^\d{4}$/.test(p.pin) ? hashPin(p.pin) : null;
       if (pinHash && !firstAdminPinHash) {
         firstAdminPinHash = pinHash;
@@ -410,32 +405,24 @@ function handleSetupPost(req: Request, res: Response) {
           : null;
 
       if (matchExisting) {
-        db.prepare(
-          `UPDATE person SET name = ?, color = ?, "order" = ?, is_admin = ?, age = ?, pin = COALESCE(?, pin) WHERE id = ?`
-        ).run(
-          p.name,
+        await sqlRun(`UPDATE person SET name = ?, color = ?, "order" = ?, is_admin = ?, age = ?, pin = COALESCE(?, pin) WHERE id = ?`, [p.name,
           p.color || matchExisting.color || '#3b82f6',
           idx,
-          p.is_admin ? 1 : 0,
+          Boolean(p.is_admin),
           ageVal,
           pinHash,
-          matchExisting.id
-        );
+          matchExisting.id]);
       } else {
-        db.prepare(
-          `INSERT INTO person (name, points, bonus_points, avatar, color, "order", pin, is_admin, age)
-           VALUES (?, 0, 0, ?, ?, ?, ?, ?, ?)`
-        ).run(
-          p.name,
+        await sqlRun(`INSERT INTO person (name, points, bonus_points, avatar, color, "order", pin, is_admin, age)
+           VALUES (?, 0, 0, ?, ?, ?, ?, ?, ?)`, [p.name,
           p.avatar || 'default_avatar.png',
           p.color || '#3b82f6',
           idx,
           pinHash,
-          p.is_admin ? 1 : 0,
-          ageVal
-        );
+          Boolean(p.is_admin),
+          ageVal]);
       }
-    });
+    }
 
     if (firstAdminPinHash) {
       AppSetting.set('master_pin', firstAdminPinHash);

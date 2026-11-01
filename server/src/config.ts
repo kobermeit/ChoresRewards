@@ -32,7 +32,8 @@ function readYamlVersion(): string {
 export const APP_VERSION = readYamlVersion();
 
 export const DATA_DIR = process.env.DATA_DIR || (IS_HA_ADDON ? '/data' : path.join(REPO_ROOT, 'instance'));
-export const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'database.db');
+/** Legacy SQLite file — only used when importing a v1 database/archive. The live DB is Postgres. */
+export const LEGACY_DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'database.db');
 export const STATIC_DIR = path.join(REPO_ROOT, 'static');
 // Uploads follow DATA_DIR (Coolify/Docker volume) instead of the image's static folder
 const USES_DATA_DIR = Boolean(process.env.DATA_DIR) || IS_HA_ADDON;

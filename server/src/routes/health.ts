@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
+import { pingDatabase } from '../db/client';
 import { APP_VERSION } from '../config';
 
 export const healthRouter = Router();
@@ -9,17 +9,12 @@ export const healthRouter = Router();
  * HAOS watchdog, uptime monitors). Registered as `/health`, so it answers on
  * both `/health` and `/api/health`.
  *
- * Returns 200 when the SQLite handle is usable and 503 when it is not, so the
- * orchestrator can show "unhealthy" instead of a silently broken app.
+ * Returns 200 when Postgres answers a trivial query and 503 when it does not, so
+ * the orchestrator can show "unhealthy" instead of a silently broken app.
  * Deliberately free of filesystem paths and household data.
  */
-healthRouter.get('/health', (_req: Request, res: Response) => {
-  let database = 'ok';
-  try {
-    db.prepare('SELECT 1').get();
-  } catch {
-    database = 'unavailable';
-  }
+healthRouter.get('/health', async (_req: Request, res: Response) => {
+  const database = (await pingDatabase()) ? 'ok' : 'unavailable';
 
   const healthy = database === 'ok';
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');

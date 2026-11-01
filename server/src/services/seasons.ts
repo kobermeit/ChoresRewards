@@ -1,4 +1,6 @@
-import { db, AppSetting } from '../db';
+import { AppSetting } from '../db';
+import { getDb } from '../db/client';
+import { seasons as seasonsTable, seasonalEvents as eventsTable } from '../db/schema';
 import { getFamilyToday } from '../utils/time';
 
 export interface SeasonRow {
@@ -86,20 +88,46 @@ export function getSeasonalSettings() {
   };
 }
 
-export function listSeasons(hemisphere: Hemisphere) {
-  const rows = db.prepare('SELECT * FROM seasons ORDER BY id').all() as SeasonRow[];
-  return rows.map((r) => ({
-    ...r,
-    enabled: Boolean(r.enabled),
-    // Effective dates for the configured hemisphere (stored values are southern)
-    effective_start_md: hemisphere === 'north' ? shiftMd(r.start_md) : r.start_md,
-    effective_end_md: hemisphere === 'north' ? shiftMd(r.end_md) : r.end_md,
-  }));
+export async function listSeasons(hemisphere: Hemisphere) {
+  const rows = await getDb().select().from(seasonsTable).orderBy(seasonsTable.id);
+  return rows.map((r) => {
+    const row: SeasonRow = {
+      id: r.id,
+      key: r.key,
+      name: r.name,
+      enabled: r.enabled,
+      start_md: r.startMd,
+      end_md: r.endMd,
+      emoji: r.emoji,
+      accent: r.accent,
+      sound_key: r.soundKey,
+    };
+    return {
+      ...row,
+      enabled: Boolean(row.enabled),
+      // Effective dates for the configured hemisphere (stored values are southern)
+      effective_start_md: hemisphere === 'north' ? shiftMd(row.start_md) : row.start_md,
+      effective_end_md: hemisphere === 'north' ? shiftMd(row.end_md) : row.end_md,
+    };
+  });
 }
 
-export function listEvents(todayIso = getFamilyToday()) {
-  const rows = db.prepare('SELECT * FROM seasonal_events ORDER BY id').all() as SeasonalEventRow[];
-  return rows.map((r) => {
+export async function listEvents(todayIso = getFamilyToday()) {
+  const rows = await getDb().select().from(eventsTable).orderBy(eventsTable.id);
+  return rows.map((raw) => {
+    const r: SeasonalEventRow = {
+      id: raw.id,
+      key: raw.key,
+      name: raw.name,
+      enabled: raw.enabled,
+      rule_type: raw.ruleType === 'easter' ? 'easter' : 'fixed',
+      month_day: raw.monthDay,
+      days_before: raw.daysBefore,
+      days_after: raw.daysAfter,
+      emoji: raw.emoji,
+      accent: raw.accent,
+      sound_key: raw.soundKey,
+    };
     const date = eventDateNear(r, todayIso);
     return {
       ...r,
@@ -112,10 +140,10 @@ export function listEvents(todayIso = getFamilyToday()) {
 }
 
 /** Resolve the currently active season + event (respecting enabled flags, manual simulation override, and global toggle). */
-export function getActiveSeasonal(todayIso = getFamilyToday()) {
+export async function getActiveSeasonal(todayIso = getFamilyToday()) {
   const settings = getSeasonalSettings();
-  const seasons = listSeasons(settings.hemisphere);
-  const events = listEvents(todayIso);
+  const seasons = await listSeasons(settings.hemisphere);
+  const events = await listEvents(todayIso);
   if (!settings.seasonal_themes_enabled) return { settings, seasons, events, active: { season: null, event: null, today: todayIso } };
 
   // Manual simulation override for testing / previewing any season or event

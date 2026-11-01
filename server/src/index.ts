@@ -19,10 +19,7 @@ import { healthRouter } from './routes/health';
 import { backupRouter } from './routes/backup';
 import { choreHistoryRouter } from './routes/choreHistory';
 import { mutationDedupeMiddleware } from './services/mutationDedupe';
-
-initDatabase();
-
-import { SqliteSessionStore } from './services/sessionStore';
+import { createSessionStore } from './services/sessionStore';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -38,7 +35,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use(
   session({
-    store: new SqliteSessionStore(),
+    store: createSessionStore(),
     name: 'choresrewards.sid',
     secret: loadSecretKey(),
     resave: false,
@@ -127,15 +124,34 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[ChoresRewards] Server listening on http://0.0.0.0:${PORT}`);
+/**
+ * Express 4 does not await async handlers, so a rejected promise would otherwise
+ * take the whole container down (Node >= 15 default). Log it and keep serving —
+ * the individual route has already failed, the household should not.
+ */
+process.on('unhandledRejection', (reason) => {
+  console.error('[ChoresRewards] Unhandled promise rejection:', reason);
+});
 
-  // Safe daily reward price sync: Initial run after 2 minutes of uptime, then every 24 hours
-  setTimeout(() => {
-    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Initial run error:', err));
-  }, 120_000);
+async function start(): Promise<void> {
+  // Applies Drizzle migrations, hydrates the settings cache and seeds a fresh household.
+  await initDatabase();
 
-  setInterval(() => {
-    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Scheduled run error:', err));
-  }, 24 * 60 * 60 * 1000);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[ChoresRewards] Server listening on http://0.0.0.0:${PORT}`);
+
+    // Safe daily reward price sync: Initial run after 2 minutes of uptime, then every 24 hours
+    setTimeout(() => {
+      runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Initial run error:', err));
+    }, 120_000);
+
+    setInterval(() => {
+      runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Scheduled run error:', err));
+    }, 24 * 60 * 60 * 1000);
+  });
+}
+
+start().catch((err) => {
+  console.error('[ChoresRewards] Fatal startup error:', err);
+  process.exit(1);
 });

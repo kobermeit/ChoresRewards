@@ -3,7 +3,8 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { db, AppSetting, logActivity, roundPoints } from '../db';
+import { AppSetting, logActivity, roundPoints } from '../db';
+import { sqlAll, sqlRun } from '../db/sql';
 import { DATA_DIR, STATIC_DIR, UPLOADS_DIR } from '../config';
 import { requireAdult, checkPinHash, hashPin } from './auth';
 import { getFamilyToday, getLocalNowNaive, getAppTimezone, getDailyResetHour, addDays } from '../utils/time';
@@ -152,8 +153,8 @@ function screensaverPhotoUrls(list: Array<{ filename: string; uploaded_at?: numb
 
 export const settingsRouter = Router();
 
-function handleGetSettings(_req: Request, res: Response) {
-  const family = (db.prepare('SELECT * FROM person WHERE role != ? ORDER BY "order", id').all('family') as Array<any>).map((p) => {
+async function handleGetSettings(_req: Request, res: Response) {
+  const family = (await sqlAll('SELECT * FROM person WHERE role != ? ORDER BY "order", id', ['family']) as Array<any>).map((p) => {
     const dynamicAge = calculateAge(p.dob, p.age);
     return {
       id: p.id,
@@ -173,7 +174,7 @@ function handleGetSettings(_req: Request, res: Response) {
     };
   });
 
-  const allChores = db.prepare('SELECT * FROM chore WHERE deleted = 0 ORDER BY id DESC').all() as Array<any>;
+  const allChores = await sqlAll('SELECT * FROM chore WHERE deleted = false ORDER BY id DESC') as Array<any>;
 
   res.json({
     success: true,
@@ -219,14 +220,14 @@ function handleGetSettings(_req: Request, res: Response) {
 settingsRouter.get('/api/settings', handleGetSettings);
 settingsRouter.get('/api/settings_data', handleGetSettings);
 
-function handleSettingsPost(req: Request, res: Response) {
+async function handleSettingsPost(req: Request, res: Response) {
   try {
     const data = req.body || {};
 
     if (data.action === 'toggle_admin') {
       const personId = Number(data.person_id);
       const isAdmin = Boolean(data.is_admin);
-      db.prepare('UPDATE person SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, personId);
+      await sqlRun('UPDATE person SET is_admin = ? WHERE id = ?', [Boolean(isAdmin), personId]);
       res.json({ success: true, message: 'Admin status updated' });
       return;
     }
@@ -239,7 +240,7 @@ function handleSettingsPost(req: Request, res: Response) {
         return;
       }
       const hashed = hashPin(rawPin);
-      db.prepare('UPDATE person SET pin = ? WHERE id = ?').run(hashed, personId);
+      await sqlRun('UPDATE person SET pin = ? WHERE id = ?', [hashed, personId]);
       res.json({ success: true, message: 'Personal PIN updated' });
       return;
     }
@@ -335,20 +336,21 @@ function handleSettingsPost(req: Request, res: Response) {
 
     if ('save_ages' in data || data.ages) {
       if (data.ages && typeof data.ages === 'object') {
-        const stmt = db.prepare('UPDATE person SET age = ? WHERE id = ?');
         for (const [idStr, ageVal] of Object.entries(data.ages)) {
           const parsed = ageVal === '' || ageVal === null ? null : parseInt(String(ageVal), 10);
-          stmt.run(Number.isNaN(parsed as number) ? null : parsed, Number(idStr));
+          await sqlRun('UPDATE person SET age = ? WHERE id = ?', [
+            Number.isNaN(parsed as number) ? null : parsed,
+            Number(idStr),
+          ]);
         }
       } else {
-        const people = db.prepare('SELECT id FROM person').all() as Array<{ id: number }>;
-        const stmt = db.prepare('UPDATE person SET age = ? WHERE id = ?');
+        const people = (await sqlAll('SELECT id FROM person')) as Array<{ id: number }>;
         for (const p of people) {
           const k = `person_age_${p.id}`;
           if (k in data) {
             const raw = data[k];
             const parsed = raw === '' || raw === null ? null : parseInt(String(raw), 10);
-            stmt.run(Number.isNaN(parsed as number) ? null : parsed, p.id);
+            await sqlRun('UPDATE person SET age = ? WHERE id = ?', [Number.isNaN(parsed as number) ? null : parsed, p.id]);
           }
         }
       }
@@ -401,10 +403,10 @@ settingsRouter.post('/api/save_reset_hour', (req: Request, res: Response) => {
   res.json({ success: true, daily_reset_hour: hr });
 });
 
-settingsRouter.post('/api/reset_daily_chores_now', (_req: Request, res: Response) => {
+settingsRouter.post('/api/reset_daily_chores_now', async (_req: Request, res: Response) => {
   const today = getFamilyToday();
-  db.prepare('UPDATE chore SET completed = 0, due_date = ? WHERE is_daily = 1 AND deleted = 0').run(today);
-  resetDailyChores();
+  await sqlRun('UPDATE chore SET completed = false, due_date = ? WHERE is_daily = true AND deleted = false', [today]);
+  await resetDailyChores();
   AppSetting.set('last_daily_reset', today);
   logActivity('daily_chores_reset', 'Manual daily chores reset triggered from Settings');
   res.json({ success: true, date: today });
@@ -685,10 +687,8 @@ settingsRouter.get('/api/screensaver/config', (_req: Request, res: Response) => 
 settingsRouter.get('/api/screensaver/chore_summary', async (_req: Request, res: Response) => {
   const today = getFamilyToday();
   const { weekdayLower } = getLocalNowNaive(getAppTimezone());
-  const peopleRows = db.prepare('SELECT * FROM person ORDER BY "order", id').all() as Array<any>;
-  const openChores = db
-    .prepare('SELECT * FROM chore WHERE completed = 0 AND deleted = 0 AND (is_daily = 0 OR due_date <= ?)')
-    .all(today) as Array<any>;
+  const peopleRows = await sqlAll('SELECT * FROM person ORDER BY "order", id') as Array<any>;
+  const openChores = await sqlAll('SELECT * FROM chore WHERE completed = false AND deleted = false AND (is_daily = false OR due_date <= ?)', [today]) as Array<any>;
 
   const people = peopleRows.map((p) => {
     const mine = openChores.filter((c) => {
@@ -782,7 +782,7 @@ settingsRouter.post('/api/screensaver/clear', requireAdult, (_req: Request, res:
   res.json({ success: true, photos: [], deleted: photos.length });
 });
 
-settingsRouter.get('/api/activity_log', (req: Request, res: Response) => {
+settingsRouter.get('/api/activity_log', async (req: Request, res: Response) => {
   const typeFilter = String(req.query.type || '').trim();
   const userFilter = String(req.query.user || '').trim();
 
@@ -797,12 +797,10 @@ settingsRouter.get('/api/activity_log', (req: Request, res: Response) => {
     params.push(userFilter);
   }
   sql += ' ORDER BY date DESC, id DESC LIMIT 500';
-  const logs = db.prepare(sql).all(...params) as Array<any>;
+  const logs = await sqlAll(sql, [...params]) as Array<any>;
 
-  const people = db.prepare('SELECT name FROM person').all() as Array<{ name: string }>;
-  const completedChores = db
-    .prepare('SELECT assigned_to, points, date_completed, title FROM chore WHERE completed = 1 AND deleted = 0')
-    .all() as Array<any>;
+  const people = await sqlAll('SELECT name FROM person') as Array<{ name: string }>;
+  const completedChores = await sqlAll('SELECT assigned_to, points, date_completed, title FROM chore WHERE completed = true AND deleted = false') as Array<any>;
 
   const choresByPerson: Record<string, number> = {};
   const monthlyChoresByPerson: Record<string, number> = {};
@@ -821,11 +819,11 @@ settingsRouter.get('/api/activity_log', (req: Request, res: Response) => {
     }
   }
 
-  const distinctTypes = (db.prepare('SELECT DISTINCT type FROM activity_log ORDER BY type').all() as Array<{ type: string }>).map(
+  const distinctTypes = (await sqlAll('SELECT DISTINCT type FROM activity_log ORDER BY type') as Array<{ type: string }>).map(
     (r) => r.type
   );
   const distinctUsers = (
-    db.prepare('SELECT DISTINCT user_name FROM activity_log WHERE user_name IS NOT NULL ORDER BY user_name').all() as Array<{
+    await sqlAll('SELECT DISTINCT user_name FROM activity_log WHERE user_name IS NOT NULL ORDER BY user_name') as Array<{
       user_name: string;
     }>
   ).map((r) => r.user_name);
@@ -840,11 +838,9 @@ settingsRouter.get('/api/activity_log', (req: Request, res: Response) => {
   });
 });
 
-settingsRouter.get('/api/chore_history', (_req: Request, res: Response) => {
-  const completedChores = db
-    .prepare('SELECT * FROM chore WHERE completed = 1 AND deleted = 0 ORDER BY date_completed DESC')
-    .all() as Array<any>;
-  const people = db.prepare('SELECT * FROM person').all() as Array<any>;
+settingsRouter.get('/api/chore_history', async (_req: Request, res: Response) => {
+  const completedChores = await sqlAll('SELECT * FROM chore WHERE completed = true AND deleted = false ORDER BY date_completed DESC') as Array<any>;
+  const people = await sqlAll('SELECT * FROM person') as Array<any>;
 
   const choresByPerson: Record<string, number> = {};
   const pointsByPerson: Record<string, number> = {};
