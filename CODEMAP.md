@@ -35,7 +35,7 @@ choresrewards/
 │   └── package.json
 ├── server/                     # Node.js + Express + TypeScript Backend
 │   ├── src/
-│   │   ├── config.ts           # Port/paths/version resolution (PORT, DATA_DIR, DB_PATH, UPLOADS_DIR, CR_SECRET_KEY)
+│   │   ├── config.ts           # Port/paths/version resolution (PORT, DATA_DIR, UPLOADS_DIR, CR_SECRET_KEY)
 │   │   ├── db.ts               # Boot (Drizzle migrations + seeds), AppSetting cache, logActivity
 │   │   ├── db/                 # Postgres layer: schema.ts, client.ts (pool + many/one), migrate.ts, sql.ts
 │   │   ├── routes/             # Express API route handlers (health.ts = /api/health + /api/ping probes, backup.ts = export/import)
@@ -44,6 +44,7 @@ choresrewards/
 ├── choresrewards/              # Optional Home Assistant add-on (config.yaml = version source of truth + add-on Dockerfile)
 ├── static/                     # Bundled images & audio clips; static/uploads is the local-dev upload target
 ├── scripts/verify_ingress.js   # Ingress/path-safety audit (npm run verify — also runs inside the Docker build)
+├── scripts/convert-v1-backup.js # Offline converter: legacy v1 SQLite .tar.gz -> format v2 .tar.gz
 ├── Dockerfile                  # Production image for Coolify/Docker: port 8099, state volume /data, HEALTHCHECK /api/health
 ├── docker-compose.yml          # Local / self-hosted Docker run (production is Coolify, not compose)
 ├── .env.example                # Documented runtime env vars (TZ, DATA_DIR, CR_SECRET_KEY, ENABLE_GOOGLE_CALENDAR)

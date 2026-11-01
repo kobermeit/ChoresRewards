@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import * as tar from 'tar-stream';
+import type { PoolClient } from 'pg';
 import { getPool } from '../db/client';
 import { AppSetting } from '../db';
 import { APP_VERSION, DATA_DIR, UPLOADS_DIR } from '../config';
@@ -15,9 +16,9 @@ import { APP_VERSION, DATA_DIR, UPLOADS_DIR } from '../config';
  *   secret_key     — so existing device logins survive a migration
  *   uploads/**     — avatars, reward/chore photos, sounds, screensaver media
  *
- * A v1 archive (SQLite `database.db` instead of `database.json`) is still
- * accepted: it is loaded through the same table mapping so households can move
- * off the old add-on without a CLI step.
+ * A v2 archive is the only format accepted. Legacy v1 archives (a SQLite
+ * `database.db` member instead of `database.json`) must be upgraded first with
+ * `scripts/convert-v1-backup.js` — the app no longer links a SQLite driver.
  *
  * Nothing in the archive is ever executed as SQL — rows are validated against a
  * fixed table/column whitelist and written through parameterised inserts.
@@ -46,7 +47,8 @@ const TABLES = [
   'applied_mutation',
 ] as const;
 
-/** 0/1 columns in the legacy SQLite database (Postgres uses real booleans). */
+/** Columns that hold booleans. Exports already contain real booleans; the map keeps
+ *  hand-written or converted archives (`0` / `1` / `"true"`) importable. */
 const BOOLEAN_COLUMNS: Record<string, string[]> = {
   person: ['is_admin'],
   chore: ['completed', 'is_daily', 'deleted', 'is_extra'],
@@ -56,7 +58,12 @@ const BOOLEAN_COLUMNS: Record<string, string[]> = {
   organise_item: ['paid'],
 };
 
-const ALLOWED_FILES = new Set(['manifest.json', 'database.json', 'database.db', 'secret_key']);
+const ALLOWED_FILES = new Set(['manifest.json', 'database.json', 'secret_key']);
+
+/** Format identifier written into `manifest.app` by every v2 export. */
+const BACKUP_FORMAT_ID = 'choresrewards';
+/** Current archive format. v1 (SQLite) archives are converted offline first. */
+const BACKUP_FORMAT_VERSION = 2;
 
 export interface BackupManifest {
   app: string;
@@ -78,16 +85,32 @@ async function dumpTables(): Promise<{ tables: Record<string, unknown[]>; counts
   const tables: Record<string, unknown[]> = {};
   const counts: Record<string, number> = {};
   for (const table of TABLES) {
-    const result = await getPool().query(`SELECT * FROM "${table}"`);
-    tables[table] = result.rows;
-    counts[table] = result.rowCount ?? result.rows.length;
+    // `json_agg` makes Postgres render DATE / TIMESTAMP columns as plain text
+    // ('YYYY-MM-DD', 'YYYY-MM-DDTHH:MM:SS') instead of letting the driver turn
+    // them into JS Dates. That keeps the archive timezone-independent: the same
+    // file restores identically on a UTC container and on a local dev machine.
+    const result = await getPool().query(
+      `SELECT COALESCE(json_agg(t), '[]'::json) AS rows FROM "${table}" t`
+    );
+    const rows = (result.rows[0]?.rows ?? []) as unknown[];
+    tables[table] = rows;
+    counts[table] = rows.length;
   }
   return { tables, counts };
 }
 
+async function countTables(): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const table of TABLES) {
+    const result = await getPool().query(`SELECT COUNT(*)::int AS c FROM "${table}"`);
+    counts[table] = Number(result.rows[0]?.c ?? 0);
+  }
+  return counts;
+}
+
 export async function describeDataFootprint(): Promise<Record<string, unknown>> {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-  const { counts } = await dumpTables();
+  const counts = await countTables();
   let uploadsBytes = 0;
   let uploadsFiles = 0;
   const walk = (dir: string): void => {
@@ -110,7 +133,7 @@ export async function describeDataFootprint(): Promise<Record<string, unknown>> 
     uploads_files: uploadsFiles,
     uploads_bytes: uploadsBytes,
     backups_dir: BACKUPS_DIR,
-    format_version: 2,
+    format_version: BACKUP_FORMAT_VERSION,
   };
 }
 
@@ -121,8 +144,8 @@ export async function describeDataFootprint(): Promise<Record<string, unknown>> 
 export async function buildBackupStream(includeMedia: boolean): Promise<BackupHandle> {
   const { tables, counts } = await dumpTables();
   const manifest: BackupManifest = {
-    app: 'choresrewards',
-    format_version: 2,
+    app: BACKUP_FORMAT_ID,
+    format_version: BACKUP_FORMAT_VERSION,
     app_version: APP_VERSION,
     created_at: new Date().toISOString(),
     includes_media: includeMedia,
@@ -212,18 +235,59 @@ async function extractArchive(archivePath: string, dest: string): Promise<string
   return extracted;
 }
 
+/** Columns holding a date/timestamp — SQLite stored `''` here, Postgres needs NULL. */
+const isDateish = (column: string): boolean =>
+  column === 'date' || column.endsWith('_at') || column.endsWith('_date') || column.endsWith('_md');
+
 function coerceRow(table: string, row: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...row };
-  for (const column of BOOLEAN_COLUMNS[table] || []) {
-    const value = out[column];
-    if (value === null || value === undefined) continue;
-    out[column] = value === true || value === 1 || value === '1' || value === 'true';
-  }
-  // Postgres rejects empty strings for date/timestamp columns that came from SQLite as ''
-  for (const [key, value] of Object.entries(out)) {
-    if (value === '') out[key] = null;
+  const booleans = BOOLEAN_COLUMNS[table] || [];
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value === undefined || value === null) {
+      out[key] = null;
+      continue;
+    }
+    // Postgres needs real booleans, never 0/1 or '1'.
+    if (booleans.includes(key)) {
+      out[key] =
+        typeof value === 'boolean' ? value : value === 1 || value === '1' || value === 'true';
+      continue;
+    }
+    // Postgres rejects '' for date/timestamp columns; text columns keep it.
+    if (value === '' && isDateish(key)) {
+      out[key] = null;
+      continue;
+    }
+    out[key] = value;
   }
   return out;
+}
+
+/**
+ * Reset the identity sequence behind a table's integer `id`.
+ *
+ * `pg_get_serial_sequence()` raises an error for tables without an `id` column
+ * (e.g. `applied_mutation`, keyed by a text `mutation_id`). Inside a transaction
+ * that error would abort everything and the final COMMIT would silently degrade
+ * to a ROLLBACK — so the column is checked first and the sequence reset is
+ * parameterised instead of string-interpolated.
+ */
+async function resetIdentity(client: PoolClient, table: string): Promise<void> {
+  const column = await client.query(
+    `SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'id'`,
+    [table]
+  );
+  if (column.rowCount === 0) return;
+
+  const sequence = await client.query(`SELECT pg_get_serial_sequence($1, 'id') AS seq`, [table]);
+  const seq = sequence.rows[0]?.seq;
+  if (!seq) return;
+
+  await client.query(
+    `SELECT setval($1::regclass, GREATEST((SELECT COALESCE(MAX(id), 0) FROM "${table}"), 1), true)`,
+    [seq]
+  );
 }
 
 async function replaceTables(tables: Record<string, Record<string, unknown>[]>): Promise<Record<string, number>> {
@@ -245,13 +309,23 @@ async function replaceTables(tables: Record<string, Record<string, unknown>[]>):
         const sql = `INSERT INTO "${table}" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders})`;
         await client.query(sql, columns.map((c) => row[c]));
       }
-      await client
-        .query(
-          `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM "${table}"), 1))`
-        )
-        .catch(() => undefined);
+      await resetIdentity(client, table);
     }
-    await client.query('COMMIT');
+    const commit = await client.query('COMMIT');
+    // Postgres answers COMMIT on an aborted transaction with a ROLLBACK tag and
+    // no error, which would otherwise be reported to the user as a success.
+    if (commit.command === 'ROLLBACK') {
+      throw new Error('Postgres rolled the restore back — no data was changed.');
+    }
+    // Confirm the committed rows are really there.
+    for (const table of TABLES) {
+      const result = await client.query(`SELECT COUNT(*)::int AS c FROM "${table}"`);
+      if (Number(result.rows[0].c) !== counts[table]) {
+        throw new Error(
+          `Restore verification failed for ${table}: expected ${counts[table]} row(s), found ${result.rows[0].c}.`
+        );
+      }
+    }
   } catch (err) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw err;
@@ -259,31 +333,6 @@ async function replaceTables(tables: Record<string, Record<string, unknown>[]>):
     client.release();
   }
   return counts;
-}
-
-/** Read the tables out of a v1 (SQLite) archive member. */
-async function readSqliteTables(dbPath: string): Promise<Record<string, Record<string, unknown>[]>> {
-  const { default: Database } = await import('better-sqlite3');
-  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true });
-  try {
-    const check = sqlite.pragma('quick_check', { simple: true });
-    if (String(check).toLowerCase() !== 'ok') {
-      throw new Error('The archive database failed its integrity check.');
-    }
-    const present = new Set(
-      (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(
-        (row) => row.name
-      )
-    );
-    const out: Record<string, Record<string, unknown>[]> = {};
-    for (const table of TABLES) {
-      if (!present.has(table)) continue;
-      out[table] = sqlite.prepare(`SELECT * FROM "${table}"`).all() as Record<string, unknown>[];
-    }
-    return out;
-  } finally {
-    sqlite.close();
-  }
 }
 
 export interface RestoreResult {
@@ -311,28 +360,40 @@ export async function restoreFromArchive(archivePath: string): Promise<RestoreRe
     } catch {
       throw new Error('The backup manifest is not valid JSON.');
     }
-    if (manifest.app !== 'choresrewards') {
+    // v1 archives carry `format: 'choresrewards-backup'` and a SQLite payload;
+    // they are rejected with a pointer to the offline converter, not loaded.
+    const rawManifest = manifest as unknown as Record<string, unknown>;
+    const legacyV1 =
+      rawManifest.app !== BACKUP_FORMAT_ID &&
+      (rawManifest.format === 'choresrewards-backup' || Number(rawManifest.format_version) === 1);
+    if (legacyV1) {
+      throw new Error(
+        'This is a legacy v1 (SQLite) backup. Convert it first with ' +
+          '`node scripts/convert-v1-backup.js <archive.tar.gz>` and import the converted file.'
+      );
+    }
+    if (manifest.app !== BACKUP_FORMAT_ID) {
       throw new Error('This archive was created by another application.');
+    }
+    if (Number(manifest.format_version) !== BACKUP_FORMAT_VERSION) {
+      throw new Error(
+        `Unsupported backup format version ${manifest.format_version ?? 'unknown'} — this app reads format v${BACKUP_FORMAT_VERSION} archives.`
+      );
     }
 
     // Safety net: keep a logical copy of the current household before replacing it.
     const preRestore = path.join(BACKUPS_DIR, `pre-restore-${Date.now()}.json`);
     fs.writeFileSync(preRestore, JSON.stringify(await dumpTables(), null, 2));
 
-    let tables: Record<string, Record<string, unknown>[]>;
     const jsonPath = path.join(tempDir, 'database.json');
-    const sqlitePath = path.join(tempDir, 'database.db');
-    if (fs.existsSync(jsonPath)) {
-      const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-      if (!parsed || typeof parsed.tables !== 'object' || parsed.tables === null) {
-        throw new Error('The backup database payload is malformed.');
-      }
-      tables = parsed.tables;
-    } else if (fs.existsSync(sqlitePath)) {
-      tables = await readSqliteTables(sqlitePath);
-    } else {
-      throw new Error('The backup contains no database payload.');
+    if (!fs.existsSync(jsonPath)) {
+      throw new Error('The backup contains no database.json payload — this is not a format v2 archive.');
     }
+    const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    if (!parsed || typeof parsed.tables !== 'object' || parsed.tables === null) {
+      throw new Error('The backup database payload is malformed.');
+    }
+    const tables = parsed.tables as Record<string, Record<string, unknown>[]>;
 
     const counts = await replaceTables(tables);
     // Settings are cache-backed — reload them from the restored rows.

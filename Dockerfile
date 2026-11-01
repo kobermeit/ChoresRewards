@@ -14,15 +14,10 @@
 # =============================================================================
 # Stage 1: Build the React client and the Express/TypeScript server
 # =============================================================================
-# NOTE: better-sqlite3 is still a dependency — not for serving requests, but so a
-# v1 (SQLite) household backup archive can be imported after the cutover. It is a
-# native module, so keep this stage glibc-based (Debian slim) — never Alpine/musl.
+# NOTE: no native modules are linked any more — SQLite support was removed when
+# the household moved to Postgres, so this stage needs no compiler toolchain.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install from lockfiles for reproducible builds (cache-friendly ordering)
 COPY client/package.json client/package-lock.json ./client/

@@ -1,19 +1,17 @@
 {
   "name": "choresrewards-server",
-  "version": "1.17.0",
-  "description": "ChoresRewards Node.js + Express + SQLite Backend",
+  "version": "1.17.1",
+  "description": "ChoresRewards Node.js + Express + Postgres Backend",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/runMigrationsCli.ts",
-    "db:import": "tsx src/scripts/import-sqlite.ts"
+    "db:migrate": "tsx src/db/runMigrationsCli.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.8.1",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "drizzle-kit": "^0.31.11",
@@ -26,7 +24,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

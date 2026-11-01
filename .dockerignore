@@ -26,3 +26,5 @@ static/uploads/*
 # Local scratch files from scripted smoke tests
 _tmp*
 scripts/_tmp*
+# Household backup archives (personal data, never part of the image)
+choresrewards-backup-*.tar.gz

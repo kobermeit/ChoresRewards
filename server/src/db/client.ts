@@ -1,6 +1,17 @@
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import * as schema from './schema';
+
+/**
+ * Keep DATE columns as the exact 'YYYY-MM-DD' text Postgres sent.
+ *
+ * The driver's default parses a DATE as *local* midnight, so on a non-UTC host
+ * (the local container runs TZ=Australia/Brisbane) '2026-10-31' becomes
+ * 2026-10-30T14:00Z and Drizzle's string mapper renders '2026-10-30' — every due
+ * date shifts a day. Timestamps are unaffected: they stay naive 'YYYY-MM-DD
+ * HH:MM:SS' strings, which is the contract the whole app already uses.
+ */
+types.setTypeParser(1082, (value: string) => value);
 
 /**
  * Postgres connection (Coolify: add a Postgres resource and set DATABASE_URL).

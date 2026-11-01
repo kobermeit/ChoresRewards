@@ -7,8 +7,8 @@ A modern, self-hosted family hub for chores, rewards, weekly meal planning, smar
 ## Architecture & Tech Stack
 
 - **Frontend:** React 19 + TypeScript + Vite (`/client`)
-- **Backend:** Node.js + Express + `better-sqlite3` (`/server`)
-- **Database:** **Postgres via Drizzle ORM** (`DATABASE_URL`; schema in `server/src/db/schema.ts`, migrations in `server/drizzle/`, applied automatically on boot). Sessions live in the same database, so redeploys keep every device logged in. SQLite is gone from the request path — `better-sqlite3` survives only to import v1 `.tar.gz` archives after the cutover.
+- **Backend:** Node.js + Express (`/server`)
+- **Database:** **Postgres via Drizzle ORM** (`DATABASE_URL`; schema in `server/src/db/schema.ts`, migrations in `server/drizzle/`, applied automatically on boot). Sessions live in the same database, so redeploys keep every device logged in. There is no SQLite driver in the app at all — a legacy v1 `.tar.gz` archive is upgraded offline with `scripts/convert-v1-backup.js` before import.
 - **Deployment:** One container built from the root [`Dockerfile`](./Dockerfile) — deploy with **Coolify** (or plain Docker Compose). Optional Home Assistant OS add-on lives in `/choresrewards`.
 
 ---
@@ -142,13 +142,17 @@ docker run -d --name cr-pg -p 55432:5432 \
 # 2. point the server at it
 export DATABASE_URL=postgres://choresrewards:choresrewards@127.0.0.1:55432/choresrewards   # PowerShell: $env:DATABASE_URL='…'
 
-# 3. schema + data
+# 3. schema
 npm --prefix server run db:generate                        # schema.ts -> server/drizzle/*.sql
 npm --prefix server run db:migrate                         # apply pending migrations
-npm --prefix server run db:import -- instance/database.db   # one-off SQLite -> Postgres load
 ```
 
-The importer is idempotent (`ON CONFLICT DO NOTHING`), resets identity sequences and prints a per-table sqlite/postgres count comparison.
+Data arrives through **Settings → Backup & Restore** (the `.tar.gz` export). A legacy v1 (SQLite) archive is
+upgraded offline first:
+
+```bash
+node scripts/convert-v1-backup.js choresrewards-backup-1.16.0.tar.gz   # -> ….v2.tar.gz, then upload it
+```
 
 ### Code rules for this layer
 
@@ -164,10 +168,11 @@ The importer is idempotent (`ON CONFLICT DO NOTHING`), resets identity sequences
 1. **Create the database**: Coolify → **+ New** → **Database** → **PostgreSQL** (same server/project as the app). Deploy it, then copy its **internal** connection URL (not the public one).
 2. **Add it to the app**: Application → **Environment Variables** → `DATABASE_URL` = that internal URL. Optionally `PG_POOL_MAX=10`.
 3. **Redeploy the app** — the image runs the migrations on boot.
-4. **Bring the household data across**: open **Settings → Backup & Restore** and restore the `.tar.gz` you downloaded from the old (SQLite) install. The restore understands the old archive format and loads it into Postgres. CLI fallback for a raw `database.db` on the volume (Coolify → app → **Terminal**):
+4. **Bring the household data across**: open **Settings → Backup & Restore** and upload the `.tar.gz` you downloaded from the old install. If that archive is a **v1 (SQLite)** backup, convert it once on your workstation first — the app no longer links a SQLite driver:
    ```bash
-   npm --prefix server run db:import -- /data/database.db
+   node scripts/convert-v1-backup.js choresrewards-backup-<old>.tar.gz
    ```
+   The converter writes a `<name>.v2.tar.gz` with a `database.json` snapshot (real booleans, Postgres column names, `secret_key` and `uploads/` preserved). Upload that file; the restore is a transactional replace in Postgres.
 5. Verify: people/chores/points/photos look right and `GET /api/health` reports `database: "ok"`.
 6. Keep the `/data` volume mounted — uploads, sounds, screensaver media and `secret_key` still live there; only the database moved.
 

@@ -47,4 +47,7 @@ migrations/__pycache__/
 migrations/versions/__pycache__/
 
 # Local design mockups (scratch, never shipped)
+# Household backup archives (contain personal data + the session signing key)
+choresrewards-backup-*.tar.gz
+
 mockups/

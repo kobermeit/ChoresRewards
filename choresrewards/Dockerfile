@@ -17,7 +17,7 @@ RUN git clone --depth 1 https://github.com/kobermeit/ChoresRewards.git .
 WORKDIR /build/client
 RUN npm install --include=dev && npm run build
 
-# Build Express + better-sqlite3 Backend (server/dist)
+# Build Express + Postgres Backend (server/dist)
 WORKDIR /build/server
 RUN npm install --include=dev && npm run build && npm prune --omit=dev
 

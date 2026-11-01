@@ -4,9 +4,11 @@ import { apiGet, apiPost, resolveApiUrl } from '../../../api';
 import { Button } from '../../../components/ui';
 
 interface BackupInfo {
-  database_bytes: number;
+  tables: Record<string, number>;
+  total_rows: number;
   uploads_files: number;
   uploads_bytes: number;
+  format_version: number;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -17,23 +19,7 @@ const formatBytes = (bytes: number): string => {
   return `${index === 0 ? value : value.toFixed(1)} ${units[index]}`;
 };
 
-const PING_URL = resolveApiUrl('ping');
 const cardStyle: React.CSSProperties = { padding: 24, borderRadius: 18, marginBottom: 20 };
-
-/** Polls the container until it answers again after a restore-triggered restart. */
-async function waitForAppBack(timeoutMs = 90000): Promise<boolean> {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    try {
-      const res = await fetch(PING_URL, { cache: 'no-store', credentials: 'include' });
-      if (res.status === 204 || res.ok) return true;
-    } catch {
-      // still restarting
-    }
-  }
-  return false;
-}
 
 export const BackupSettingsTab: React.FC = () => {
   const { showToast } = useApp();
@@ -81,18 +67,10 @@ export const BackupSettingsTab: React.FC = () => {
       const res: any = await apiPost('backup/import', form);
       if (!res?.success) throw new Error(res?.error || 'The backup could not be restored');
 
-      setStatus('Backup restored — the app is restarting with your data…');
+      setStatus('Backup restored — reloading with your data…');
       showToast('Backup restored 🎉', { type: 'success' });
-
-      const back = await waitForAppBack();
-      if (back) {
-        window.location.reload();
-        return;
-      }
-      setStatus(
-        'The app did not restart automatically. Press Restart on the container in Coolify, then reload this page.'
-      );
-      setRestoring(false);
+      // The restore is a transactional replace inside Postgres — no restart needed.
+      window.setTimeout(() => window.location.reload(), 900);
     } catch (err: any) {
       setStatus(null);
       setRestoring(false);
@@ -106,12 +84,16 @@ export const BackupSettingsTab: React.FC = () => {
       <div className="card" style={cardStyle}>
         <h3 style={{ margin: '0 0 6px' }}>📦 Export household backup</h3>
         <p style={{ opacity: 0.75, fontSize: '0.88rem', marginTop: 0 }}>
-          Downloads a single <code>.tar.gz</code> containing the SQLite database, the session secret and
-          (optionally) every uploaded photo, sound and screensaver file. Restore it here or on another
-          server to move the whole household.
+          Downloads a single <code>.tar.gz</code> containing a snapshot of the household database (people,
+          chores, rewards, meals, notes and settings), the session secret and — optionally — every uploaded
+          photo, sound and screensaver file. Restore it here or on another server to move the whole
+          household.
         </p>
         <p style={{ fontSize: '0.82rem', opacity: 0.6, margin: '0 0 14px' }}>
-          Database {formatBytes(info?.database_bytes || 0)} ·{' '}
+          {info
+            ? `${info.total_rows} rows across ${Object.keys(info.tables || {}).length} tables`
+            : 'Database size…'}{' '}
+          ·{' '}
           {info
             ? `${info.uploads_files} media file${info.uploads_files === 1 ? '' : 's'} (${formatBytes(
                 info.uploads_bytes
@@ -136,12 +118,13 @@ export const BackupSettingsTab: React.FC = () => {
         <h3 style={{ margin: '0 0 6px' }}>♻️ Restore from backup</h3>
         <p style={{ opacity: 0.75, fontSize: '0.88rem', marginTop: 0 }}>
           Replaces the database and uploaded media on this server with the contents of the archive. A
-          safety copy of the current database is saved to <code>backups/</code> first, and the app
-          restarts automatically afterwards.
+          safety copy of the current database is saved to <code>backups/</code> first, then this page
+          reloads with the restored data.
         </p>
         <p style={{ fontSize: '0.82rem', opacity: 0.6, margin: '0 0 14px' }}>
-          Only backups created by ChoresRewards are accepted — the archive is validated, never executed as
-          SQL.
+          Only format-v2 archives written by ChoresRewards are accepted. Legacy SQLite backups must be
+          converted first with <code>scripts/convert-v1-backup.js</code>. The archive is validated, never
+          executed as SQL.
         </p>
 
         <input
