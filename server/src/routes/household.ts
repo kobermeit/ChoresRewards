@@ -1856,5 +1856,3 @@ export async function migrateExistingRecipeIngredients() {
   }
 }
 
-// Run migration on startup
-void migrateExistingRecipeIngredients();

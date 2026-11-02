@@ -88,7 +88,7 @@ The app ships as **one container**: Coolify builds the root [`Dockerfile`](./Doc
 | :--- | :--- | :--- |
 | Volume | `choresrewards-data` | `/data` |
 
-`/data` holds the SQLite database, the session `secret_key`, and all uploaded photos, sounds, and screensaver media. **Without this mount the container boots empty after every redeploy.**
+`/data` holds the session `secret_key`, `backups/` safety copies, and all uploaded photos, sounds, and screensaver media. The household database itself lives in Postgres (see the Postgres section), so it survives a lost volume — uploads and the secret do not. **Without this mount the container boots with no media and logs every device out after every redeploy.**
 
 ### 3. Environment variables
 
@@ -96,19 +96,52 @@ Add these in the app's **Environment Variables** panel — the commented templat
 
 | Variable | Value | Purpose |
 | :--- | :--- | :--- |
-| `DATA_DIR` | `/data` | Points the DB, secret and uploads at the volume |
+| `DATA_DIR` | `/data` | Points the secret, backups and uploads at the volume |
 | `TZ` | e.g. `Australia/Brisbane` | Fallback timezone until one is saved in Settings → General |
 | `CR_SECRET_KEY` | *leave empty* | Session-cookie signing key. Empty = auto-generated into `/data/secret_key`. **When migrating, keep it empty** — the backup already carries the old `secret_key`, and an explicit value here overrides it (forcing every device to log in again). To pin your own: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `ENABLE_GOOGLE_CALENDAR` | `true` / `false` | Google Calendar integration toggle |
+| `DB_BOOT_TIMEOUT_MS` | `45000` | How long boot keeps retrying a transient Postgres/DNS failure before the container exits. Keep it **below** the image's 60 s health-check start period. |
 
 Required: **`DATABASE_URL`** (the Postgres internal URL). Optional: `UPLOADS_DIR` (uploads root) and `APP_VERSION` (overrides the version shown in the header, which otherwise comes from `choresrewards/config.yaml`).
 
-### 4. Healthcheck & auto deploy
+### 4. Healthcheck, auto deploy & the local deploy gate
 
-- **Healthcheck path:** `/api/health` → `200 {"status":"ok","version":"…","database":"ok"}` when healthy, `503` when Postgres cannot be reached. The image already declares a Docker `HEALTHCHECK`, so Coolify shows the container as unhealthy instead of silently broken.
+- **Healthcheck path:** `/api/health` → `200 {"status":"ok","version":"…","database":"ok"}` when healthy; `503` with `"status":"starting"`, `"degraded"` (`"database":"unavailable"` plus a `database_error_code` such as `EAI_AGAIN`) or `"failed"` otherwise. The image declares a Docker `HEALTHCHECK`, so Coolify shows the container as unhealthy instead of silently broken.
 - Enable **Auto Deploy** for `main`. Each push rebuilds the image, and because `npm run verify` + the client/server builds run **inside** the Docker build, a broken build never replaces the running container.
+- **Before you push a version: `npm run verify:deploy`.** `npm run build` proves the code compiles; it cannot prove the *container* boots against a real Postgres on a Docker network — which is the failure mode that took v1.20.0 down. `verify:deploy` builds the exact root `Dockerfile`, starts a throwaway Postgres under a Coolify-shaped UUID hostname, and asserts:
+  - the container survives starting while Postgres is **down**, retries, and goes healthy by itself when Postgres returns (no crash loop, no restart);
+  - `/api/health`, `/api/ping`, `/api/bootstrap`, the SPA shell and `/api/static/...` all answer;
+  - a **restart** re-runs the migrations without duplicating the seed (that is every redeploy);
+  - Postgres vanishing **while serving** degrades to `503` and recovers without restarting the app.
 
-### 5. Moving an existing household over
+  Exit code is non-zero on any failure, so it can gate a push. Use `-- --no-build` to re-run against the image already built, `-- --keep` to leave the containers up for debugging.
+
+### 5. Why did the site go dark? (deploy runbook)
+
+A failed deploy and a database outage look identical from the outside: no healthy container, so the reverse proxy has nothing to serve. Work outwards from the database:
+
+| Symptom | Meaning |
+| :--- | :--- |
+| `getaddrinfo EAI_AGAIN <uuid>` / `ENOTFOUND` in the container log | The Postgres resource was **not running** (or not on this container's Docker network) when the app booted. The `<uuid>` is the resource's internal hostname. |
+| `database initialisation failed after N attempt(s) over 45s` | The app retried for `DB_BOOT_TIMEOUT_MS` and still could not reach Postgres, then exited so the orchestrator could restart it. |
+| `[db] Postgres unreachable (…)` in the log, site fine otherwise | A runtime outage: the app kept running and the watchdog logs when it comes back (`[db] Postgres back online after 3m12s`). |
+| Coolify: `New container is unhealthy` → rollback | The **new** container never reached `healthy`. The image is fine; almost always the database was down at that moment. |
+
+Checklist when it happens:
+
+1. **Is the Postgres resource running?** Coolify → your project → PostgreSQL → status. Start it if it is stopped. (The app can only self-heal if the database comes back.)
+2. **Did *something* stop it, and will it come back?** On the Docker host:
+   ```bash
+   docker inspect <postgres-container> --format '{{.HostConfig.RestartPolicy.Name}} restarts={{.State.RestartCount}} started={{.State.StartedAt}}'
+   docker events --since 72h --filter container=<postgres-container> --filter event=stop --filter event=die --filter event=kill
+   ```
+   A restart policy of `no` means any crash, OOM kill or Docker daemon restart leaves the database **down until someone starts it**. Set it to `unless-stopped`/`always` on the resource (Coolify → the database → the restart policy field, or the equivalent compose field).
+3. **Host resources.** A full disk or an out-of-memory kill takes Postgres down: `journalctl -k --since '3 days ago' | grep -i -E 'oom|killed process'`, `df -h`, `free -h`.
+4. **Coolify's scheduled Docker cleanup.** The task is meant to prune *unused* images/containers; if it is configured aggressively, make sure it does not touch the database container.
+5. **Once Postgres is healthy**, redeploy the app (or let it restart on its own). `curl -s localhost:8099/api/health` should report `"database":"ok"`.
+
+### 6. Moving an existing household over
+
 
 Open your **old** server, go to **Settings → Backup & Restore**, tick *Include uploaded photos, sounds & screensaver media* and press **Download backup**. You get one file: `choresrewards-backup-<version>-<date>.tar.gz`.
 
@@ -119,7 +152,7 @@ Because the archive also contains `secret_key`, existing device logins and the h
 > [!TIP]
 > The restore accepts **both** archive formats: the new logical `database.json` dump and the older SQLite `database.db` payload, so the backup you took before the Postgres cutover can be restored directly.
 
-### 6. Backups
+### 7. Backups
 
 - **In-app:** Settings → Backup & Restore → **Download backup** produces a single `.tar.gz` (logical database dump + secret + media). Keep one somewhere off the server.
 - **Postgres:** use Coolify's Postgres backup/scheduled dump as the server-side safety net; the app's own export is the portable, human-verifiable copy.

@@ -86,7 +86,10 @@ header,
 
 /* ------------------------------------------------- active timers win ---- */
 /* Anything that must stay visible while the screen is quiet glows, so a
-   running chore/visual timer is the one thing you cannot miss. */
+   running chore/visual timer is the one thing you cannot miss.
+   Chore cards set --cr-timer-glow to the member's own colour (ChoreCard.tsx), so
+   the glow tells you *whose* timer is running; the green fallback keeps the
+   standalone visual timer widget looking the way it always has. */
 .cr-keep-solid,
 [data-idle-phase='ambient'] .cr-keep-solid,
 [data-idle-phase='ambient'] .dashboard-card.cr-keep-solid,
@@ -94,8 +97,8 @@ header,
 [data-idle-phase='ambient'] .card-shell.cr-keep-solid,
 [data-idle-phase='ambient'] .chore-card.cr-keep-solid {
   opacity: 1 !important;
-  box-shadow: 0 0 28px rgba(16, 185, 129, .45), 0 12px 30px rgba(0, 0, 0, .6) !important;
-  border-color: rgba(16, 185, 129, .8) !important;
+  box-shadow: 0 0 28px var(--cr-timer-glow, rgba(16, 185, 129, .45)), 0 12px 30px rgba(0, 0, 0, .6) !important;
+  border-color: var(--cr-timer-glow, rgba(16, 185, 129, .8)) !important;
   z-index: 10 !important;
   position: relative;
   pointer-events: auto !important;

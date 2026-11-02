@@ -5,12 +5,16 @@ import path from 'path';
 import fs from 'fs';
 import { PORT, STATIC_DIR, UPLOADS_DIR, CLIENT_DIST_DIR, loadSecretKey } from './config';
 import { initDatabase } from './db';
+import { describeDatabaseTarget } from './db/client';
+import { withDbRetry } from './db/retry';
+import { isBootReady, setBootPhase } from './services/bootState';
+import { startDatabaseWatchdog } from './services/dbWatchdog';
 import { authRouter } from './routes/auth';
 import { stateRouter } from './routes/state';
 import { peopleRouter } from './routes/people';
 import { choresRouter } from './routes/chores';
 import { rewardsRouter, runDailyRewardPriceSync } from './routes/rewards';
-import { householdRouter } from './routes/household';
+import { householdRouter, migrateExistingRecipeIngredients } from './routes/household';
 import { organiseRouter } from './routes/organise';
 import { settingsRouter } from './routes/settings';
 import { mediaRouter } from './routes/media';
@@ -62,6 +66,25 @@ app.use('/api/static', express.static(STATIC_DIR, staticCacheOptions));
 
 // Replay protection for queued offline mutations (idempotency ledger)
 app.use(mutationDedupeMiddleware);
+
+/**
+ * Startup gate.
+ *
+ * The HTTP port is bound *before* the database work starts (see `bootDatabase()`), so a
+ * few requests can arrive while migrations are still running. Answering them with
+ * a clear 503 keeps them from turning into a wall of unexplained 500s, and gives
+ * the orchestrator's health check something meaningful to read.
+ * Health/ping probes and static assets always pass through.
+ */
+const BOOT_PROBE_PATHS = /^\/(api\/)?(health|ping)$/;
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (isBootReady() || BOOT_PROBE_PATHS.test(req.path) || (req.method === 'GET' && !req.path.startsWith('/api/'))) {
+    next();
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(503).json({ success: false, error: 'The server is still starting up. Please retry in a moment.' });
+});
 
 // Mount API & application routes at both root and /api so relative calls work under HA Ingress
 const routers = [
@@ -133,25 +156,80 @@ process.on('unhandledRejection', (reason) => {
   console.error('[ChoresRewards] Unhandled promise rejection:', reason);
 });
 
-async function start(): Promise<void> {
-  // Applies Drizzle migrations, hydrates the settings cache and seeds a fresh household.
-  await initDatabase();
+/**
+ * Everything that needs a live database: migrations, settings cache, seeds, the
+ * one-time data tidy-up (which used to run at module import time, *before* the
+ * tables existed — one of the errors in the v1.20.0 deploy log).
+ *
+ * Retried across transient failures (DNS/EAI_AGAIN, a Postgres that is still
+ * starting, a connection reset mid-migration). Only a bounded budget is spent:
+ * a database that is genuinely down still fails the container promptly instead of
+ * hanging the orchestrator's health check.
+ */
+async function bootDatabase(): Promise<void> {
+  console.log(`[boot] Postgres target: ${describeDatabaseTarget()}`);
+  setBootPhase('starting', 'Connecting to the database…');
+  await withDbRetry(() => initDatabase(), { label: 'database initialisation' });
+  await migrateExistingRecipeIngredients();
+  setBootPhase('ready', 'Serving household data.');
+}
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[ChoresRewards] Server listening on http://0.0.0.0:${PORT}`);
+/** Reward-price sync + the Postgres availability watcher. */
+function startBackgroundWork(): void {
+  // Safe daily reward price sync: Initial run after 2 minutes of uptime, then every 24 hours
+  setTimeout(() => {
+    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Initial run error:', err));
+  }, 120_000);
 
-    // Safe daily reward price sync: Initial run after 2 minutes of uptime, then every 24 hours
-    setTimeout(() => {
-      runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Initial run error:', err));
-    }, 120_000);
+  setInterval(() => {
+    runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Scheduled run error:', err));
+  }, 24 * 60 * 60 * 1000);
 
-    setInterval(() => {
-      runDailyRewardPriceSync().catch((err) => console.warn('[RewardSyncCron] Scheduled run error:', err));
-    }, 24 * 60 * 60 * 1000);
+  startDatabaseWatchdog();
+}
+
+/**
+ * Bind the port first (so probes get an answer immediately, even if the database
+ * takes a while), then bring the database side up.
+ */
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[ChoresRewards] Server listening on http://0.0.0.0:${PORT}`);
+});
+
+server.on('error', (err) => {
+  console.error('[ChoresRewards] Could not bind the HTTP port:', err);
+  process.exit(1);
+});
+
+/**
+ * Graceful shutdown.
+ *
+ * A rolling deploy starts the new container, waits for it to be healthy and only
+ * then stops this one. Draining instead of dropping makes that handover invisible
+ * to whoever is mid-request on the wall tablet.
+ */
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    console.log(`[ChoresRewards] ${signal} received — draining connections…`);
+    server.close(() => process.exit(0));
+    // Keep-alive sockets can hold the server open; do not wait forever.
+    setTimeout(() => process.exit(0), 10_000).unref();
   });
 }
 
-start().catch((err) => {
-  console.error('[ChoresRewards] Fatal startup error:', err);
-  process.exit(1);
-});
+bootDatabase()
+  .then(startBackgroundWork)
+  .catch((err) => {
+    const reason = err instanceof Error ? err.message : String(err);
+    setBootPhase('failed', 'Startup failed — the database could not be reached. See the container log.');
+    console.error('[ChoresRewards] Fatal startup error:', err);
+    console.error(
+      `[ChoresRewards] Could not use Postgres at ${describeDatabaseTarget()} (${reason}).\n` +
+        '[ChoresRewards] Fix: Coolify → the Postgres resource must be RUNNING, and DATABASE_URL must be its\n' +
+        '               internal URL (postgres://user:pass@<resource-uuid>:5432/dbname) on the same Docker\n' +
+        '               network as this application. The container now exits so the orchestrator restarts it.'
+    );
+    // Small delay so the message above reaches the container log before we exit.
+    setTimeout(() => process.exit(1), 250);
+  });
+

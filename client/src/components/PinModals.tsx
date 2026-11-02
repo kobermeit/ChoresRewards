@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiPost } from '../api';
 import { useApp } from '../context/AppContext';
 
@@ -8,9 +8,20 @@ export const PinModals: React.FC<{
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
   const { data, refresh, setAdultMode, showToast } = useApp();
-  const [pin, setPin] = useState('');
+  const [pin, setPinState] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
+
+  /**
+   * Every PIN mutation goes through this wrapper so `pinRef` — which the physical
+   * keyboard listener reads — can never lag behind React state. Two fast keypresses
+   * in the same frame would otherwise both read the same stale `pin`.
+   */
+  const pinRef = useRef('');
+  const setPin = useCallback((next: string) => {
+    pinRef.current = next;
+    setPinState(next);
+  }, []);
 
   const needsMasterLogin = Boolean(data && data.master_pin_set && !data.auth?.authenticated);
   const isOpen = needsMasterLogin || adultPinOpen;
@@ -59,8 +70,8 @@ export const PinModals: React.FC<{
   };
 
   const handleDigit = (digit: string) => {
-    if (retryAfter > 0 || pin.length >= 4) return;
-    const next = pin + digit;
+    if (retryAfter > 0 || pinRef.current.length >= 4) return;
+    const next = pinRef.current + digit;
     setPin(next);
     if (next.length === 4) {
       submitPin(next);
@@ -68,8 +79,61 @@ export const PinModals: React.FC<{
   };
 
   const handleBackspace = () => {
-    setPin((prev) => prev.slice(0, -1));
+    setPin(pinRef.current.slice(0, -1));
   };
+
+  /**
+   * Physical keyboard support — a Chromebook, a laptop or a USB keyboard on the
+   * kitchen wall panel should not have to aim at the on-screen keypad.
+   *   · 0-9        → append a digit (4 digits submits automatically, as on touch)
+   *   · Backspace  → delete the last digit
+   *   · Enter      → submit a complete PIN
+   *   · Escape     → cancel (only when it is not the blocking master-PIN login)
+   */
+  const submitPinRef = useRef(submitPin);
+  submitPinRef.current = submitPin;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (retryAfter > 0) return;
+
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+        const current = pinRef.current;
+        if (current.length >= 4) return;
+        const next = current + event.key;
+        pinRef.current = next;
+        setPinState(next);
+        if (next.length === 4) submitPinRef.current(next);
+        return;
+      }
+
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        const next = pinRef.current.slice(0, -1);
+        pinRef.current = next;
+        setPinState(next);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (pinRef.current.length === 4) submitPinRef.current(pinRef.current);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (!needsMasterLogin) onCloseAdultPin();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, retryAfter, needsMasterLogin, onCloseAdultPin, setPinState]);
 
   if (!isOpen) return null;
 

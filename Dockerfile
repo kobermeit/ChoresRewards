@@ -48,9 +48,14 @@ WORKDIR /app
 
 # DATABASE_URL (Postgres) has no default: Coolify must inject the Postgres
 # resource's internal URL — there is no SQLite fallback any more.
+# DB_BOOT_TIMEOUT_MS is how long boot keeps retrying a transient database failure
+# (Docker DNS with the Postgres container still starting, a connection reset).
+# It must stay comfortably BELOW the health check's start period below, otherwise
+# a legitimate slow boot is reported as an unhealthy container.
 ENV NODE_ENV=production \
     PORT=8099 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    DB_BOOT_TIMEOUT_MS=45000
 
 # Server entry, compiled bundle and production-only node_modules
 COPY --from=build /app/server/package.json ./server/package.json
@@ -76,8 +81,15 @@ USER node
 
 EXPOSE 8099
 
-# Node's built-in fetch — the slim image ships neither curl nor wget
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# Node's built-in fetch — the slim image ships neither curl nor wget.
+#
+# start-period MUST exceed DB_BOOT_TIMEOUT_MS: the boot path retries a transient
+# Postgres/DNS failure for that long, and Coolify reads this start period, waits
+# exactly that many seconds and then inspects the container's health once. If the
+# retry budget overran the start period, a database that is merely slow to come up
+# would be reported as a failed deployment (that is what took v1.20.0 offline).
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=4 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8099)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 
 CMD ["node", "server/index.js"]

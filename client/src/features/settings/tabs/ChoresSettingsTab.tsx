@@ -1,26 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { apiGet, apiPost, resolveAssetUrl } from '../../../api';
-import { Button, Select } from '../../../components/ui';
+import { Button } from '../../../components/ui';
+import { formatPoints, pointsToCash, scheduleLabel, scheduledDaysPerWeek } from '../choreWeeklyPoints';
+import { ChoresPointsSummary } from './ChoresPointsSummary';
 
 /** Human-readable schedule label; tolerates a CSV string or an array (older payloads). */
-const daysToText = (raw: string | string[] | null | undefined, isDaily: boolean): string => {
-  const days = (Array.isArray(raw) ? raw : raw ? String(raw).split(',') : [])
-    .map((d) => String(d).trim().toLowerCase())
-    .filter(Boolean);
-  if (days.length >= 7) return 'Every day';
-  if (days.length === 5 && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].every((d) => days.includes(d))) {
-    return 'Mon – Fri';
-  }
-  if (days.length === 2 && ['saturday', 'sunday'].every((d) => days.includes(d))) return 'Weekends';
-  if (days.length > 0) {
-    const mapDay: Record<string, string> = {
-      monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
-    };
-    return days.map((d) => mapDay[d] || d.slice(0, 3)).join(', ');
-  }
-  return isDaily ? 'Every day' : 'Once-off';
-};
+const daysToText = scheduleLabel;
+
 
 export const ChoresSettingsTab: React.FC = () => {
   const { data, refresh, showToast, confirm, openEditChoreModal } = useApp();
@@ -52,6 +39,8 @@ export const ChoresSettingsTab: React.FC = () => {
     () => (memberFilter === 'all' ? source : source.filter((c) => c.assigned_to === memberFilter)),
     [source, memberFilter]
   );
+  const pointValue = Number(data?.point_value ?? 0.5) || 0;
+  const isCash = data?.reward_system === 'cash';
 
   return (
     <div className="card" style={{ padding: 24, borderRadius: 18 }}>
@@ -61,7 +50,7 @@ export const ChoresSettingsTab: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: 12,
-          marginBottom: 16,
+          marginBottom: 14,
           flexWrap: 'wrap',
         }}
       >
@@ -69,32 +58,29 @@ export const ChoresSettingsTab: React.FC = () => {
           🧹 All Household Chores ({filtered.length}
           {memberFilter !== 'all' ? ` of ${source.length}` : ''})
         </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 190 }}>
-            <Select
-              value={memberFilter}
-              onChange={(e) => setMemberFilter(e.target.value)}
-              aria-label="Filter chores by family member"
-            >
-              <option value="all">👨‍👩‍👧‍👦 All family</option>
-              {family.map((p) => (
-                <option key={p.id} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Button variant="primary" size="sm" icon="fas fa-plus" onClick={() => openEditChoreModal(null)}>
-            Add Chore
-          </Button>
-        </div>
+        <Button variant="primary" size="sm" icon="fas fa-plus" onClick={() => openEditChoreModal(null)}>
+          Add Chore
+        </Button>
       </div>
+
+      {/* Current balance / weekly earning potential per member; tapping a pill also filters the list. */}
+      <ChoresPointsSummary
+        family={family}
+        chores={source}
+        rewardSystem={isCash ? 'cash' : 'points'}
+        pointValue={pointValue}
+        selected={memberFilter}
+        onSelect={setMemberFilter}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.map((c) => {
           const assignedPerson = (data?.family || []).find((p) => p.name === c.assigned_to);
           const memberColor = assignedPerson?.color || '#3b82f6';
           const daysText = daysToText(c.days_of_week, Boolean(c.is_daily));
+          // Worth if completed on every scheduled day this week (bonus points excluded).
+          const daysPerWeek = scheduledDaysPerWeek(c);
+          const weeklyPoints = Math.round(Number(c.points || 0) * daysPerWeek * 100) / 100;
 
           return (
             <div
@@ -164,9 +150,16 @@ export const ChoresSettingsTab: React.FC = () => {
                       {daysText}
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.75, marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.75, marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span>
                       {data?.reward_system === 'cash' ? `$${Number(c.points).toFixed(2)}` : `${c.points} pts`}
+                    </span>
+                    <span
+                      style={{ fontWeight: 700, color: memberColor }}
+                      title={`${daysPerWeek}× per week at ${formatPoints(Number(c.points || 0))}`}
+                    >
+                      • {formatPoints(weeklyPoints)}/wk
+                      {pointValue > 0 ? ` (${pointsToCash(weeklyPoints, pointValue)})` : ''}
                     </span>
                     {c.due_datetime && (
                       <span style={{ color: '#f87171' }}>• Due {c.due_datetime}</span>

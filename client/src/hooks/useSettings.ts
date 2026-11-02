@@ -74,9 +74,18 @@ export function useUiPref<K extends keyof UiState>(key: K): [UiState[K], (v: UiS
   return [value, setter];
 }
 
-/** Active season/event (null when seasonal themes are off). Re-checks every hour. */
+/**
+ * Active season/event (null when seasonal themes are off).
+ *
+ * Two freshness guarantees, because a wall tablet can stay open for weeks:
+ *  · a 10-minute poll picks up a window that opened or closed while the screen was on;
+ *  · AppContext invalidates the `Seasonal` tag on midnight rollover / device wake, so
+ *    the theme, sound and badge flip on the day after an event ends instead of waiting
+ *    for someone to open Settings and toggle the override (that was the bug).
+ */
 export function useSeason() {
-  const { data } = useGetSeasonalQuery(undefined, { pollingInterval: 60 * 60 * 1000 });
+  const { data } = useGetSeasonalQuery(undefined, { pollingInterval: 10 * 60 * 1000 });
+
   const result = useMemo(() => {
     const season = data?.active.season ?? null;
     const event = data?.active.event ?? null;

@@ -26,7 +26,16 @@ export interface QueuedOfflineMutation {
   endpoint: string;
   body: any;
   timestamp: number;
+  /**
+   * Failed replay attempts so far (network-level only — an HTTP rejection drops the
+   * item immediately). Bounded by MAX_REPLAY_ATTEMPTS in OfflineSyncManager so one
+   * un-replayable write can never pin the "Syncing…" banner forever.
+   */
+  attempts?: number;
+  /** When the last replay attempt ran, used for the stale-item expiry. */
+  lastAttemptAt?: number;
 }
+
 
 export interface UiState {
   activeView: ActiveView;
@@ -264,6 +273,27 @@ const uiSlice = createSlice({
       repairUiState(state);
       state.offlineQueue = state.offlineQueue.filter((m) => m.id !== action.payload);
     },
+    /**
+     * Record one failed replay attempt. The sync manager drops an item once its
+     * attempt budget is spent, so a write the server will never accept cannot keep
+     * the "Syncing N changes…" banner on screen indefinitely.
+     */
+    bumpOfflineMutationAttempt(state, action: PayloadAction<string>) {
+      repairUiState(state);
+      const item = state.offlineQueue.find((m) => m.id === action.payload);
+      if (!item) return;
+      item.attempts = (item.attempts || 0) + 1;
+      item.lastAttemptAt = Date.now();
+    },
+    /** Drop queued writes older than `now - maxAgeMs` (device left offline for days). */
+    dropExpiredOfflineMutations(state, action: PayloadAction<number>) {
+      repairUiState(state);
+      const cutoff = Date.now() - Math.max(0, action.payload);
+      state.offlineQueue = state.offlineQueue.filter((m) => {
+        const last = Number(m.lastAttemptAt || m.timestamp || 0);
+        return Number.isFinite(last) && last >= cutoff;
+      });
+    },
     clearOfflineQueue(state) {
       state.offlineQueue = [];
     },
@@ -311,6 +341,8 @@ export const {
   setActiveTimers,
   enqueueOfflineMutation,
   dequeueOfflineMutation,
+  bumpOfflineMutationAttempt,
+  dropExpiredOfflineMutations,
   clearOfflineQueue,
   setOfflineBannerDismissed,
   setShoppingCheckedOverride,

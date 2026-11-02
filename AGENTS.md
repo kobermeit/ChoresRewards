@@ -10,6 +10,7 @@
 - **Frontend**: React 18 + TypeScript + Vite (`client/`).
   - State & Persistence: Redux Toolkit + RTK Query (`client/src/store/api.ts`) + `redux-persist` (`whitelist: ['ui']`).
   - **Storage Architecture Rule**: Zero direct `localStorage` calls. Device-local UI preferences (`sideNavCollapsed`, `parentManageMode`, `activeTimers`, `activeView`) live in Redux `uiSlice.ts`. Household settings (`global_mute`, `chore_suggestions`) live in the `app_settings` table via `/api/prefs`.
+  - **Toasts vs. the offline queue**: toasts are ephemeral `AppContext` state (never persisted) — 3.5 s lifetime, a hard 30 s ceiling and an ✕ on every toast. The blue "Syncing N changes…" notice is *derived from the persisted* `ui.offlineQueue`, so that queue must always be able to drain: replays use a 20 s timeout, an item is dropped after 4 failed attempts or 12 h, and the banner always offers Retry **and** Discard. Never add a code path that can leave an item in `offlineQueue` forever.
   - Audio Engine: Zero-latency procedural Web Audio synthesis (`soundService.ts`) with theme support (Zelda Fantasy, Christmas Bells, Spooky, Zen Chimes, Fanfare) + bundled fallback audio clips.
   - Visuals & Celebrations: Canvas-confetti + custom celebration fireworks.
   - **Code Map Maintenance**: Always consult and keep [CODEMAP.md](file:///d:/projects/choresrewards/CODEMAP.md) updated whenever components, features, or routes are added or refactored.
@@ -102,6 +103,8 @@ choresrewards/
   - Supports dynamic dates (e.g. Easter calculated via Gregorian algorithm) and fixed holidays (Halloween, Christmas, New Year's) with active celebration windows (typically ±7 days).
   - Hemisphere toggle adjusts meteorological season dates (Southern Hemisphere default: Dec–Feb Summer, Sep–Nov Spring).
 - **Sound Themes**: Configurable in Settings (`auto`, `default`, `fantasy` [Zelda-style secret chime], `christmas` [bell chime chords], `spooky` [Halloween theremin arpeggio], `chimes` [zen wind chimes], `fanfare` [royal brass]). Synthesized purely via Web Audio API (zero external assets required).
+- **Windows open and close by themselves**: `useSeason()` polls every 10 minutes *and* `AppContext` invalidates the RTK Query `Seasonal` tag on midnight rollover and device wake. Never rely on a single fetch — a wall tablet can stay open for weeks, and "Halloween was still on the day after it ended" was exactly this bug.
+
 
 ### 4. Backup & Restore (household migration)
 - **Export** (`GET /api/backup/export?media=1`, parent-only) streams one `.tar.gz` (format v2): `manifest.json` + `database.json` (a logical dump of every household table) + `secret_key` + `uploads/**`.
@@ -178,6 +181,11 @@ choresrewards/
   - Run `npm run verify` (`node scripts/verify_ingress.js`) before every deploy or commit.
   - Zero tolerance for hardcoded absolute paths (`/static/...` or `/api/...`). All paths must be relative (`./static/...`) or passed through `resolveAssetUrl(url)`.
   - Ensure the client runs seamlessly in standalone mode (direct port `8099`), sub-path proxies, and Home Assistant Ingress dynamic token prefixes (`/api/hassio_ingress/<token>/`).
+- **Mandatory Container Deploy Verification**:
+  - Run `npm run verify:deploy` (`scripts/verify_deploy.js`) before **every version bump or push to `main`**.
+  - `npm run verify` and `npm run build` both run *inside* the Docker build and still cannot catch a container that fails to boot — that is exactly how v1.20.0 was rolled back (Postgres hostname unresolvable at boot → crash loop → Coolify judged the container unhealthy).
+  - The script builds the real root `Dockerfile`, boots it on an isolated network against a throwaway Postgres under a Coolify-style UUID hostname, and fails the run on any boot/health/manifest regression (see TESTING.md tier 1.5).
+
 - **Full UI Regression Test Before Deploy**: Before doing a version push or deploy, run a comprehensive regression test in the local UI across every screen. Verify:
   - Adding, editing, and redeeming rewards
   - Adding, completing, and undoing chores
@@ -209,7 +217,25 @@ choresrewards/
 - **Port `8099`** is what Coolify exposes (`Ports Exposes = 8099`). `NODE_ENV`, `PORT` and `DATA_DIR` are image `ENV`s and may be overridden by Coolify environment variables.
 - **Database (Postgres) is a Coolify resource, not a container**: add a PostgreSQL resource and set the app's `DATABASE_URL` to its internal URL. Migrations run on boot (`server/src/db/migrate.ts`) and the Dockerfile copies `server/drizzle/` into the runtime image — **any new migration must be committed or the container boots against an old schema**.
 - **Persistent state lives in `DATA_DIR`** (`/data` in containers): `secret_key`, `uploads/`, `backups/` (pre-restore safety copies). The household database itself lives in Postgres, so it survives a lost volume — but uploads/secret do not. Never write state into the image, `client/dist`, or `server/`.
-- **Healthcheck** is `/api/health` (`server/src/routes/health.ts`, `200` healthy / `503` when the Postgres probe fails). `/ping` (`204`) remains the client's lightweight reconnect probe — do not merge the two, and keep the health payload free of filesystem paths and household data.
+- **Healthcheck** is `/api/health` (`server/src/routes/health.ts`, `200` healthy / `503` when the boot is
+  still in progress or the Postgres probe fails). `/ping` (`204`) remains the client's lightweight reconnect
+  probe — do not merge the two, and keep the health payload free of filesystem paths and household data
+  (driver **codes** like `EAI_AGAIN` are allowed, driver messages and hostnames are not).
+- **Boot must never be fatal on the first database hiccup.** The port is bound before migrations
+  (`server/src/index.ts` → `bootDatabase()`), the whole DB step is retried by `withDbRetry()`
+  (`server/src/db/retry.ts`, budget `DB_BOOT_TIMEOUT_MS`, default 45 s) and only then does the process
+  exit. `Dockerfile`'s `HEALTHCHECK --start-period` (60 s) must stay **above** that budget: Coolify waits
+  the start period once and judges the deploy on that single health status, so a slow-but-healthy boot must
+  never be reported unhealthy. This is exactly how v1.20.0 was rolled back.
+- **Migrations take a Postgres advisory lock** (`server/src/db/migrate.ts`), so two containers may boot at
+  the same time (rolling deploy, blue/green, a manual `docker run` next to the live one) without racing on
+  DDL. Do not remove it, and do not add a retry loop inside `runMigrations()` — the outer `withDbRetry()`
+  owns retries.
+- **Verify the deploy, not just the build**: `npm run verify:deploy` builds the real image and boots it
+  against a throwaway Postgres (see [TESTING.md](file:///d:/projects/choresrewards/TESTING.md) tier 1.5).
+  Run it before any version bump. It reproduces the "Postgres down at boot" and "Postgres vanishes while
+  serving" cases that `npm run build` cannot see.
+
 - **Runtime runs as `USER node`** (uid 1000). Any new persistent directory must be created and `chown`ed to `node` in the Dockerfile, otherwise SQLite/uploads fail with EACCES.
 - **Config template**: `.env.example` is committed (`.gitignore` and `.dockerignore` both re-include it). Add every new `process.env.*` variable there with a comment, and wire it into `docker-compose.yml` for local runs.
 - `docker-compose.yml` is for **local / self-hosted Docker only**; production is Coolify and does not use it.

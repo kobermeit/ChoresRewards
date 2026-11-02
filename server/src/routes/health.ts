@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { pingDatabase } from '../db/client';
+import { probeDatabase } from '../db/client';
+import { getBootState } from '../services/bootState';
 import { APP_VERSION } from '../config';
 
 export const healthRouter = Router();
@@ -9,20 +10,40 @@ export const healthRouter = Router();
  * HAOS watchdog, uptime monitors). Registered as `/health`, so it answers on
  * both `/health` and `/api/health`.
  *
- * Returns 200 when Postgres answers a trivial query and 503 when it does not, so
- * the orchestrator can show "unhealthy" instead of a silently broken app.
- * Deliberately free of filesystem paths and household data.
+ * Responses:
+ *   - `200 {"status":"ok",        "database":"ok"}`          — ready and serving.
+ *   - `503 {"status":"starting"}`                           — still migrating/seeding (port is
+ *                                                             bound early on purpose, so this is
+ *                                                             readable instead of a refused connection).
+ *   - `503 {"status":"degraded",  "database":"unavailable"}` — running, but Postgres is gone.
+ *   - `503 {"status":"failed"}`                             — startup gave up; the process is exiting.
+ *
+ * `database_error_code` carries only the driver code (e.g. `EAI_AGAIN`), never the
+ * message, so this endpoint stays free of filesystem paths and household data.
  */
 healthRouter.get('/health', async (_req: Request, res: Response) => {
-  const database = (await pingDatabase()) ? 'ok' : 'unavailable';
-
-  const healthy = database === 'ok';
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-  res.status(healthy ? 200 : 503).json({
-    status: healthy ? 'ok' : 'degraded',
+  const uptime = Math.round(process.uptime());
+  const boot = getBootState();
+
+  if (boot.phase !== 'ready') {
+    res.status(503).json({
+      status: boot.phase,
+      version: APP_VERSION,
+      database: 'pending',
+      detail: boot.detail,
+      uptime_seconds: uptime,
+    });
+    return;
+  }
+
+  const probe = await probeDatabase();
+  res.status(probe.ok ? 200 : 503).json({
+    status: probe.ok ? 'ok' : 'degraded',
     version: APP_VERSION,
-    database,
-    uptime_seconds: Math.round(process.uptime()),
+    database: probe.ok ? 'ok' : 'unavailable',
+    ...(probe.ok ? {} : { database_error_code: probe.code || 'unreachable' }),
+    uptime_seconds: uptime,
   });
 });
 

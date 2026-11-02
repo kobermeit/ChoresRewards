@@ -7,6 +7,8 @@ import { FamilyMemberModal } from '../components/FamilyMemberModal';
 import { playSoundCategory, speakAnnouncement, SoundCategory } from '../services/soundService';
 import { fireCelebrationFireworks } from '../services/celebrationService';
 import { useHouseholdPrefs, useUiPref, useSoundTheme, useNavigation } from '../hooks/useSettings';
+import { store } from '../store';
+import { api } from '../store/api';
 
 export interface ToastItem {
   id: string;
@@ -14,6 +16,12 @@ export interface ToastItem {
   type?: 'success' | 'error' | 'info' | 'badge';
   undoAction?: () => void;
 }
+
+/** Normal toast lifetime. */
+const TOAST_LIFETIME_MS = 3500;
+/** Hard ceiling — a toast must never outlive this, whatever happens to its timer. */
+const TOAST_MAX_LIFETIME_MS = 30_000;
+
 
 export interface ConfirmOptions {
   title: string;
@@ -313,6 +321,17 @@ export const AppProvider: React.FC<{
     }
   }, [setAdultMode]);
 
+  /**
+   * A seasonal/event window opens and closes by itself, so the cached selection must
+   * be invalidated whenever the household date changes (midnight rollover, waking from
+   * sleep) — otherwise the theme, sound and header badge keep showing yesterday's
+   * event until some other action happens to refresh it. That is exactly the
+   * "Halloween stayed on the day after it ended" bug.
+   */
+  const refreshSeasonalTheme = useCallback(() => {
+    store.dispatch(api.util.invalidateTags(['Seasonal']));
+  }, []);
+
   // Session keepalive heartbeat every 4 minutes for kiosk/tablet persistence
   useEffect(() => {
     const heartbeat = setInterval(() => {
@@ -349,6 +368,7 @@ export const AppProvider: React.FC<{
 
       if (!document.hidden) {
         if (isDateRollover || isStale) {
+          if (isDateRollover) refreshSeasonalTheme();
           // Trigger smooth full-sync overlay
           refresh(true);
         } else {
@@ -370,6 +390,7 @@ export const AppProvider: React.FC<{
         const currentDateStr = new Date().toISOString().slice(0, 10);
         const isDateRollover = currentDateStr !== activeDateRef.current;
         const isVeryStale = delta > 60 * 60 * 1000; // 1hr+ suspended
+        if (isDateRollover) refreshSeasonalTheme();
         refresh(isDateRollover || isVeryStale);
         showToast('✨ Family Hub refreshed');
       }
@@ -393,6 +414,7 @@ export const AppProvider: React.FC<{
     const midnightInterval = setInterval(() => {
       const currentDateStr = new Date().toISOString().slice(0, 10);
       if (currentDateStr !== activeDateRef.current) {
+        refreshSeasonalTheme();
         refresh(true);
       }
     }, 60 * 1000);
@@ -406,7 +428,7 @@ export const AppProvider: React.FC<{
       window.removeEventListener('pageshow', checkMidnightAndStaleness);
       window.removeEventListener('pointerdown', handleUserWakeTouch);
     };
-  }, [refresh]);
+  }, [refresh, refreshSeasonalTheme]);
 
   // Sync activeUser & adultMode strictly from server session (data.auth)
   useEffect(() => {
@@ -512,17 +534,24 @@ export const AppProvider: React.FC<{
         type: options?.type || 'info',
         undoAction: options?.undoAction,
       };
+      const removeToast = () => setToasts((prev) => prev.filter((t) => t.id !== id));
       setToasts((prev) => {
         // Prevent stacking duplicate identical messages within active toasts
         if (prev.some((t) => t.message === message)) return prev;
         return [...prev, item];
       });
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3500);
+      setTimeout(removeToast, TOAST_LIFETIME_MS);
+      // Absolute ceiling: a throttled/never-fired normal timer (background tab, device
+      // sleep, restored session) must never leave a toast on screen forever.
+      setTimeout(removeToast, TOAST_MAX_LIFETIME_MS);
     },
     []
   );
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
 
   // Global API error toast listener
   useEffect(() => {
@@ -769,7 +798,7 @@ export const AppProvider: React.FC<{
               fontWeight: 600,
             }}
           >
-            <span>{t.message}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>{t.message}</span>
             {t.undoAction && (
               <button
                 type="button"
@@ -791,6 +820,24 @@ export const AppProvider: React.FC<{
                 Undo
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => dismissToast(t.id)}
+              aria-label="Dismiss notification"
+              title="Dismiss"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                opacity: 0.65,
+                cursor: 'pointer',
+                fontSize: '1rem',
+                lineHeight: 1,
+                padding: '4px 2px',
+              }}
+            >
+              ✕
+            </button>
           </div>
         ))}
       </div>

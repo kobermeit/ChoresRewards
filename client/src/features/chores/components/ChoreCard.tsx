@@ -133,10 +133,13 @@ export const ChoreCard: React.FC<ChoreCardProps> = memo(({
     borderRadius: 'var(--card-radius, 16px)',
     transition: 'all 0.3s ease',
     ...(isRunningTimer
-      ? {
+      ? ({
           boxShadow: `0 0 24px ${memberColor}66, 0 0 10px ${memberColor}88`,
           border: `2px solid ${memberColor}`,
-        }
+          // The idle-phase "keep me solid" glow reads this, so a running timer keeps
+          // the member's colour instead of the generic green (see styles/idlePhases.css).
+          '--cr-timer-glow': `${memberColor}cc`,
+        } as React.CSSProperties)
       : {}),
     ...(shouldDim ? { opacity: 0.5, filter: 'grayscale(0.15)' } : {}),
   };

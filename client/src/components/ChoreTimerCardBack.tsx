@@ -32,8 +32,14 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   const isRunning = timer ? timer.isRunning : false;
 
   const fraction = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
-  // >35% calm green, 15-35% amber, <15% red
+  // Ring colour ramp stays functional (time left): >35% calm, 15-35% amber, <15% red.
   const timerColor = fraction > 0.35 ? '#10b981' : fraction > 0.15 ? '#f59e0b' : '#ef4444';
+  /**
+   * The card *edge* is the member's own colour, so a glance across the Kanban tells
+   * you whose timer is running (Abby's edge is pink, Gee's is violet). The ring keeps
+   * the urgency ramp above, which is the part that has to communicate "time is nearly up".
+   */
+  const edgeColor = person?.color || timerColor;
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
@@ -55,7 +61,7 @@ export const ChoreTimerCardBack: React.FC<ChoreTimerCardBackProps> = ({
   };
 
   return (
-    <CardShell borderColor={timerColor} className="cr-chore-timer-card-back">
+    <CardShell borderColor={edgeColor} className="cr-chore-timer-card-back">
       <div
         className="cr-item-card-body"
         style={{ padding: 15, display: 'flex', flexDirection: 'column', gap: 13, flex: 1, minHeight: 0 }}

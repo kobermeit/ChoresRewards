@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Person } from '../types';
 import { useApp } from '../context/AppContext';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -15,11 +15,19 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
   const { data, activeUser, switchUser, showToast, openEditMemberModal, isParent } = useApp();
 
   const [pinTargetPerson, setPinTargetPerson] = useState<Person | null>(null);
-  const [pinInput, setPinInput] = useState('');
+  const [pinInput, setPinInputState] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
 
-  if (!isOpen) return null;
+  /**
+   * Keyboard listener reads `pinInputRef` rather than the render closure, so two
+   * keypresses in the same frame can never both read the same digit count.
+   */
+  const pinInputRef = useRef('');
+  const setPinInput = useCallback((next: string) => {
+    pinInputRef.current = next;
+    setPinInputState(next);
+  }, []);
 
   const people = data?.family || [];
 
@@ -66,8 +74,8 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
 
   const handleKeypadPress = (val: string) => {
     setPinError(null);
-    if (pinInput.length < 8) {
-      const next = pinInput + val;
+    if (pinInputRef.current.length < 8) {
+      const next = pinInputRef.current + val;
       setPinInput(next);
       if (next.length === 4 && pinTargetPerson) {
         // Auto-submit on 4 digits
@@ -91,8 +99,41 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
 
   const handleKeypadBackspace = () => {
     setPinError(null);
-    setPinInput((p) => p.slice(0, -1));
+    setPinInput(pinInputRef.current.slice(0, -1));
   };
+
+  /**
+   * Physical keyboard support for the profile PIN pad (Chromebook / laptop / USB
+   * keyboard on the wall tablet): digits type the PIN, Backspace deletes, Escape
+   * goes back to the profile list.
+   */
+  useEffect(() => {
+    if (!pinTargetPerson) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || switching) return;
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+        handleKeypadPress(event.key);
+        return;
+      }
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        handleKeypadBackspace();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setPinTargetPerson(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  // Every hook above must run on every render — only now may we bail out.
+  if (!isOpen) return null;
 
   const renderAvatar = (p: Person, size = 64) => {
     const isFamilyUser = p.role === 'family' || p.name.toLowerCase() === 'family';

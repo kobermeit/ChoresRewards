@@ -1,6 +1,7 @@
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool, types } from 'pg';
 import * as schema from './schema';
+import { describeDbError, findErrorCode } from './retry';
 
 /**
  * Keep DATE columns as the exact 'YYYY-MM-DD' text Postgres sent.
@@ -91,12 +92,42 @@ export async function one<T = any>(query: PromiseLike<unknown[]>): Promise<T | u
 
 /** Cheap liveness probe used by /api/health. */
 export async function pingDatabase(): Promise<boolean> {
+  return (await probeDatabase()).ok;
+}
+
+/**
+ * Liveness probe that also explains *why* the database is unreachable.
+ *
+ * A bare `false` is useless in a container log — the household's v1.20.0 outage
+ * was a stopped Postgres whose hostname no longer resolved, and the health probe
+ * could only say "unavailable". The error string is safe to log and to expose on
+ * /api/health: `describeDbError()` returns a driver code plus the driver message
+ * (host names appear, passwords never do — the message never contains the URL).
+ */
+export async function probeDatabase(): Promise<{ ok: boolean; error?: string; code?: string }> {
   try {
     await getPool().query('SELECT 1');
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: describeDbError(err), code: findErrorCode(err) };
   }
 }
+
+/**
+ * `host:port/database` for DATABASE_URL — used in startup failure messages.
+ * Never includes the password, so it is safe to log in a Coolify build/deploy log.
+ */
+export function describeDatabaseTarget(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) return '(DATABASE_URL is not set)';
+  try {
+    const parsed = new URL(url);
+    const database = parsed.pathname.replace(/^\//, '') || '(no database)';
+    return `${parsed.hostname}:${parsed.port || '5432'}/${database}`;
+  } catch {
+    return '(DATABASE_URL is not a valid URL)';
+  }
+}
+
 
 export { schema };

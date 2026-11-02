@@ -14,8 +14,30 @@ Run these in order. Each tier assumes the previous tier passed.
 | :--- | :--- | :--- | :--- |
 | 0 | Ingress / path-portability audit | `npm run verify` | Before **every** commit or deploy (mandatory) |
 | 1 | Type-check + production bundle | `npm run build` | Before every commit (client `tsc` + Vite, server `tsc`) |
+| 1.5 | **Container deploy verification** | `npm run verify:deploy` | Before **every version bump / push to `main`** (mandatory) |
 | 2 | Manual UI pass | `npm run dev:server` (serves `dist` on `:8099`) | Tier 2 / Tier 3 changes |
 | 3 | Scripted browser smoke | temporary `puppeteer-core` script (see §4) | Tier 3 changes only |
+
+### Why tier 1.5 exists
+
+v1.20.0 passed tiers 0 and 1 and still took the site offline: the container could not resolve the
+Postgres hostname at boot (`EAI_AGAIN`), exited, and Coolify rolled the deploy back. Compiling proves
+nothing about *booting* — the failure only exists in the container, against a real Postgres, on a Docker
+network.
+
+`npm run verify:deploy` (`scripts/verify_deploy.js`) rebuilds the exact root `Dockerfile` Coolify builds
+and then, on an isolated Docker network with a throwaway Postgres under a Coolify-shaped UUID hostname:
+
+1. starts the app **while Postgres is stopped** — it must stay up, log retries and go healthy by itself
+   once Postgres starts (no crash loop, no restart);
+2. smokes `/api/health`, `/api/ping`, `/api/bootstrap`, `/` and `/api/static/...`;
+3. restarts the container — migrations re-run without duplicating the seed;
+4. stops Postgres **while serving** — `/api/health` degrades to `503` with a driver code, then recovers
+   to `200` without restarting the app.
+
+`-- --no-build` reuses `choresrewards:verify`; `-- --keep` leaves the containers up for inspection.
+Exit code is non-zero on any failure.
+
 
 ### Which tier is my change?
 
@@ -24,6 +46,8 @@ Run these in order. Each tier assumes the previous tier passed.
 | **1 – Low risk** | Copy text, icon swap, CSS/token tweak, docs, single-component layout | `npm run build:client`. Read the diff. Done. |
 | **2 – Medium risk** | Logic inside one view/section, new modal, new form validation, responsive tweak | `npm run build` + manual click-through of that view (add → edit → delete → undo). |
 | **3 – High risk** | `store/uiSlice.ts`, `store/api.ts`, redux-persist config, migrations, `AppContext`, routing/`activeView`, `ErrorBoundary`, shared primitives in `components/ui/`, auth/roles, database schema | `npm run verify` + `npm run build` + scripted smoke of the touched flow **and** one neighbour view + a fresh-profile boot (empty persisted state). |
+| **3+ – Deploy-shape** | `server/src/index.ts` boot path, `server/src/db/**`, `routes/health.ts`, `Dockerfile`, `docker-compose.yml` | Everything in tier 3 **plus** `npm run verify:deploy` — these changes can only fail in a container. |
+
 
 ---
 
