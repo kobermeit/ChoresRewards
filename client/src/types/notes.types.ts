@@ -22,6 +22,15 @@ export interface NoteItem {
   created_at?: string;
 }
 
+/**
+ * A long-form note stored in the `text_pads` / `text_pad` collection. Same
+ * shape the notes feed renders, with an optional `updated_at` the server adds
+ * when a pad is edited.
+ */
+export interface TextPad extends NoteItem {
+  updated_at?: string;
+}
+
 export interface DashboardStickyNote {
   id: string;
   title?: string;

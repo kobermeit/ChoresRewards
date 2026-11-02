@@ -62,7 +62,7 @@ export const DashboardSection: React.FC = () => {
     }
   };
 
-  const handleDeleteStickyNote = async (id: number) => {
+  const handleDeleteStickyNote = async (id: string | number) => {
     try {
       await apiPost(`sticky_notes/${id}/delete`, {});
       showToast('Deleted note');

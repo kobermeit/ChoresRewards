@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { BootstrapData, Person } from '../types';
+import { BootstrapData, Person, Chore } from '../types';
 import { apiGet, apiPost, resolveAssetUrl, isKnownOffline } from '../api';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
@@ -13,7 +13,7 @@ import { api } from '../store/api';
 export interface ToastItem {
   id: string;
   message: string;
-  type?: 'success' | 'error' | 'info' | 'badge';
+  type?: 'success' | 'error' | 'warning' | 'info' | 'badge';
   undoAction?: () => void;
 }
 
@@ -85,7 +85,7 @@ interface AppContextValue {
   setPlayWidgetOpen: (open: boolean) => void;
   playWidgetInitialGame: 'maths' | 'colours' | 'patterns' | 'memory';
   openPlayGame: (game: 'maths' | 'colours' | 'patterns' | 'memory') => void;
-  formatRewardValue: (val: number) => string;
+  formatRewardValue: (val: number | string) => string;
   timerTotalSeconds: number;
   timerRemainingSeconds: number;
   timerRunning: boolean;
@@ -667,12 +667,13 @@ export const AppProvider: React.FC<{
   }, []);
 
   const formatRewardValue = useCallback(
-    (val: number): string => {
+    (val: number | string): string => {
       const system = data?.reward_system || 'points';
+      const n = typeof val === 'number' ? val : Number(val) || 0;
       if (system === 'cash') {
-        return `$${val.toFixed(2)}`;
+        return `$${n.toFixed(2)}`;
       }
-      return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)} pts`;
+      return `${n % 1 === 0 ? n.toFixed(0) : n.toFixed(1)} pts`;
     },
     [data?.reward_system]
   );
@@ -782,9 +783,11 @@ export const AppProvider: React.FC<{
               background:
                 t.type === 'error'
                   ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
-                  : t.type === 'badge'
-                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-                    : 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  : t.type === 'warning'
+                    ? 'linear-gradient(135deg, #f59e0b, #b45309)'
+                    : t.type === 'badge'
+                      ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                      : 'linear-gradient(135deg, #1e293b, #0f172a)',
               color: '#fff',
               padding: '12px 18px',
               borderRadius: 12,

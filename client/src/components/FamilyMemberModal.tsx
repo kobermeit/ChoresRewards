@@ -177,6 +177,7 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
         <FormField colSpan={12}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div
+              className="cr-avatar-edit"
               style={{
                 width: '92px',
                 height: '92px',
@@ -192,7 +193,7 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                 cursor: 'pointer',
               }}
               onClick={() => fileInputRef.current?.click()}
-              title="Click to change photo"
+              title="Tap to change photo"
             >
               {avatarPreview ? (
                 <img
@@ -216,6 +217,7 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                 </div>
               )}
               <div
+                className="cr-avatar-edit-overlay"
                 style={{
                   position: 'absolute',
                   inset: 0,
@@ -223,12 +225,8 @@ export const FamilyMemberModal: React.FC<FamilyMemberModalProps> = ({ isOpen, me
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: 0,
-                  transition: 'opacity 0.15s ease',
                   color: '#fff',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
               >
                 <i className="fas fa-camera" />
               </div>

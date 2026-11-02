@@ -89,4 +89,23 @@ export interface BootstrapData {
     database_id: string;
     has_token: boolean;
   };
+
+  /* ---------------------------------------------------------------------
+     Legacy flat aliases. The live payload nests everything (`shopping`,
+     `meal_planner`, `dashboard_notes`, `google_calendar`), but older cached
+     bootstraps and a few defensive readers still look for these keys first.
+     They are optional and may be absent — always read the nested shape when
+     both exist.
+     --------------------------------------------------------------------- */
+  shopping_list?: Partial<BootstrapData['shopping']>;
+  shopping_intelligence?: NonNullable<BootstrapData['shopping']['intelligence']>;
+  meal_ingredients?: Record<string, MealIngredient[]>;
+  meal_images?: Record<string, string>;
+  meal_suggestions?: string[] | Record<string, unknown>;
+  sticky_notes?: DashboardStickyNote[];
+  calendar_events?: CalendarEvent[];
+  config?: {
+    is_cash_mode?: boolean;
+    [key: string]: unknown;
+  };
 }

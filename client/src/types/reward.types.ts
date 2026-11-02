@@ -8,6 +8,11 @@ export interface Reward {
   assigned_to: string;
   completed: boolean;
   date_completed: string | null;
+  /** Claimed/redeemed into the redeemed pool. */
+  redeemed?: boolean;
+  /** Retired by a parent; hidden from the available grid but kept for history. */
+  archived?: boolean;
+  is_hidden?: boolean;
   is_recurring?: boolean;
   source_url?: string | null;
   source_name?: string | null;

@@ -1,6 +1,13 @@
 import React, { forwardRef } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'danger'
+  | 'success'
+  | 'warning'
+  | 'outline'
+  | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonShape = 'default' | 'pill' | 'circle' | 'square';
 
@@ -11,6 +18,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   icon?: string; // FontAwesome or emoji
   iconPosition?: 'left' | 'right';
   isLoading?: boolean;
+  /** Alias of `isLoading`, kept because plenty of call sites use it. */
+  loading?: boolean;
   fullWidth?: boolean;
   collapseOnMobile?: boolean; // When true (default when icon present), hides label text on mobile (<768px) keeping only the icon
 }
@@ -24,6 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       icon,
       iconPosition = 'left',
       isLoading = false,
+      loading,
       fullWidth = false,
       collapseOnMobile = true,
       children,
@@ -37,6 +47,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const variantClass = `cr-btn-${variant}`;
     const sizeClass = `cr-btn-${size}`;
+    const busy = isLoading || Boolean(loading);
     const isIconOnly = !children && Boolean(icon);
     const collapseClass = collapseOnMobile && icon && children ? 'cr-btn-collapse-mobile' : '';
     const autoTitle = title || (typeof children === 'string' ? children : undefined);
@@ -55,20 +66,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         type="button"
         className={`cr-btn ${variantClass} ${sizeClass} ${shapeClass} ${collapseClass} ${className}`.trim()}
         style={{ ...widthStyle, ...style }}
-        disabled={disabled || isLoading}
-        aria-busy={isLoading}
+        disabled={disabled || busy}
+        aria-busy={busy}
         title={autoTitle}
         aria-label={props['aria-label'] || autoTitle}
         {...props}
       >
-        {isLoading && <i className="fas fa-spinner fa-spin" aria-hidden="true" />}
-        {!isLoading && icon && iconPosition === 'left' && (
+        {busy && <i className="fas fa-spinner fa-spin" aria-hidden="true" />}
+        {!busy && icon && iconPosition === 'left' && (
           <span className="cr-btn-icon" aria-hidden="true">
             {icon.startsWith('fa') || icon.includes(' ') ? <i className={icon} /> : icon}
           </span>
         )}
         {children && <span className="cr-btn-content">{children}</span>}
-        {!isLoading && icon && iconPosition === 'right' && (
+        {!busy && icon && iconPosition === 'right' && (
           <span className="cr-btn-icon" aria-hidden="true">
             {icon.startsWith('fa') || icon.includes(' ') ? <i className={icon} /> : icon}
           </span>
@@ -93,11 +104,22 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 
 IconButton.displayName = 'IconButton';
 
-export interface PillButtonProps extends ButtonProps {}
+export interface PillButtonProps extends ButtonProps {
+  /** Renders the pill as the pressed/active option of a filter row. */
+  selected?: boolean;
+}
 
 export const PillButton = forwardRef<HTMLButtonElement, PillButtonProps>(
-  (props, ref) => {
-    return <Button ref={ref} shape="pill" {...props} />;
+  ({ selected = false, className = '', ...props }, ref) => {
+    return (
+      <Button
+        ref={ref}
+        shape="pill"
+        aria-pressed={selected}
+        className={`${selected ? 'is-selected' : ''} ${className}`.trim()}
+        {...props}
+      />
+    );
   }
 );
 

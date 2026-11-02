@@ -68,15 +68,17 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
   options?: SelectOption[];
   containerStyle?: React.CSSProperties;
   placeholder?: string;
+  /** Stretch to the width of the parent (the default; kept for explicit call sites). */
+  fullWidth?: boolean;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, helperText, options, placeholder, children, className = '', id, style, containerStyle, value, ...props }, ref) => {
+  ({ label, error, helperText, options, placeholder, fullWidth = true, children, className = '', id, style, containerStyle, value, ...props }, ref) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     const isUnselected = value === '' || value === undefined || value === null;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', ...containerStyle }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: fullWidth ? '100%' : 'auto', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', ...containerStyle }}>
         {label && (
           <label
             htmlFor={selectId}

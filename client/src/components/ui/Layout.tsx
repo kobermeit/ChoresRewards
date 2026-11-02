@@ -96,6 +96,8 @@ export interface FormFieldProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: string;
   help?: string;
   error?: string | null;
+  /** Marks the field label with a required asterisk. */
+  required?: boolean;
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
@@ -104,6 +106,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   label,
   help,
   error,
+  required = false,
   className = '',
   style,
   ...props
@@ -135,6 +138,11 @@ export const FormField: React.FC<FormFieldProps> = ({
           }}
         >
           {label}
+          {required && (
+            <span aria-hidden="true" style={{ color: 'var(--color-danger-border, #f87171)', fontWeight: 800 }}>
+              *
+            </span>
+          )}
         </label>
       )}
       {children}

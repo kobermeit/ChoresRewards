@@ -43,9 +43,9 @@ import { Button, Input, Select, Card, Badge } from './ui';
 ```
 
 ### `<Button>`
-- **Variants**: `primary`, `secondary`, `danger`, `success`, `ghost`
+- **Variants**: `primary`, `secondary`, `danger`, `success`, `warning` (amber CTA), `outline` (quiet button with a visible edge), `ghost`
 - **Sizes**: `sm`, `md`, `lg`
-- **Props**: `icon` (FontAwesome class string), `isLoading` (shows spinner and disables), `fullWidth`
+- **Props**: `icon` (FontAwesome class string), `isLoading` (shows spinner and disables — `loading` is an accepted alias), `fullWidth`, `collapseOnMobile`
 - **Example**:
   ```tsx
   <Button variant="primary" icon="fas fa-save" isLoading={isSaving} onClick={handleSave}>
@@ -53,9 +53,14 @@ import { Button, Input, Select, Card, Badge } from './ui';
   </Button>
   ```
 
+### `<PillButton>`
+- `shape="pill"` Button for filter rows / segmented controls.
+- **Props**: everything from `Button`, plus `selected` (renders the active pill and sets `aria-pressed`).
+
 ### `<Input>` & `<Select>`
 - Standardized heights, tokenized border-radius (`var(--input-radius)`), focus rings, and dark glass background.
 - Built-in `label`, `error`, and `helperText` props.
+- `Select` also accepts `options`, `placeholder`, `containerStyle` and `fullWidth` (default `true`).
 - **Example**:
   ```tsx
   <Input
@@ -80,11 +85,15 @@ import { Button, Input, Select, Card, Badge } from './ui';
 
 ### `<Card>`
 - Standard container with tokenized background (`var(--color-bg-card)`), radius (`var(--card-radius)`), and optional glass blur.
-- **Props**: `padding` (`none`, `sm`, `md`, `lg`), `interactive` (hover effect), `blur` (glass effect).
+- **Props**: `padding` (`none`, `sm`, `md`, `lg`), `interactive` (hover effect), `elevation` (`0`–`3`, maps to the shadow tokens).
+
+### `<FormField>`
+- Grid column wrapper for modal forms (`colSpan` 2–12) with `label`, `help`, `error`, and `required` (adds the asterisk to the label).
 
 ### `<Badge>`
 - Semantic chip primitive for roles (`parent`, `child`, `family`), points, or custom status tags.
-- **Variants**: `neutral`, `primary`, `success`, `warning`, `danger`.
+- **Variants**: `neutral`, `primary`, `success`, `warning`, `danger`, `info`.
+- **Sizes**: `sm`, `md`.
 
 ### Modals (`.cr-modal-dialog`)
 - Every modal container must use `.cr-modal-overlay` and `.cr-modal-dialog`.

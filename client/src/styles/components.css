@@ -6236,3 +6236,39 @@ body.cr-modal-open {
 .cr-chore-face--late {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 0 3px rgba(239, 68, 68, 0.18);
 }
+
+/* =====================================================================================
+   Touch-first affordances
+   This app runs on wall tablets far more than on a desktop. Anything that a mouse
+   only reveals on :hover is invisible to a finger, so on coarse pointers the same
+   control is shown permanently. Hover styling itself stays as-is — it is cosmetic
+   and simply never applies without a fine pointer.
+   ===================================================================================== */
+.cr-avatar-edit-overlay {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.cr-avatar-edit:hover .cr-avatar-edit-overlay,
+.cr-avatar-edit:focus-visible .cr-avatar-edit-overlay {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  /* "change photo" affordances: always visible, never discoverable-by-hover */
+  .cr-avatar-edit-overlay { opacity: 0.92; }
+  .chore-upload-overlay { opacity: 0.72 !important; }
+
+  /* harmless on a mouse, essential on glass: nothing relies on hover to exist */
+  .cr-hover-only {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  /* a tap leaves :hover latched on touch — don't let cards stay lifted */
+  .cr-chore-face__img,
+  .meal-card,
+  .reward-card-modern,
+  .cr-item-card {
+    transform: none !important;
+  }
+}

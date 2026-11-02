@@ -22,6 +22,8 @@ export interface Person {
   bonus_points: number;
   avatar: string;
   color: string;
+  /** Optional per-member accent used by widgets (falls back to `color`). */
+  accent_color?: string | null;
   order: number;
   is_admin: boolean;
   role?: UserRole;

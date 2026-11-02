@@ -42,7 +42,7 @@ export const DurationStepper: React.FC<DurationStepperProps> = ({
       const next = Math.max(minSeconds, Math.min(maxSeconds, totalSeconds + delta));
       onChange(next);
     },
-    [totalSeconds, delta => delta, minSeconds, maxSeconds, disabled, onChange]
+    [totalSeconds, minSeconds, maxSeconds, disabled, onChange]
   );
 
   const handleBlur = () => {

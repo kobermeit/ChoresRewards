@@ -50,15 +50,26 @@ export function useSceneMotion({ rootRef, walkers, enabled, calm }: MotionOption
     let flightDir: 1 | -1 = -1;
     let smoothPitch = 0; // eased, so the rig never snaps between beats
 
-    const setSrc = (img: HTMLImageElement | null, next: string) => {
-      if (img && img.getAttribute('src') !== next) img.setAttribute('src', next);
+    /**
+     * Flip-book frame swap. Every frame already lives in the DOM (SceneActors
+     * stacks them), so this only toggles a class: no image request, no re-decode,
+     * no cancelled loads. It bails out when the frame has not changed.
+     */
+    const setFrame = (el: HTMLElement | null, frames: string[], ms: number) => {
+      if (!el || frames.length < 2) return;
+      const idx = Math.floor(clock / ms) % frames.length;
+      const key = String(idx);
+      if (el.dataset.frame === key) return;
+      el.dataset.frame = key;
+      el.querySelectorAll<HTMLImageElement>('img').forEach((img, i) => {
+        img.classList.toggle('is-on', i === idx);
+      });
     };
 
     // --- skier: rides the measured snow line and leaves a track behind him
     const frameSkier = () => {
       const el = actor(root, 'skier');
-      const img = el?.querySelector('img') ?? null;
-      if (!el || !skiPath || !img) return;
+      if (!el || !skiPath) return;
       const cycle = SKI_RUN_MS + SKI_GAP_MS;
       const t = clock % cycle;
       const skiing = t < SKI_RUN_MS;
@@ -76,7 +87,8 @@ export function useSceneMotion({ rootRef, walkers, enabled, calm }: MotionOption
         trail.style.strokeDashoffset = String(skiLen * (1 - p));
         trail.style.opacity = skiing ? '1' : '0';
       }
-      setSrc(img, SKIER_FRAMES[Math.floor(t / 260) % SKIER_FRAMES.length]);
+      // no frame swapping while he is parked behind the snow (1.4 s gap)
+      if (skiing) setFrame(el, SKIER_FRAMES, 260);
     };
 
 
@@ -94,7 +106,7 @@ export function useSceneMotion({ rootRef, walkers, enabled, calm }: MotionOption
         const y = streetY(x) + w.lane;
         el.style.transform = `translate3d(${(x - w.size[0] / 2).toFixed(1)}px, ${(y - w.size[1]).toFixed(1)}px, 0)`;
         if (w.frames.length > 1) {
-          setSrc(el.querySelector('img'), w.frames[Math.floor(clock / w.frameMs) % w.frames.length]);
+          setFrame(el, w.frames, w.frameMs);
         }
       }
     };

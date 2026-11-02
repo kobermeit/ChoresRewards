@@ -75,13 +75,18 @@ header,
   pointer-events: none !important;
 }
 
-/* the wake layer: one full-screen wake target while the UI is asleep */
+/* the wake layer: one full-screen wake target while the UI is asleep.
+   `touch-action: none` stops a waking drag from scrolling the page as the UI
+   returns; the tap itself is consumed by useIdlePhase()'s capture handler so it
+   can never click the card that reappears under the finger. */
 .cr-idle-wake {
   position: fixed;
   inset: 0;
   z-index: 60;
   background: transparent;
   cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ------------------------------------------------- active timers win ---- */

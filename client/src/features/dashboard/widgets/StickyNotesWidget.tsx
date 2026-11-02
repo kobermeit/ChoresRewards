@@ -10,7 +10,7 @@ export interface StickyNotesWidgetProps {
   stickyNotes: DashboardStickyNote[];
   onAddNote: (title: string, text: string, color: string) => Promise<void>;
   onUpdateNote: (note: DashboardStickyNote) => Promise<void>;
-  onDeleteNote: (id: number) => Promise<void>;
+  onDeleteNote: (id: string | number) => Promise<void>;
 }
 
 export const StickyNotesWidget: React.FC<StickyNotesWidgetProps> = memo(({

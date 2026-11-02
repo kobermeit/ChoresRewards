@@ -110,12 +110,13 @@ export function shiftWeekIso(weekStartIso: string, deltaDays: number): string {
 
 export interface DayInfo {
   date_iso: string;
-  day_name: string;
+  /** Present on locally computed weeks (`computeWeekDays`); the server only sends the short/full labels. */
+  day_name?: string;
   day_short: string;
   day_full: string;
   date_label: string;
-  day_num: number;
-  is_today: boolean;
+  day_num?: number;
+  is_today?: boolean;
 }
 
 export function computeWeekDays(weekStartIso: string): DayInfo[] {

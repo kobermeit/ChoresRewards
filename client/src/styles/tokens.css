@@ -245,6 +245,32 @@
   background: var(--color-success-hover);
 }
 
+/* Amber call-to-action (points/bonus actions) */
+.cr-btn-warning {
+  background: #b45309;
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fffbeb;
+}
+
+.cr-btn-warning:hover {
+  background: #d97706;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+/* Quiet button that keeps a visible edge — the tablet-friendly default for
+   secondary actions that must not disappear into the background */
+.cr-btn-outline {
+  background: transparent;
+  border-color: var(--color-border-strong, rgba(255, 255, 255, 0.28));
+  color: var(--color-text-primary);
+}
+
+.cr-btn-outline:hover {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: var(--color-primary-border, rgba(56, 189, 248, 0.55));
+  color: var(--color-text-primary);
+}
+
 /* Specialized Button Shapes */
 .cr-btn-icon-only {
   padding: 0;
@@ -265,6 +291,18 @@
 
 .cr-btn-pill {
   border-radius: var(--radius-pill);
+}
+
+/* Selected state of a filter pill (CalendarView / dashboard date filters) */
+.cr-btn-pill.is-selected {
+  background: var(--color-primary);
+  border-color: var(--color-primary-border);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+}
+
+.cr-btn-pill.is-selected:hover {
+  background: var(--color-primary-hover);
 }
 
 .cr-btn-rounded-full {
@@ -299,6 +337,12 @@
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
+
+/* Optional shadow depth (Card `elevation` prop) */
+.cr-card-elev-0 { box-shadow: none; }
+.cr-card-elev-1 { box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.25)); }
+.cr-card-elev-2 { box-shadow: var(--shadow-md, 0 6px 18px rgba(0, 0, 0, 0.35)); }
+.cr-card-elev-3 { box-shadow: var(--shadow-lg, 0 14px 36px rgba(0, 0, 0, 0.45)); }
 
 /* Form Controls (Inputs, Selects, Textareas) */
 .cr-input,
@@ -390,6 +434,18 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* Badge sizes */
+.cr-badge-sm {
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  gap: 4px;
+}
+
+.cr-badge-md {
+  padding: 3px 8px;
+  font-size: 0.76rem;
 }
 
 .cr-badge-primary {
