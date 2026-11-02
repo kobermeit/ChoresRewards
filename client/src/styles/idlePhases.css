@@ -1,0 +1,140 @@
+/* =========================================================================
+   Idle phases — ambient (cards ghosted, chrome dimmed) and screensaver.
+   Driven by `data-idle-phase` on <html>, set by useIdlePhase().
+
+   The old file ghosted cards to opacity .08 but left them clickable, so the
+   first tap on a "blank" screen navigated somewhere. Ghosted content is now
+   inert: the whole screen acts as a single wake target.
+   ========================================================================= */
+
+/* smooth fade in and out of ambient */
+.dashboard-card,
+.dashboard-header-card,
+.page-header-card,
+.card,
+.card-shell,
+.cr-card-shell,
+.column,
+.chores-kanban-column,
+.kanban-column,
+.chores-list,
+.cr-chore-card-wrapper,
+.chore-card,
+header,
+.header-nav,
+.cr-sidenav {
+  transition:
+    opacity .7s cubic-bezier(.2, .8, .2, 1),
+    filter .7s ease,
+    box-shadow .7s ease,
+    border-color .7s ease;
+}
+
+/* ------------------------------------------------------- phase: ambient */
+[data-idle-phase='ambient'] .dashboard-card:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .dashboard-header-card:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .page-header-card:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .card:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .card-shell:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .cr-card-shell:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .page-header:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .chores-kanban-column:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .kanban-column:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .column:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .chore-card:not(.cr-keep-solid),
+[data-idle-phase='ambient'] .cr-chore-card-wrapper:not(.cr-keep-solid) {
+  opacity: .08 !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* chrome stays *readable* (a wall panel still wants the clock) but inert */
+[data-idle-phase='ambient'] #site-content > header,
+[data-idle-phase='ambient'] #side-nav,
+[data-idle-phase='ambient'] .cr-sidenav {
+  opacity: .38 !important;
+}
+
+/* nothing ghosted should be tappable — the tap wakes the screen instead */
+[data-idle-phase='ambient'] #site-content,
+[data-idle-phase='ambient'] #side-nav,
+[data-idle-phase='ambient'] .cr-sidenav {
+  pointer-events: none !important;
+}
+
+/* --------------------------------------------------- phase: screensaver */
+[data-idle-phase='screensaver'] #site-content,
+[data-idle-phase='screensaver'] #side-nav,
+[data-idle-phase='screensaver'] .cr-sidenav,
+[data-idle-phase='screensaver'] #mobile-bottom-nav,
+[data-idle-phase='screensaver'] #cr-mobile-bottom-nav,
+[data-idle-phase='screensaver'] .cr-mobile-drawer {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* the wake layer: one full-screen wake target while the UI is asleep */
+.cr-idle-wake {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------- active timers win ---- */
+/* Anything that must stay visible while the screen is quiet glows, so a
+   running chore/visual timer is the one thing you cannot miss. */
+.cr-keep-solid,
+[data-idle-phase='ambient'] .cr-keep-solid,
+[data-idle-phase='ambient'] .dashboard-card.cr-keep-solid,
+[data-idle-phase='ambient'] .card.cr-keep-solid,
+[data-idle-phase='ambient'] .card-shell.cr-keep-solid,
+[data-idle-phase='ambient'] .chore-card.cr-keep-solid {
+  opacity: 1 !important;
+  box-shadow: 0 0 28px rgba(16, 185, 129, .45), 0 12px 30px rgba(0, 0, 0, .6) !important;
+  border-color: rgba(16, 185, 129, .8) !important;
+  z-index: 10 !important;
+  position: relative;
+  pointer-events: auto !important;
+}
+
+/* in the screensaver the timer card is the star of the show */
+[data-idle-phase='screensaver'] .cr-keep-solid {
+  opacity: 1 !important;
+  pointer-events: none !important;
+  transform: scale(1.04);
+}
+
+/* ------------------------------------------------- screensaver clock ---- */
+.cr-idle-clock {
+  position: fixed;
+  left: 46px;
+  bottom: 34px;
+  z-index: 61;
+  pointer-events: none;
+  color: #eaf3ff;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, .65), 0 1px 2px rgba(0, 0, 0, .5);
+}
+.cr-idle-clock__time {
+  font-size: 5.5rem;
+  font-weight: 300;
+  line-height: .95;
+  letter-spacing: -3px;
+  font-variant-numeric: tabular-nums;
+}
+.cr-idle-clock__date {
+  font-size: 1.15rem;
+  font-weight: 500;
+  opacity: .82;
+  margin-top: 10px;
+}
+@media (max-width: 900px) {
+  .cr-idle-clock { left: 24px; bottom: 22px; }
+  .cr-idle-clock__time { font-size: 3.4rem; }
+  .cr-idle-clock__date { font-size: .95rem; }
+}
+

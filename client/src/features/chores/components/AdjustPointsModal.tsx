@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../../../components/common/Modal';
 import { Button, Select } from '../../../components/ui';
 import { Person } from '../../../types';
@@ -30,12 +30,14 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prevOpenRef = useRef(false);
 
+  // Initialize form state ONLY when the modal transitions from closed to open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       if (selectedPersonId) {
         setPersonId(selectedPersonId);
-      } else if (family.length > 0 && !family.some((p) => p.id === personId)) {
+      } else if (family.length > 0) {
         setPersonId(family[0].id);
       }
       setIsDeduct(false);
@@ -44,7 +46,15 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
       setError(null);
       setSubmitting(false);
     }
-  }, [isOpen, selectedPersonId, family]);
+    prevOpenRef.current = isOpen;
+  }, [isOpen, selectedPersonId]);
+
+  // If family loaded asynchronously and personId is not set, set default personId without resetting form fields
+  useEffect(() => {
+    if (!personId && family.length > 0) {
+      setPersonId(family[0].id);
+    }
+  }, [family, personId]);
 
   if (!isOpen) return null;
 

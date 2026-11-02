@@ -6,8 +6,9 @@ import { SideNav } from './components/SideNav';
 import { SeasonalCharacters } from './features/seasonal/SeasonalCharacters';
 import { ChristmasScene } from './features/seasonal/ChristmasScene';
 import { useSeason, useUiPref } from './hooks/useSettings';
-import { useAmbientIdle } from './hooks/useAmbientIdle';
-import './styles/ambientIdle.css';
+import { useIdlePhase } from './hooks/useIdlePhase';
+import { Snowfall } from './features/seasonal/Snowfall';
+import './styles/idlePhases.css';
 import { SetupWizard } from './components/SetupWizard';
 import { PinModals } from './components/PinModals';
 import { DashboardSection } from './components/DashboardSection';
@@ -22,6 +23,7 @@ import { HelpView } from './components/HelpTooltipAndView';
 import { Overlays } from './components/Overlays';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileDrawer } from './components/MobileDrawer';
+import { IdleOverlay } from './features/overlays/IdleOverlay';
 import { OfflineSyncManager } from './components/OfflineSyncManager';
 import { ConnectivityMonitor } from './features/offline/ConnectivityMonitor';
 import { OfflineStatusBanner } from './features/offline/OfflineStatusBanner';
@@ -33,13 +35,13 @@ const MainShell: React.FC<{
   onCloseAdultPin: () => void;
   onAdultPinSuccess?: () => void;
 }> = ({ adultPinOpen, onCloseAdultPin, onAdultPinSuccess }) => {
-  const { data, loading, isSyncing, isParent, setProfileSwitcherOpen, timerRunning } = useApp();
+  const { data, loading, isSyncing, isParent, setProfileSwitcherOpen, screensaverOpen, setScreensaverOpen } = useApp();
   const { activeView, navigate: setActiveView } = useNavigation();
   const seasonInfo = useSeason();
   const [seasonalScene] = useUiPref('seasonalScene');
   const [snowDensity] = useUiPref('snowDensity');
   const [seasonalCalmMode] = useUiPref('seasonalCalmMode');
-  const { isAmbientIdle } = useAmbientIdle();
+  const { phase, wake } = useIdlePhase();
   const isChristmasActive = Boolean(
     seasonInfo.enabled &&
     seasonalScene &&
@@ -53,9 +55,23 @@ const MainShell: React.FC<{
     )
   );
 
-  const isTimerActiveOnToday = activeView === 'dashboard' && timerRunning;
+  // ONE idle ladder drives the whole UI: active → ambient → screensaver.
+  // (It used to be two independent timers that fought each other.) The menu's
+  // "Screensaver" item now just forces the last rung, so it can be previewed.
+  const effectivePhase = screensaverOpen ? 'screensaver' : phase;
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-idle-phase', effectivePhase);
+    return () => document.documentElement.removeAttribute('data-idle-phase');
+  }, [effectivePhase]);
+
   const isSceneActive = Boolean(seasonInfo.enabled && (activeView === 'dashboard' || activeView === 'chores'));
-  const isGhostModeActive = isSceneActive && (isAmbientIdle || isTimerActiveOnToday);
+  const isIdle = effectivePhase !== 'active';
+
+  const wakeUi = () => {
+    setScreensaverOpen(false);
+    wake();
+  };
 
   const [visitedViews, setVisitedViews] = useState<Record<string, boolean>>(() => ({
     [activeView || 'dashboard']: true,
@@ -93,10 +109,10 @@ const MainShell: React.FC<{
     <>
       <SeasonalCharacters />
       {isChristmasActive && (
-        <ChristmasScene density={snowDensity} calmMode={seasonalCalmMode} />
+        <ChristmasScene density={snowDensity} calmMode={seasonalCalmMode} lively={isIdle} />
       )}
       <SideNav />
-      <div id="site-content" className={`cr-ambient-idle-wrap ${isGhostModeActive ? "cr-ambient-idle-active" : ""}`} style={{ position: "relative", zIndex: 2 }}>
+      <div id="site-content" style={{ position: 'relative', zIndex: 2 }}>
         <Header />
 
         {/* Cached Views for Instant 0ms Tab Transitions */}
@@ -256,6 +272,9 @@ const MainShell: React.FC<{
         onAdultPinSuccess={onAdultPinSuccess}
       />
       <Overlays />
+      <IdleOverlay phase={effectivePhase} onWake={wakeUi} />
+      {/* snow falls on TOP of everything, and only while the seasonal theme is on */}
+      {seasonInfo.enabled && seasonalScene && <Snowfall density={snowDensity} />}
 
       {/* Mobile Navigation & Offline Sync System */}
       <MobileBottomNav />

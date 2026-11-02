@@ -1,0 +1,28 @@
+/* Falling snow — a viewport-wide overlay ABOVE the app content (not the backdrop).
+   z-index: above #site-content (2) and the side nav, below modals (9999). */
+.cr-snowfall {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cr-snowfall i {
+  position: absolute;
+  top: -12px;
+  border-radius: 50%;
+  background: #fff;
+  will-change: transform;
+  animation: crSnowfall var(--dur, 14s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes crSnowfall {
+  from { transform: translate3d(0, -8vh, 0); }
+  to   { transform: translate3d(var(--drift, 6vw), 108vh, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-snowfall i { animation: none; opacity: .25; }
+}

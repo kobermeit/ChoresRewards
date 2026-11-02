@@ -49,6 +49,8 @@ export interface UiState {
   ambientIdleEnabled: boolean;
   /** Idle delay in minutes before ghost mode triggers (default 2). */
   ambientIdleMinutes: number;
+  /** Minutes of idle before the full screensaver takes over (default 5). */
+  screensaverMinutes: number;
   activeTimers: Record<number, PersistedChoreTimer>;
   offlineQueue: QueuedOfflineMutation[];
   /** User collapsed the offline banner down to the compact pill. Reset on reconnect. */
@@ -97,6 +99,7 @@ export const initialUiState: UiState = {
   seasonalCalmMode: false,
   ambientIdleEnabled: true,
   ambientIdleMinutes: 2,
+  screensaverMinutes: 5,
   activeTimers: {},
   offlineQueue: [],
   offlineBannerDismissed: false,
@@ -158,6 +161,7 @@ export function repairUiState<T extends Partial<UiState>>(state: T): T & UiState
   if (typeof state.seasonalCalmMode !== 'boolean') state.seasonalCalmMode = false;
   if (typeof state.ambientIdleEnabled !== 'boolean') state.ambientIdleEnabled = true;
   if (typeof state.ambientIdleMinutes !== 'number' || isNaN(state.ambientIdleMinutes)) state.ambientIdleMinutes = 2;
+  if (typeof state.screensaverMinutes !== 'number' || isNaN(state.screensaverMinutes)) state.screensaverMinutes = 5;
   if (state.plannerViewMode !== '1week' && state.plannerViewMode !== '2weeks') {
     state.plannerViewMode = '2weeks';
   }
@@ -221,6 +225,9 @@ const uiSlice = createSlice({
     },
     setAmbientIdleMinutes(state, action: PayloadAction<number>) {
       state.ambientIdleMinutes = Math.max(0.5, Math.min(15, action.payload));
+    },
+    setScreensaverMinutes(state, action: PayloadAction<number>) {
+      state.screensaverMinutes = Math.max(1, Math.min(60, action.payload));
     },
     setActiveTimers(state, action: PayloadAction<Record<number, PersistedChoreTimer>>) {
       repairUiState(state);
@@ -300,6 +307,7 @@ export const {
   setSeasonalCalmMode,
   setAmbientIdleEnabled,
   setAmbientIdleMinutes,
+  setScreensaverMinutes,
   setActiveTimers,
   enqueueOfflineMutation,
   dequeueOfflineMutation,

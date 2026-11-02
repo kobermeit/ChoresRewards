@@ -22,6 +22,7 @@ export const SeasonalSettingsView: React.FC = () => {
   const [seasonalCalmMode, setSeasonalCalmMode] = useUiPref('seasonalCalmMode');
   const [ambientIdleEnabled, setAmbientIdleEnabled] = useUiPref('ambientIdleEnabled');
   const [ambientIdleMinutes, setAmbientIdleMinutes] = useUiPref('ambientIdleMinutes');
+  const [screensaverMinutes, setScreensaverMinutes] = useUiPref('screensaverMinutes');
 
   if (isLoading || !data) {
     return (
@@ -212,17 +213,40 @@ export const SeasonalSettingsView: React.FC = () => {
                   onChange={(e) => setAmbientIdleEnabled(e.target.checked)}
                   style={{ width: 16, height: 16, accentColor: 'var(--cr-primary)' }}
                 />
-                <span>Ambient Idle Mode (fade cards to ghost mode on Today &amp; Chores)</span>
+                <span>Idle Mode (dim the UI when idle, then play the living scene)</span>
               </label>
 
               {ambientIdleEnabled && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.85 }}>Idle Trigger:</span>
-                  <TimerDurationSelect
-                    value={ambientIdleMinutes}
-                    onChange={(val) => setAmbientIdleMinutes(val)}
-                  />
-                </div>
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.85 }}>Dim after:</span>
+                    <TimerDurationSelect
+                      value={ambientIdleMinutes}
+                      onChange={(val) => setAmbientIdleMinutes(val)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.85 }}>Screensaver after:</span>
+                    <select
+                      value={screensaverMinutes}
+                      onChange={(e) => setScreensaverMinutes(Number(e.target.value))}
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        color: '#f8fafc',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {[1, 2, 3, 5, 10, 15, 30].map((m) => (
+                        <option key={m} value={m}>
+                          {m} min
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
             </div>
           )}
