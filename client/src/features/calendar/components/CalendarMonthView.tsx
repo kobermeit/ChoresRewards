@@ -27,10 +27,11 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
   return (
     <div
       style={{
-        background: 'rgba(15, 23, 42, 0.65)',
+        background: 'linear-gradient(150deg, rgba(26, 38, 56, 0.98) 0%, rgba(16, 25, 39, 0.99) 100%)',
         backdropFilter: 'blur(14px)',
         borderRadius: 16,
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        border: '1.5px solid rgba(255, 255, 255, 0.12)',
+        borderTop: '2.5px solid #0284c7',
         overflow: 'hidden',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
       }}

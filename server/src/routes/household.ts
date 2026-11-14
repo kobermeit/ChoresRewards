@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { AppSetting, logActivity, normalizeShoppingKey } from '../db';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
+import { downloadAndStoreImage } from '../services/imageDownloader';
 import { getMondayOfWeek, addDays } from '../utils/time';
 
 export interface MealCardItem {
@@ -70,8 +71,10 @@ export function cleanShoppingItemName(raw: string): string {
   text = text.replace(/(^|\s)\.?\d+(\.\d+)?\s*(g|kg|ml|l|oz|lb)?\b/gi, ' ');
   text = text.replace(/(^|\s)\d+(\.\d+)?\s*(x|\*|-)?\s*/gi, ' ');
 
-  // 8. Remove measurement units / words
-  text = text.replace(/\b(tsp|tbsp|tbs|tablespoons?|teaspoons?|cups?|slices?|stalks?|cloves?|pinch|pinches|dash|handfuls?|sprigs?|pieces?)\b/gi, ' ').trim();
+  // 8. Remove measurement units / words only when preceded by a quantity or followed by 'of'
+  // (e.g. "1 cup flour" -> "flour", but preserve "Fruit cup", "Reese's cup")
+  text = text.replace(/(^|\s)\b(tsp|tbsp|tbs|tablespoons?|teaspoons?|cloves?|pinch|pinches|dash|handfuls?|sprigs?)\b/gi, ' ').trim();
+  text = text.replace(/(^|\s)\bcups?\s+of\b/gi, ' ').trim();
 
   // 9. Remove leading prep words if followed by an ingredient (e.g. "coarsely chopped parsley" -> "parsley")
   text = text.replace(/^(finely|coarsely|thinly)?\s*(chopped|diced|minced|crushed)\s+/i, '').trim();
@@ -386,8 +389,11 @@ export async function upsertRecipe(input: {
 
   const instructions =
     input.instructions !== undefined ? String(input.instructions) : existing?.instructions || '';
-  const imageUrl =
+  let imageUrl =
     input.image_url !== undefined ? input.image_url : existing?.image_url || getMealImages()[mealKey] || null;
+  if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+    imageUrl = await downloadAndStoreImage(imageUrl, 'meals');
+  }
   const servings = input.servings !== undefined ? String(input.servings) : existing?.servings || '';
   const prepTime = input.prep_time !== undefined ? String(input.prep_time) : existing?.prep_time || '';
   const notionId = input.notion_id !== undefined ? input.notion_id : existing?.notion_id || null;
@@ -520,7 +526,7 @@ export async function getShoppingIntelligence(activeGeneralItems: Array<{ name: 
       if (lastRef) {
         daysSince = Math.max(0, Math.round((nowMs - new Date(lastRef).getTime()) / (1000 * 86400)));
       }
-      const isDue = lastRef ? daysSince >= Math.max(3, Math.floor(avgDays * 0.75)) : c.times_added >= 2;
+      const isDue = lastRef ? (daysSince / avgDays >= 0.8 || daysSince >= avgDays) : ((c.times_added || 0) >= 2);
       if (!isDue) return null;
       return {
         ...c,
@@ -690,7 +696,7 @@ householdRouter.get('/api/meal_planner', async (req: Request, res: Response) => 
 });
 
 // Add or update a meal card on one or more days (e.g., Monday & Tuesday)
-householdRouter.post('/api/meal_planner/card', (req: Request, res: Response) => {
+householdRouter.post(['/api/meal_planner/card', '/api/meal_planner/card/save'], (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const title = String(body.title || body.value || '').trim();
@@ -1299,15 +1305,6 @@ householdRouter.post('/api/save_recipe', async (req: Request, res: Response) => 
   const existingRecipes = await getAllRecipes();
   const existingRec = existingRecipes[mealKey];
 
-  // If synced from Notion, reject edits to preserve sync integrity
-  if (existingRec?.notion_id) {
-    res.status(400).json({
-      success: false,
-      error: 'Recipes synced from Notion cannot be edited here. Update them in Notion and tap Sync.',
-    });
-    return;
-  }
-
   const items = Array.isArray(req.body?.ingredients) ? req.body.ingredients : [];
   const instructions = req.body?.instructions !== undefined ? String(req.body.instructions).trim() : existingRec?.instructions;
   const prepTime = req.body?.prep_time !== undefined ? String(req.body.prep_time).trim() : existingRec?.prep_time;
@@ -1402,10 +1399,10 @@ householdRouter.post('/api/shopping/batch_add', async (req: Request, res: Respon
     if (!rawInput) continue;
     const cleanName = cleanShoppingItemName(rawInput) || rawInput;
 
-    // Detect store: priority to brand detected in ingredient text (e.g. Coles Australian Lamb -> Coles)
-    const detectedStore = detectStoreFromText(rawInput, stores);
+    // Detect store: explicit store selection by user takes precedence, then brand detection in ingredient text
     const storeInput = typeof it === 'object' && it?.store ? String(it.store).trim() : '';
-    const targetStore = detectedStore || storeInput || 'aldi';
+    const detectedStore = detectStoreFromText(rawInput, stores);
+    const targetStore = storeInput || detectedStore || 'aldi';
 
     // Quantity extraction & normalization
     let qty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';

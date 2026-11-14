@@ -197,6 +197,17 @@ choresrewards/
   - Never modify user-configured external configs (like Calendar iCal/Embed URLs or Notion tokens).
 - Maintain a high bar of visual polish, alignment, and responsiveness.
 
+## Low-Power Client Hardware Baseline (Raspberry Pi & Budget Tablet Standard)
+- **Target Baseline**: Assume the client device is a low-power **Raspberry Pi or budget wall-mounted tablet** (ARM CPU, weak GPU fill-rate, constrained memory bandwidth).
+- **CPU & GPU Optimization Mandate**:
+  - All visual features, animations, and transitions must be rigorously optimized for low-spec hardware.
+  - Avoid high-frequency main-thread DOM manipulation in animation loops (`requestAnimationFrame` querying DOM or triggering style recalculation/layout thrashing).
+  - Minimize continuous full-screen layer re-renders behind elements using heavy `backdrop-filter: blur(...)`.
+- **Honest Feasibility Assessment**:
+  - If a requested feature or visual effect is unlikely to perform smoothly on a Raspberry Pi or low-end tablet, **tell the user directly** upfront instead of blindly trying to force it:
+  - *"It's unlikely this will work well on a Raspberry Pi / budget tablet, but we can give it a go with <lighter approach e.g. Canvas / Compositor-only CSS / Screensaver-only activation>."*
+  - Always propose the lightest, most performant technical approach first.
+
 ## Design System & Component Library Standards
 - **Strict Compliance with [DESIGN_SYSTEM.md](file:///d:/projects/choresrewards/DESIGN_SYSTEM.md)**: All frontend development MUST adhere to the design tokens and UI primitives documented in `DESIGN_SYSTEM.md`.
 - **UI Primitives Requirement**: Use `<Button>`, `<Input>`, `<Select>`, `<Card>`, and `<Badge>` from `@/components/ui`. Never add raw unstyled `<button>` or `<input>` tags for UI actions.

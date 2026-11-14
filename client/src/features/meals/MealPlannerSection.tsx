@@ -11,11 +11,13 @@ import { PlanMealModal } from './components/PlanMealModal';
 export interface MealPlannerSectionProps {
   isStandalonePage?: boolean;
   onOpenRecipeModal?: (card: { title: string; meal_key?: string; id?: string }, dateIso?: string) => void;
+  onAddRecipe?: () => void;
 }
 
 export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
   isStandalonePage = false,
   onOpenRecipeModal,
+  onAddRecipe,
 }) => {
   const { data, showToast, isChild } = useApp();
 
@@ -277,12 +279,23 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
       boxed={!isStandalonePage}
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {!isChild && onAddRecipe && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon="fas fa-plus"
+              onClick={onAddRecipe}
+            >
+              Add Recipe
+            </Button>
+          )}
+
           {/* 1 Week vs 2 Weeks View Mode Toggle */}
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.06)',
+              background: 'rgba(15, 23, 42, 0.85)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: 'var(--radius-pill, 999px)',
               padding: 2,

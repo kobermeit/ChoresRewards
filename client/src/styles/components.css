@@ -665,8 +665,8 @@
     --cr-text-primary: #f1f5f9;
     --cr-text-secondary: rgba(255,255,255,0.72);
     --cr-shadow: rgba(0,0,0,0.25);
-    --cr-subtle-panel: rgba(255,255,255,0.08);
-    --cr-subtle-panel-border: rgba(255,255,255,0.07);
+    --cr-subtle-panel: linear-gradient(150deg, #1e2c40 0%, #142032 100%);
+    --cr-subtle-panel-border: rgba(255, 255, 255, 0.12);
     --cr-header-bg-1: #141f33;
     --cr-header-bg-2: #1a2840;
     --cr-modal-overlay: rgba(0,0,0,0.6);
@@ -1811,9 +1811,11 @@ body {
 }
 
 .shopping-store-col {
-    background: rgba(0,0,0,0.22);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 14px;
+    background: linear-gradient(150deg, rgba(26, 38, 56, 0.96) 0%, rgba(16, 25, 39, 0.98) 100%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    border-top: 2.5px solid #34d399 !important;
+    border-radius: var(--card-radius, 16px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     overflow: visible;
     position: relative;
     display: flex;
@@ -1826,8 +1828,10 @@ body {
     align-items: center;
     gap: 8px;
     padding: 10px 13px;
-    background: rgba(255,255,255,0.06);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(135deg, #1e2d42 0%, #162234 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
     font-weight: 700;
     font-size: 0.95rem;
     color: #f8fafc;
@@ -1917,17 +1921,25 @@ body {
     align-items: start;
 }
 
+.shopping-meal-group {
+    background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: var(--card-radius, 12px) !important;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
 .shopping-meal-group-header {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 5px;
     padding: 7px 10px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(255, 255, 255, 0.08) !important;
     font-size: 0.82rem;
     font-weight: 700;
     color: #e2e8f0;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .shopping-meal-group-planned .shopping-meal-group-header {
@@ -2270,11 +2282,13 @@ body {
 }
 
 .meal-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 14px;
+    background: linear-gradient(150deg, #24344d 0%, #152238 100%);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    border-top: 2.5px solid #fb923c;
+    border-radius: var(--card-radius, 16px);
     overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .meal-card:hover {
     transform: translateY(-3px);
@@ -4089,9 +4103,11 @@ body.dash-layout-dragging {
             margin-top: 4px;
         }
         .dashboard-card {
-            background: var(--cr-subtle-panel);
-            border: 1px solid var(--cr-subtle-panel-border);
-            border-radius: 14px;
+            background: linear-gradient(150deg, #24344d 0%, #152238 100%);
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            border-top: 2.5px solid #38bdf8;
+            border-radius: var(--card-radius, 16px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
             padding: 14px 16px;
             cursor: pointer;
             transition: transform 0.15s;
@@ -4489,17 +4505,19 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   align-items: center !important;
   justify-content: space-between !important;
   gap: 8px !important;
-  padding: 7px 10px !important;
-  border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-md, 10px) !important;
+  background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.1) !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  transition: background 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
 .shopping-item:hover {
-  background: rgba(255, 255, 255, 0.07) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(150deg, #2a3c57 0%, #19283f 100%) !important;
+  border-color: rgba(52, 211, 153, 0.4) !important;
+  transform: translateY(-1px);
 }
 .shopping-item-label {
   display: flex;
@@ -4568,16 +4586,18 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   min-height: 200px;
   min-width: 140px;
   flex: 1 1 0;
-  background: var(--cr-subtle-panel);
-  border: 1px solid var(--cr-subtle-panel-border);
+  background: linear-gradient(150deg, rgba(26, 38, 56, 0.96) 0%, rgba(16, 25, 39, 0.98) 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: var(--card-radius, 14px);
   padding: 8px 8px;
   box-sizing: border-box;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 .meal-day-card-today {
-  border-color: rgba(56, 189, 248, 0.5);
-  background: rgba(30, 41, 59, 0.85);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.6) !important;
+  border-top: 2.5px solid #38bdf8 !important;
+  background: linear-gradient(150deg, rgba(30, 48, 72, 0.98) 0%, rgba(18, 29, 46, 0.99) 100%) !important;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.18) !important;
 }
 
 /* Kanban Meal Planner Tiles */
@@ -4591,21 +4611,24 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   margin-bottom: 8px;
 }
 .meal-kanban-card {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  border-top: 2.5px solid #fb923c !important;
+  border-radius: var(--card-radius, 12px) !important;
   padding: 8px 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
   position: relative;
 }
 .meal-kanban-card:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(96, 165, 250, 0.5);
+  background: linear-gradient(150deg, #2b3e5c 0%, #1a2a44 100%) !important;
+  border-color: rgba(251, 146, 60, 0.6) !important;
   transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
 }
 .meal-kanban-card-title {
   font-size: 0.88rem;
@@ -4781,6 +4804,23 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   font-size: 0.88rem;
 }
 
+.recipe-view-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .recipe-view-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    overflow-y: auto !important;
+  }
+}
+
 /* Fix shopping meal group width */
 .shopping-meal-groups-grid {
   display: flex !important;
@@ -4917,9 +4957,9 @@ body.side-nav-body-collapsed { padding-left: 8px; }
 
 /* Reddit-Style Note Row Card */
 .note-reddit-row {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.88) 100%);
+  background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
   border-radius: var(--card-radius, 12px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   overflow: hidden;

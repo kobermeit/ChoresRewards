@@ -119,6 +119,17 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         <MealPlannerSection
           isStandalonePage={isStandalonePage}
           onOpenRecipeModal={handleOpenRecipe}
+          onAddRecipe={() =>
+            setEditingRecipe({
+              meal_key: '',
+              title: '',
+              image_url: null,
+              ingredients: [],
+              instructions: '',
+              servings: '4',
+              prep_time: '25 mins',
+            })
+          }
         />
       )}
 

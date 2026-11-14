@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../../../components/common/Modal';
-import { Button, IconButton, Badge } from '../../../components/ui';
-import { ShoppingCatalogItem } from '../../../types';
+import { Button, IconButton, Badge, Select } from '../../../components/ui';
+import { ShoppingCatalogItem, ShoppingStore } from '../../../types';
 import { apiPost } from '../../../api';
 import { useApp } from '../../../context/AppContext';
 
@@ -18,20 +18,41 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
   catalog,
   onDeleted,
 }) => {
-  const { showToast, confirm, refresh } = useApp();
+  const { data, showToast, confirm, refresh } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [storeFilter, setStoreFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const stores: ShoppingStore[] = useMemo(() => {
+    return (data?.shopping?.stores || data?.shopping_list?.stores || []) as ShoppingStore[];
+  }, [data?.shopping?.stores, data?.shopping_list?.stores]);
+
+  const storeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    stores.forEach((s) => {
+      map[s.id.toLowerCase()] = s.name;
+    });
+    return map;
+  }, [stores]);
+
   const filteredCatalog = useMemo(() => {
+    let list = catalog;
+    if (storeFilter !== 'all') {
+      list = list.filter(
+        (item) => (item.default_store || 'aldi').toLowerCase() === storeFilter.toLowerCase()
+      );
+    }
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter(
-      (item) =>
-        item.name.toLowerCase().includes(q) ||
-        (item.default_store || '').toLowerCase().includes(q)
-    );
-  }, [catalog, searchTerm]);
+    if (q) {
+      list = list.filter(
+        (item) =>
+          item.name.toLowerCase().includes(q) ||
+          (item.default_store || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [catalog, searchTerm, storeFilter]);
 
   const allFilteredSelected =
     filteredCatalog.length > 0 &&
@@ -106,17 +127,27 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
     }
   };
 
+  const formatLastDate = (isoStr: string | null | undefined) => {
+    if (!isoStr) return null;
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="Manage Shopping Catalog"
       icon="fas fa-trash-can"
-      maxWidth={640}
+      maxWidth={680}
       footer={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10 }}>
           <span style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.6)' }}>
-            {selectedIds.size > 0 ? `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} selected` : `${catalog.length} total items`}
+            {selectedIds.size > 0 ? `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} selected` : `${filteredCatalog.length} item${filteredCatalog.length === 1 ? '' : 's'} (${catalog.length} total)`}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Button variant="ghost" onClick={onClose}>
@@ -140,13 +171,13 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
           Permanently remove mis-typed or obsolete items so they never reappear in history or smart suggestions.
         </p>
 
-        {/* Filter Input & Select All Toolbar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ position: 'relative', flex: 1 }}>
+        {/* Filter Input, Store Filter & Select All Toolbar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
             <input
               type="text"
               className="cr-input"
-              placeholder="Search catalog items..."
+              placeholder="Search catalog..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ paddingLeft: 34, height: 36, fontSize: '0.88rem' }}
@@ -161,6 +192,18 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
                 opacity: 0.45,
                 fontSize: '0.82rem',
               }}
+            />
+          </div>
+
+          <div style={{ width: 140 }}>
+            <Select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Stores' },
+                ...stores.map((s) => ({ value: s.id, label: s.name })),
+              ]}
+              style={{ height: 36, fontSize: '0.82rem' }}
             />
           </div>
 
@@ -186,11 +229,15 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
         >
           {filteredCatalog.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', opacity: 0.5, fontSize: '0.88rem' }}>
-              {searchTerm ? 'No items matched your search.' : 'Catalog is currently empty.'}
+              {searchTerm || storeFilter !== 'all' ? 'No items matched your filters.' : 'Catalog is currently empty.'}
             </div>
           ) : (
             filteredCatalog.map((item) => {
               const isChecked = selectedIds.has(item.id);
+              const storeName = storeMap[(item.default_store || '').toLowerCase()] || item.default_store;
+              const lastBoughtLabel = formatLastDate(item.last_purchased_at);
+              const lastAddedLabel = formatLastDate(item.last_added_at);
+
               return (
                 <div
                   key={item.id}
@@ -206,7 +253,7 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
                     transition: 'background 0.15s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -227,17 +274,25 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
                       >
                         {item.name}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', display: 'flex', gap: 8 }}>
+                      <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.48)', display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 1 }}>
                         <span>Added: {item.times_added || 1}×</span>
-                        {item.times_purchased ? <span>Bought: {item.times_purchased}×</span> : null}
+                        <span>Bought: {item.times_purchased || 0}×</span>
+                        {item.avg_interval_days ? (
+                          <span style={{ color: '#93c5fd' }}>Every ~{Math.round(item.avg_interval_days)}d</span>
+                        ) : null}
+                        {lastBoughtLabel ? (
+                          <span>Last: {lastBoughtLabel}</span>
+                        ) : lastAddedLabel ? (
+                          <span>Added: {lastAddedLabel}</span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                    {item.default_store && (
-                      <Badge variant="neutral" size="sm" style={{ textTransform: 'capitalize' }}>
-                        {item.default_store}
+                    {storeName && (
+                      <Badge variant="neutral" size="sm">
+                        {storeName}
                       </Badge>
                     )}
                     <IconButton

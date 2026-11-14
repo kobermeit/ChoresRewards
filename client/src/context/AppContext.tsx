@@ -4,6 +4,7 @@ import { apiGet, apiPost, resolveAssetUrl, isKnownOffline } from '../api';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { ProfileSwitcherModal } from '../components/ProfileSwitcherModal';
 import { FamilyMemberModal } from '../components/FamilyMemberModal';
+import { PointsHistoryModal } from '../components/PointsHistoryModal';
 import { playSoundCategory, speakAnnouncement, SoundCategory } from '../services/soundService';
 import { fireCelebrationFireworks } from '../services/celebrationService';
 import { useHouseholdPrefs, useUiPref, useSoundTheme, useNavigation } from '../hooks/useSettings';
@@ -72,6 +73,7 @@ interface AppContextValue {
   profileSwitcherOpen: boolean;
   setProfileSwitcherOpen: (open: boolean) => void;
   openEditMemberModal: (person?: Person | null) => void;
+  openPointsHistoryModal: (person: Person) => void;
   activeView: ActiveView;
   setActiveView: (v: ActiveView) => void;
   scrollToSection: (sectionId: string) => void;
@@ -258,7 +260,7 @@ export const AppProvider: React.FC<{
       autoResetTimeoutRef.current = null;
     }
     setTimerTimesUp(false);
-    const s = Math.max(10, Math.round(minutes * 60));
+    const s = Math.max(0, Math.round(minutes * 60));
     setTimerTotalSeconds(s);
     setTimerRemainingSeconds(s);
   }, []);
@@ -269,7 +271,7 @@ export const AppProvider: React.FC<{
       autoResetTimeoutRef.current = null;
     }
     setTimerTimesUp(false);
-    const s = Math.max(10, Math.round(seconds));
+    const s = Math.max(0, Math.round(seconds));
     setTimerTotalSeconds(s);
     setTimerRemainingSeconds(s);
   }, []);
@@ -392,7 +394,6 @@ export const AppProvider: React.FC<{
         const isVeryStale = delta > 60 * 60 * 1000; // 1hr+ suspended
         if (isDateRollover) refreshSeasonalTheme();
         refresh(isDateRollover || isVeryStale);
-        showToast('✨ Family Hub refreshed');
       }
     }, 1000);
 
@@ -491,6 +492,16 @@ export const AppProvider: React.FC<{
 
   const openEditMemberModal = useCallback((person?: Person | null) => {
     setEditingMember(person === undefined ? null : person);
+  }, []);
+
+  const [pointsHistoryPerson, setPointsHistoryPerson] = useState<Person | null>(null);
+
+  const openPointsHistoryModal = useCallback((person: Person) => {
+    setPointsHistoryPerson(person);
+  }, []);
+
+  const closePointsHistoryModal = useCallback(() => {
+    setPointsHistoryPerson(null);
   }, []);
 
   const closeEditMemberModal = useCallback(() => {
@@ -705,6 +716,7 @@ export const AppProvider: React.FC<{
         profileSwitcherOpen,
         setProfileSwitcherOpen,
         openEditMemberModal,
+        openPointsHistoryModal,
         activeView,
         setActiveView,
         scrollToSection,
@@ -760,6 +772,13 @@ export const AppProvider: React.FC<{
         isOpen={editingMember !== undefined}
         member={editingMember || null}
         onClose={closeEditMemberModal}
+      />
+
+      {/* Points History Ledger Modal */}
+      <PointsHistoryModal
+        open={Boolean(pointsHistoryPerson)}
+        person={pointsHistoryPerson}
+        onClose={closePointsHistoryModal}
       />
 
       {/* Global Toast Container */}

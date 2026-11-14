@@ -9,7 +9,7 @@ export const ActivityLogView: React.FC = () => {
   const [filterType, setFilterType] = useState('');
 
   useEffect(() => {
-    const q = filterType ? `activity_log_data?action_type=${encodeURIComponent(filterType)}` : 'activity_log_data';
+    const q = filterType ? `activity_log?type=${encodeURIComponent(filterType)}` : 'activity_log';
     apiGet<any>(q)
       .then((res) => {
         if (res?.logs) setLogs(res.logs);
@@ -57,7 +57,8 @@ export const ActivityLogView: React.FC = () => {
                 alignItems: 'center',
                 padding: '10px 14px',
                 borderRadius: 10,
-                background: 'rgba(255,255,255,0.05)',
+                background: 'linear-gradient(150deg, #24344d 0%, #152238 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
               <div>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useApp } from '../../../context/AppContext';
 import { Modal } from '../../../components/common/Modal';
 import { Button, IconButton, Input, Select, Textarea } from '../../../components/ui';
 import { RecipeItem, RecipeIngredient, ShoppingStore } from '../../../types';
@@ -18,6 +19,7 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   stores,
   onSave,
 }) => {
+  const { data } = useApp();
   const [title, setTitle] = useState('');
   const [prepTime, setPrepTime] = useState('');
   const [servings, setServings] = useState('');
@@ -27,6 +29,17 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   const [newIngQty, setNewIngQty] = useState('');
   const [newIngStore, setNewIngStore] = useState('');
   const [saving, setSaving] = useState(false);
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+
+  const catalogPool = useMemo(() => {
+    return (data?.shopping?.intelligence?.catalog || []) as Array<{ name: string; default_store?: string }>;
+  }, [data?.shopping?.intelligence?.catalog]);
+
+  const filteredCatalog = useMemo(() => {
+    const q = newIngName.trim().toLowerCase();
+    if (!q) return [];
+    return catalogPool.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [catalogPool, newIngName]);
 
   useEffect(() => {
     if (recipe) {
@@ -50,21 +63,31 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
     if (!name) return;
     setIngredients((prev) => [
       ...prev,
-      { name, qty: newIngQty.trim(), store: newIngStore || stores[0]?.id || 'aldi' },
+      {
+        name,
+        qty: newIngQty.trim(),
+        store: newIngStore || stores[0]?.id || 'aldi',
+      },
     ]);
     setNewIngName('');
     setNewIngQty('');
+    setComboboxOpen(false);
   };
 
-  const handleCommitSave = async () => {
-    if (!title.trim() || !recipe) return;
+  const handleRemoveIngredient = (index: number) => {
+    setIngredients((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
     setSaving(true);
     try {
       await onSave({
-        ...recipe,
+        ...(recipe || { meal_key: '' }),
+        meal_key: recipe?.meal_key || title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         title: title.trim(),
-        prep_time: prepTime.trim(),
-        servings: servings.trim(),
+        prep_time: prepTime.trim() || '25 mins',
+        servings: servings.trim() || '4 servings',
         instructions: instructions.trim(),
         ingredients,
       });
@@ -80,58 +103,72 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
     <Modal
       open={open}
       onClose={onClose}
-      title={recipe.title ? `Edit Recipe: ${recipe.title}` : 'Edit Recipe'}
+      title={recipe.meal_key ? `Edit Recipe: ${recipe.title}` : 'Add New Recipe'}
       icon="fas fa-pencil-alt"
-      maxWidth={640}
+      maxWidth={680}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, width: '100%' }}>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
           <Button
             variant="primary"
-            size="sm"
             icon="fas fa-check"
-            onClick={handleCommitSave}
-            disabled={saving || !title.trim()}
+            isLoading={saving}
+            disabled={!title.trim() || saving}
+            onClick={handleSave}
           >
             Save Recipe
           </Button>
         </div>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Input
           label="Recipe Title"
+          required
+          placeholder="e.g. Spaghetti Bolognese"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Spaghetti Bolognese"
-          autoFocus
         />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input
-            label="Prep Time"
+            label="Prep / Cook Time"
+            placeholder="e.g. 30 mins"
             value={prepTime}
             onChange={(e) => setPrepTime(e.target.value)}
-            placeholder="e.g. 25 mins"
           />
           <Input
             label="Servings"
+            placeholder="e.g. 4 servings"
             value={servings}
             onChange={(e) => setServings(e.target.value)}
-            placeholder="e.g. 4 servings"
           />
         </div>
 
-        <div>
-          <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6, display: 'block' }}>
-            Ingredients List ({ingredients.length})
+        {/* Ingredients Builder */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc' }}>
+            Ingredients ({ingredients.length})
           </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', marginBottom: 10 }}>
+
+          <div
+            style={{
+              maxHeight: 180,
+              overflowY: 'auto',
+              borderRadius: 'var(--input-radius, 10px)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'rgba(15, 23, 42, 0.4)',
+              padding: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
             {ingredients.length === 0 ? (
-              <div style={{ fontSize: '0.82rem', opacity: 0.5, fontStyle: 'italic', padding: '6px 0' }}>
-                No ingredients added yet. Add some below.
+              <div style={{ padding: '12px 8px', textAlign: 'center', fontSize: '0.82rem', color: '#94a3b8' }}>
+                No ingredients yet. Add them below!
               </div>
             ) : (
               ingredients.map((ing, idx) => (
@@ -141,32 +178,31 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '6px 10px',
+                    padding: '4px 8px',
+                    borderRadius: 6,
                     background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 'var(--radius-sm, 8px)',
+                    fontSize: '0.86rem',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: '0.86rem', color: '#f8fafc', fontWeight: 600 }}>{ing.name}</span>
+                    <span style={{ fontWeight: 600, color: '#f8fafc' }}>{ing.name}</span>
                     {ing.qty && (
                       <span style={{ fontSize: '0.78rem', color: '#93c5fd', background: 'rgba(59, 130, 246, 0.15)', padding: '1px 6px', borderRadius: 4 }}>
                         {ing.qty}
                       </span>
                     )}
-                    <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>{ing.store || 'aldi'}</span>
+                    {ing.store && (
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                        {ing.store}
+                      </span>
+                    )}
                   </div>
                   <IconButton
+                    icon="fas fa-times"
                     size="sm"
                     variant="ghost"
-                    icon="fas fa-trash-alt"
-                    aria-label="Remove ingredient"
-                    title="Remove ingredient"
-                    style={{ width: 26, height: 26, color: '#f87171' }}
-                    onClick={() => {
-                      setIngredients((prev) => prev.filter((_, i) => i !== idx));
-                    }}
+                    aria-label={`Remove ${ing.name}`}
+                    onClick={() => handleRemoveIngredient(idx)}
                   />
                 </div>
               ))
@@ -175,12 +211,17 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
 
           {/* Add ingredient row */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 2 }}>
+            <div style={{ flex: 2, position: 'relative' }}>
               <Input
                 inputSize="sm"
                 placeholder="Ingredient name (e.g. Garlic)"
                 value={newIngName}
-                onChange={(e) => setNewIngName(e.target.value)}
+                onChange={(e) => {
+                  setNewIngName(e.target.value);
+                  setComboboxOpen(true);
+                }}
+                onFocus={() => setComboboxOpen(true)}
+                onBlur={() => setTimeout(() => setComboboxOpen(false), 200)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -188,6 +229,41 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                   }
                 }}
               />
+              {comboboxOpen && filteredCatalog.length > 0 && (
+                <div
+                  className="shopping-combobox-dropdown"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    zIndex: 10001,
+                    marginTop: 4,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  {filteredCatalog.map((item) => (
+                    <div
+                      key={item.name}
+                      className="shopping-combobox-item"
+                      style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setNewIngName(item.name);
+                        if (item.default_store) setNewIngStore(item.default_store);
+                        setComboboxOpen(false);
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{item.name}</span>
+                      {item.default_store && (
+                        <span className="shopping-combobox-times">{item.default_store}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ flex: 1 }}>
               <Input

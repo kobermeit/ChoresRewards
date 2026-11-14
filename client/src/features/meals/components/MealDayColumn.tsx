@@ -60,7 +60,7 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
               gap: 6,
               padding: '8px 10px',
               border: '1.5px dashed rgba(245, 158, 11, 0.45)',
-              background: 'rgba(245, 158, 11, 0.06)',
+              background: 'linear-gradient(150deg, rgba(38, 30, 20, 0.95) 0%, rgba(26, 20, 14, 0.98) 100%)',
               borderRadius: 'var(--card-radius, 10px)',
               cursor: 'pointer',
             }}

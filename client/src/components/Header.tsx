@@ -21,6 +21,7 @@ export const Header: React.FC = () => {
     openAdultPinModal,
     activeUser,
     setProfileSwitcherOpen,
+    openPointsHistoryModal,
     isParent,
     isChild,
     isFamily,
@@ -612,6 +613,21 @@ function getRelativeAge(from: Date | null, to: Date): string {
                     <i className="fas fa-users header-menu-item-icon" />
                     <span>Switch Profile ({activeUser?.name || 'Family'})</span>
                   </button>
+
+                  {activeUser && activeUser.role !== 'family' && (
+                    <button
+                      type="button"
+                      className="header-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openPointsHistoryModal(activeUser);
+                      }}
+                    >
+                      <i className="fas fa-coins header-menu-item-icon" />
+                      <span>Points History ({activeUser.points || 0} pts)</span>
+                    </button>
+                  )}
+
 
                   <button
                     type="button"

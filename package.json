@@ -1,6 +1,6 @@
 {
   "name": "choresrewards",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "private": true,
   "description": "Family Chores, Rewards & Household Hub (Node.js + Express + SQLite + React + Vite)",
   "engines": {
@@ -14,7 +14,10 @@
     "build": "npm run build:client && npm run build:server",
     "verify": "node scripts/verify_ingress.js",
     "verify:deploy": "node scripts/verify_deploy.js",
-    "start": "node server/index.js",
+    "start": "node scripts/start_app.js",
+    "start:build": "node scripts/start_app.js --build",
+    "stop": "docker compose stop",
+    "docker:logs": "docker compose logs -f choresrewards",
     "install:all": "npm --prefix server install && npm --prefix client install"
   }
 }

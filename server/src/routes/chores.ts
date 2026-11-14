@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { AppSetting, logActivity, roundPoints } from '../db';
+import { downloadAndStoreImage } from '../services/imageDownloader';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAuth, requireAdult } from './auth';
@@ -172,7 +173,7 @@ choresRouter.post(
       if (uploadedFile) {
         imageUrl = `/static/uploads/chores/${uploadedFile.filename}`;
       } else if (data.image_url) {
-        imageUrl = String(data.image_url).trim();
+        imageUrl = await downloadAndStoreImage(String(data.image_url).trim(), 'chores');
       }
 
       let daysOfWeekRaw = data.days_of_week ?? data['days_of_week[]'] ?? [];
@@ -289,7 +290,8 @@ choresRouter.post(
       } else if (formFlagIsTrue(data.remove_image)) {
         imageUrl = null;
       } else if ('image_url' in data) {
-        imageUrl = data.image_url ? String(data.image_url).trim() : null;
+        const raw = data.image_url ? String(data.image_url).trim() : null;
+        imageUrl = raw ? await downloadAndStoreImage(raw, 'chores') : null;
       }
 
       let daysRaw = data.days_of_week ?? data['days_of_week[]'] ?? [];

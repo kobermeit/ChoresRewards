@@ -231,14 +231,9 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
                     setPlanMealTitle(r.title);
                     setComboboxOpen(false);
                   }}
+                  style={{ padding: '8px 12px' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: '1.2rem' }}>{getMealEmoji(r.meal_key)}</span>
-                    <span style={{ fontWeight: 700 }}>{r.title}</span>
-                  </div>
-                  <span className="shopping-combobox-times">
-                    {r.prep_time || 'recipe'} · {r.servings || '4 serv'}
-                  </span>
+                  <span style={{ fontWeight: 600, color: '#f8fafc' }}>{r.title}</span>
                 </div>
               ))}
               {planMealTitle.trim() &&
@@ -248,9 +243,9 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
                   <div
                     className="shopping-combobox-item shopping-combobox-item-custom"
                     onClick={() => setComboboxOpen(false)}
+                    style={{ padding: '8px 12px' }}
                   >
-                    <span>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
-                    <span className="shopping-combobox-times">custom</span>
+                    <span style={{ color: '#93c5fd' }}>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
                   </div>
                 )}
             </div>

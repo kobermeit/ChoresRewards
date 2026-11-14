@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CardShell } from '../../../components/ui';
 import { resolveAssetUrl } from '../../../api';
 
@@ -44,7 +44,8 @@ export const ChoreCardFace: React.FC<ChoreCardFaceProps> = ({
   cta,
   onOpen,
 }) => {
-  const image = imageUrl ? resolveAssetUrl(imageUrl) : null;
+  const [imgFailed, setImgFailed] = useState(false);
+  const image = imageUrl && !imgFailed ? resolveAssetUrl(imageUrl) : null;
 
   return (
     <CardShell
@@ -66,7 +67,14 @@ export const ChoreCardFace: React.FC<ChoreCardFaceProps> = ({
         }}
       >
         {image ? (
-          <img className="cr-chore-face__img" src={image} alt="" loading="lazy" decoding="async" />
+          <img
+            className="cr-chore-face__img"
+            src={image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setImgFailed(true)}
+          />
         ) : (
           <span className="cr-chore-face__emoji" aria-hidden="true">
             {fallbackIcon || '⭐'}

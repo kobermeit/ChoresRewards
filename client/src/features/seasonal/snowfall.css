@@ -26,3 +26,9 @@
 @media (prefers-reduced-motion: reduce) {
   .cr-snowfall i { animation: none; opacity: .25; }
 }
+
+@media (max-width: 768px) {
+  .cr-snowfall {
+    display: none !important;
+  }
+}

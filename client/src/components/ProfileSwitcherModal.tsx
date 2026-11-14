@@ -12,7 +12,7 @@ interface ProfileSwitcherModalProps {
 
 export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOpen, onClose }) => {
   useBodyScrollLock(isOpen);
-  const { data, activeUser, switchUser, showToast, openEditMemberModal, isParent } = useApp();
+  const { data, activeUser, switchUser, showToast, openEditMemberModal, openPointsHistoryModal, isParent } = useApp();
 
   const [pinTargetPerson, setPinTargetPerson] = useState<Person | null>(null);
   const [pinInput, setPinInputState] = useState('');
@@ -600,14 +600,30 @@ export const ProfileSwitcherModal: React.FC<ProfileSwitcherModalProps> = ({ isOp
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         <span
+                          role="button"
+                          tabIndex={0}
+                          title="View points history"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            openPointsHistoryModal(p);
+                          }}
                           style={{
                             fontSize: '0.7rem',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: p.role === 'parent' ? '#f59e0b' : '#34d399',
+                            background: p.role === 'parent' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(52, 211, 153, 0.15)',
+                            padding: '1px 6px',
+                            borderRadius: '6px',
                             textTransform: 'uppercase',
                             letterSpacing: '0.5px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
                           }}
                         >
+                          <i className="fas fa-coins" style={{ fontSize: '0.62rem' }} />
                           {p.role === 'parent' ? 'Parent' : `${p.points} pts`}
                         </span>
                         {p.age !== null && p.age !== undefined && (

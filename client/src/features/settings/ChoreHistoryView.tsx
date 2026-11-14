@@ -8,7 +8,7 @@ export const ChoreHistoryView: React.FC = () => {
   const [historyData, setHistoryData] = useState<any>(null);
 
   useEffect(() => {
-    apiGet<any>('chore_history_data?days=30')
+    apiGet<any>('chore_history?days=30')
       .then((res) => {
         if (res?.success) setHistoryData(res);
       })

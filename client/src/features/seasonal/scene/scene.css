@@ -35,6 +35,14 @@
 
 .cr-scene__layer { position: absolute; inset: 0; }
 .cr-scene__defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.cr-scene__canvas {
+  position: absolute;
+  inset: 0;
+  width: 1440px;
+  height: 900px;
+  pointer-events: none;
+  z-index: 6;
+}
 
 /* ------------------------------------------------------------------ sky */
 .cr-scene__sky {

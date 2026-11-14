@@ -19,6 +19,7 @@ import {
 } from './db/schema';
 import { UPLOADS_DIR } from './config';
 import { cleanTitle, cleanDescription, decodeEntities } from './services/scraper';
+import { backfillRemoteImages } from './services/imageDownloader';
 
 /**
  * Household data layer (Postgres / Drizzle).
@@ -179,6 +180,8 @@ export async function initDatabase(): Promise<void> {
   await syncPersonRoles();
   await cleanStaleUploadReferences();
   await cleanRewardEntities();
+  // Asynchronously localize any external image URLs in rewards & recipes in the background
+  void backfillRemoteImages();
 }
 
 
@@ -515,6 +518,16 @@ async function cleanStaleUploadReferences(): Promise<void> {
         const rel = r.imageUrl.split('/static/uploads/').pop()!;
         if (!fs.existsSync(path.join(UPLOADS_DIR, rel))) {
           await db.update(reward).set({ imageUrl: null }).where(eq(reward.id, r.id));
+          changed++;
+        }
+      }
+    }
+    const chores = await db.select({ id: chore.id, imageUrl: chore.imageUrl }).from(chore);
+    for (const c of chores) {
+      if (c.imageUrl && c.imageUrl.includes('/static/uploads/')) {
+        const rel = c.imageUrl.split('/static/uploads/').pop()!;
+        if (!fs.existsSync(path.join(UPLOADS_DIR, rel))) {
+          await db.update(chore).set({ imageUrl: null }).where(eq(chore.id, c.id));
           changed++;
         }
       }

@@ -1,11 +1,9 @@
-import React, { useMemo, useRef } from 'react';
-import SleighArtDefs from './scene/SleighArtDefs';
+import React, { useMemo } from 'react';
 import SkyLayer from './scene/SkyLayer';
 import TerrainLayer from './scene/TerrainLayer';
 import VillageLayer from './scene/VillageLayer';
-import SceneActors from './scene/SceneActors';
+import LivingSceneCanvas from './scene/LivingSceneCanvas';
 import SceneStills from './SceneStills';
-import { useSceneMotion } from './scene/useSceneMotion';
 import { WALKERS } from './scene/actors';
 import './scene/scene.css';
 
@@ -23,30 +21,24 @@ interface ChristmasSceneProps {
 /**
  * "Santa Tracker, but dark" — the living backdrop.
  *
- * Sky (decoration) → terrain (the ground everything stands on) → Google's
- * village, night-graded → actors → one rAF loop driving the lot.
- * Choreography lives in `scene/useSceneMotion.ts`, geometry in `scene/terrain.ts`.
+ * Sky (decoration) → terrain (mountains) → Google's village, night-graded →
+ * high-performance single-layer Canvas actors (Santa flight, skier trail, walkers).
  */
 export const ChristmasScene: React.FC<ChristmasSceneProps> = React.memo(
-  ({ density = 2, calmMode = false, lively = false, showStills = true }) => {
-    const rootRef = useRef<HTMLDivElement | null>(null);
-
+  ({ calmMode = false, lively = false, showStills = true }) => {
     // baseline traffic always; the idle-only crowd joins once the screen is quiet
     const walkers = useMemo(
       () => (calmMode ? WALKERS.slice(0, 1) : WALKERS.filter((w) => !w.idleOnly || lively)),
       [calmMode, lively]
     );
 
-    useSceneMotion({ rootRef, walkers, enabled: !calmMode, calm: calmMode });
-
     return (
-      <div className="cr-scene" ref={rootRef} aria-hidden="true">
+      <div className="cr-scene" aria-hidden="true">
         <div className="cr-scene__stage">
-          <SleighArtDefs />
           <SkyLayer />
           <TerrainLayer />
           <VillageLayer />
-          <SceneActors walkers={walkers} />
+          <LivingSceneCanvas walkers={walkers} enabled={!calmMode} calm={calmMode} />
         </div>
         {/* the gutter vignette lives in the viewport, not the scaled stage */}
         {showStills && <SceneStills />}

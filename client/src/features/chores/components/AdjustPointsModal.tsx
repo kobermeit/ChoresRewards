@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../../../components/common/Modal';
-import { Button, Select } from '../../../components/ui';
+import { Button, Select, NumberStepper } from '../../../components/ui';
 import { Person } from '../../../types';
 import { apiPost } from '../../../api';
 
@@ -229,112 +229,49 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
           </div>
         </div>
 
-        {/* 3. Points Input with Quick Presets */}
+        {/* 3. Points Input with NumberStepper */}
         <div>
-          <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, marginBottom: 6, color: '#f8fafc' }}>
-            <span>{isDeduct ? 'Points to Deduct' : 'Points to Add'}</span>
-            <span style={{ color: modeColor, fontWeight: 800 }}>
-              {isDeduct ? '− Remove' : '+ Add'}
-            </span>
-          </label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div
-              style={{
-                flex: 1,
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(15, 23, 42, 0.6)',
-                borderRadius: 10,
-                border: `2px solid ${isInvalidNegative ? '#ef4444' : modeColor}`,
-                boxShadow: isInvalidNegative ? '0 0 12px rgba(239, 68, 68, 0.3)' : `0 0 12px ${modeColor}25`,
-                padding: '0 12px',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <span style={{ color: modeColor, fontWeight: 900, fontSize: '1.2rem', marginRight: 8 }}>
-                {isDeduct ? '−' : '+'}
-              </span>
-              <input
-                type="number"
-                min="0"
-                step={isCash ? '0.5' : '1'}
-                value={pointsVal}
-                onChange={(e) => {
-                  setPointsVal(e.target.value);
-                  setError(null);
-                }}
-                style={{
-                  width: '100%',
-                  height: 42,
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '1.15rem',
-                  fontWeight: 800,
-                  outline: 'none',
-                }}
-                placeholder="0"
-                autoFocus
-              />
-              <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 600 }}>
-                {isCash ? '$' : 'pts'}
-              </span>
-            </div>
+          <NumberStepper
+            label={isDeduct ? 'Points to Deduct' : 'Points to Add'}
+            required
+            value={pointsVal}
+            onChange={(val) => {
+              setPointsVal(String(val));
+              setError(null);
+            }}
+            min={isCash ? 0.5 : 1}
+            step={isCash ? 0.5 : 1}
+            prefix={isCash ? <strong>$</strong> : <i className="fas fa-coins" style={{ color: modeColor }} />}
+            presets={isCash ? [1, 5, 10, 20] : [1, 5, 10, 20, 50]}
+            buttonsPosition="right"
+          />
 
-            {/* Negative toggle button */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsDeduct(!isDeduct);
-                setError(null);
-              }}
-              title={isDeduct ? 'Switch to add' : 'Switch to deduct'}
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 10,
-                border: `1px solid ${modeColor}60`,
-                background: `${modeColor}18`,
-                color: modeColor,
-                fontSize: '1.2rem',
-                fontWeight: 900,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {isDeduct ? '−' : '+'}
-            </button>
-          </div>
-
-          {/* Presets */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            {(isCash ? [1, 2, 5, 10, 20] : [1, 2, 5, 10, 20, 50]).map((preset) => (
+          {isDeduct && currentPoints > 0 && (
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
               <button
-                key={preset}
                 type="button"
                 onClick={() => {
-                  setPointsVal(String(preset));
+                  setPointsVal(String(currentPoints));
                   setError(null);
                 }}
                 style={{
-                  padding: '3px 9px',
+                  padding: '4px 10px',
                   borderRadius: 6,
-                  background: pointsVal === String(preset) ? `${modeColor}35` : 'rgba(255, 255, 255, 0.06)',
-                  border: pointsVal === String(preset) ? `1px solid ${modeColor}` : '1px solid rgba(255, 255, 255, 0.1)',
-                  color: pointsVal === String(preset) ? modeColor : '#cbd5e1',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
+                  background: pointsVal === String(currentPoints) ? 'rgba(249, 115, 22, 0.35)' : 'rgba(249, 115, 22, 0.15)',
+                  border: pointsVal === String(currentPoints) ? '1px solid #f97316' : '1px solid rgba(249, 115, 22, 0.35)',
+                  color: '#fb923c',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {isCash ? `$${preset}` : `${preset} pts`}
+                <i className="fas fa-coins" /> Deduct Entire Balance ({isCash ? `$${currentPoints.toFixed(2)}` : `${currentPoints} pts`})
               </button>
-            ))}
-          </div>
+            </div>
+          )}
 
           {/* Balance Preview Badge */}
           <div

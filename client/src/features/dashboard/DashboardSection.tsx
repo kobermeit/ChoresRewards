@@ -118,15 +118,21 @@ export const DashboardSection: React.FC = () => {
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     const tomorrowIso = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}-${String(tomorrowDate.getDate()).padStart(2, '0')}`;
 
-    const events = data?.calendar_events || [];
+    const events = (data?.google_calendar?.events || data?.calendar_events || []) as any[];
     if (dateFilter === 'tomorrow') {
-      return events.filter((e) => e.start_date_iso === tomorrowIso);
+      return events.filter(
+        (e) => e.start_date_iso === tomorrowIso || (e.start_date_iso <= tomorrowIso && e.end_date_iso && e.end_date_iso >= tomorrowIso)
+      );
     }
     if (dateFilter === 'today') {
-      return events.filter((e) => e.start_date_iso === todayIso);
+      const todayList = data?.google_calendar?.today_events;
+      if (Array.isArray(todayList) && todayList.length > 0) return todayList;
+      return events.filter(
+        (e) => e.start_date_iso === todayIso || (e.start_date_iso <= todayIso && e.end_date_iso && e.end_date_iso >= todayIso)
+      );
     }
     return events.slice(0, 6);
-  }, [data?.calendar_events, data?.current_date, dateFilter]);
+  }, [data?.google_calendar, data?.calendar_events, data?.current_date, dateFilter]);
 
   // Shopping preview - synchronize with ShoppingListSection (only count active general items + ingredients for active planned meals)
   const uncheckedShopping = useMemo(() => {

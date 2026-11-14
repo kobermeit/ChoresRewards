@@ -45,7 +45,7 @@ const MainShell: React.FC<{
   const isChristmasActive = Boolean(
     seasonInfo.enabled &&
     seasonalScene &&
-    (activeView === 'dashboard' || activeView === 'chores') &&
+
     (
       (seasonInfo.event?.key || '').toLowerCase().includes('christ') ||
       (seasonInfo.event?.key || '').toLowerCase().includes('xmas') ||
@@ -65,7 +65,7 @@ const MainShell: React.FC<{
     return () => document.documentElement.removeAttribute('data-idle-phase');
   }, [effectivePhase]);
 
-  const isSceneActive = Boolean(seasonInfo.enabled && (activeView === 'dashboard' || activeView === 'chores'));
+  const isSceneActive = Boolean(seasonInfo.enabled && seasonalScene);
   const isIdle = effectivePhase !== 'active';
 
   const wakeUi = () => {

@@ -13,7 +13,6 @@ import { NotificationsSettingsTab } from './tabs/NotificationsSettingsTab';
 import { CalendarSettingsTab } from './tabs/CalendarSettingsTab';
 import { ScreensaverSettingsTab } from './tabs/ScreensaverSettingsTab';
 import { QuizSettingsTab } from './tabs/QuizSettingsTab';
-import { NotionSettingsTab } from './tabs/NotionSettingsTab';
 import { BackupSettingsTab } from './tabs/BackupSettingsTab';
 
 export type SettingsTabId =
@@ -28,7 +27,6 @@ export type SettingsTabId =
   | 'calendar'
   | 'screensaver'
   | 'quiz'
-  | 'notion'
   | 'backup';
 
 export const SettingsView: React.FC = () => {
@@ -71,7 +69,6 @@ export const SettingsView: React.FC = () => {
       items: [
         { id: 'calendar', label: 'Google Calendar', icon: 'fas fa-calendar-days', badge: data?.google_calendar?.enabled ? 'Connected' : 'Off' },
         { id: 'discord', label: 'Discord Webhook', icon: 'fab fa-discord', badge: null },
-        { id: 'notion', label: 'Notion Recipes', icon: 'fas fa-book-open', badge: data?.notion?.configured ? 'Linked' : null },
       ],
     },
   ];
@@ -240,7 +237,6 @@ export const SettingsView: React.FC = () => {
           {tab === 'calendar' && <CalendarSettingsTab />}
           {tab === 'screensaver' && <ScreensaverSettingsTab />}
           {tab === 'quiz' && <QuizSettingsTab />}
-          {tab === 'notion' && <NotionSettingsTab />}
           {tab === 'backup' && <BackupSettingsTab />}
         </div>
       </div>

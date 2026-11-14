@@ -1,11 +1,8 @@
 import React, { useMemo } from 'react';
-import { FAR, makeRng, pathFrom, RIDGE, SKI_RUN } from './terrain';
+import { FAR, makeRng, pathFrom, RIDGE } from './terrain';
 
 /**
  * The landscape the scene is staged on.
- *
- * The two `<path>`s in the front layer are *measurement* paths — invisible, but
- * the skier is positioned by sampling them, so he can never leave the snow.
  */
 export const TerrainLayer: React.FC = React.memo(() => {
   const back = useMemo(() => {
@@ -50,33 +47,26 @@ export const TerrainLayer: React.FC = React.memo(() => {
   }, []);
 
   return (
-    <>
-      <svg className="cr-scene__terrain cr-scene__terrain--back" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="crHillGrad" gradientUnits="userSpaceOnUse" x1="0" y1="330" x2="0" y2="860">
-            <stop offset="0" stopColor="#22455f" />
-            <stop offset=".05" stopColor="#193449" />
-            <stop offset=".22" stopColor="#112638" />
-            <stop offset="1" stopColor="#070f1b" />
-          </linearGradient>
-          <linearGradient id="crFarGrad" gradientUnits="userSpaceOnUse" x1="0" y1="225" x2="0" y2="330">
-            <stop offset="0" stopColor="#5487b4" />
-            <stop offset=".3" stopColor="#26506f" />
-            <stop offset="1" stopColor="#0e2133" />
-          </linearGradient>
-        </defs>
-        <path className="cr-range-far" d={pathFrom(FAR, 900)} />
-        <path className="cr-range-far-rim" d={pathFrom(FAR)} />
-        <path className="cr-range-mid" d={pathFrom(RIDGE, 900)} />
-        <g className="cr-cottage" dangerouslySetInnerHTML={{ __html: back.lamps }} />
-        <g className="cr-pines" dangerouslySetInnerHTML={{ __html: back.pines }} />
-      </svg>
-
-      <svg className="cr-scene__terrain cr-scene__terrain--front" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
-        <path id="cr-ski-line" className="cr-ski-line" d={pathFrom(SKI_RUN)} />
-        <path id="cr-ski-trail" className="cr-ski-trail" d={pathFrom(SKI_RUN)} />
-      </svg>
-    </>
+    <svg className="cr-scene__terrain cr-scene__terrain--back" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="crHillGrad" gradientUnits="userSpaceOnUse" x1="0" y1="330" x2="0" y2="860">
+          <stop offset="0" stopColor="#22455f" />
+          <stop offset=".05" stopColor="#193449" />
+          <stop offset=".22" stopColor="#112638" />
+          <stop offset="1" stopColor="#070f1b" />
+        </linearGradient>
+        <linearGradient id="crFarGrad" gradientUnits="userSpaceOnUse" x1="0" y1="225" x2="0" y2="330">
+          <stop offset="0" stopColor="#5487b4" />
+          <stop offset=".3" stopColor="#26506f" />
+          <stop offset="1" stopColor="#0e2133" />
+        </linearGradient>
+      </defs>
+      <path className="cr-range-far" d={pathFrom(FAR, 900)} />
+      <path className="cr-range-far-rim" d={pathFrom(FAR)} />
+      <path className="cr-range-mid" d={pathFrom(RIDGE, 900)} />
+      <g className="cr-cottage" dangerouslySetInnerHTML={{ __html: back.lamps }} />
+      <g className="cr-pines" dangerouslySetInnerHTML={{ __html: back.pines }} />
+    </svg>
   );
 });
 

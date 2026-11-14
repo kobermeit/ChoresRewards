@@ -14,9 +14,13 @@ interface SnowfallProps {
  * flakes drift across the cards instead of being hidden behind them. It is a
  * pure CSS overlay — no canvas, no rAF — and it is gated on the seasonal theme
  * being active, never on the idle phase, so it keeps falling while you use the app.
+ * Disabled on mobile devices (<= 768px) to conserve battery and screen clarity.
  */
 export const Snowfall: React.FC<SnowfallProps> = React.memo(({ density = 1 }) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   const flakes = useMemo(() => {
+    if (isMobile) return [];
     const rng = makeRng(4242);
     const count = Math.round(52 * Math.max(0, Math.min(2, density)));
     return Array.from({ length: count }, (_, i) => {
@@ -35,9 +39,9 @@ export const Snowfall: React.FC<SnowfallProps> = React.memo(({ density = 1 }) =>
         } as React.CSSProperties,
       };
     });
-  }, [density]);
+  }, [density, isMobile]);
 
-  if (!density) return null;
+  if (!density || isMobile) return null;
 
   return (
     <div className="cr-snowfall" aria-hidden="true">

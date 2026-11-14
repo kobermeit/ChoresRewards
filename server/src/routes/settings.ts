@@ -782,8 +782,8 @@ settingsRouter.post('/api/screensaver/clear', requireAdult, (_req: Request, res:
   res.json({ success: true, photos: [], deleted: photos.length });
 });
 
-settingsRouter.get('/api/activity_log', async (req: Request, res: Response) => {
-  const typeFilter = String(req.query.type || '').trim();
+const handleActivityLog = async (req: Request, res: Response) => {
+  const typeFilter = String(req.query.type || req.query.action_type || '').trim();
   const userFilter = String(req.query.user || '').trim();
 
   let sql = 'SELECT * FROM activity_log WHERE 1=1';
@@ -828,19 +828,29 @@ settingsRouter.get('/api/activity_log', async (req: Request, res: Response) => {
     }>
   ).map((r) => r.user_name);
 
+  // Normalize logs with action_type and timestamp aliases for frontend compatibility
+  const normalizedLogs = logs.map(l => ({
+    ...l,
+    action_type: l.type,
+    timestamp: l.date || l.created_at,
+  }));
+
   res.json({
     success: true,
-    logs,
+    logs: normalizedLogs,
     types: distinctTypes,
     users: distinctUsers,
     chores_by_person: choresByPerson,
     monthly_chores_by_person: monthlyChoresByPerson,
   });
-});
+};
 
-settingsRouter.get('/api/chore_history', async (_req: Request, res: Response) => {
+settingsRouter.get('/api/activity_log', handleActivityLog);
+settingsRouter.get('/api/activity_log_data', handleActivityLog);
+
+const handleChoreHistory = async (_req: Request, res: Response) => {
   const completedChores = await sqlAll('SELECT * FROM chore WHERE completed = true AND deleted = false ORDER BY date_completed DESC') as Array<any>;
-  const people = await sqlAll('SELECT * FROM person') as Array<any>;
+  const people = await sqlAll('SELECT id, name, avatar FROM person') as Array<any>;
 
   const choresByPerson: Record<string, number> = {};
   const pointsByPerson: Record<string, number> = {};
@@ -866,8 +876,19 @@ settingsRouter.get('/api/chore_history', async (_req: Request, res: Response) =>
     }
   }
 
+  const leaderboard = people.map(p => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    completed_count: choresByPerson[p.name] || 0,
+    points_earned: pointsByPerson[p.name] || 0,
+    current_streak: choresByPerson[p.name] > 0 ? 1 : 0,
+    longest_streak: choresByPerson[p.name] > 0 ? 1 : 0,
+  }));
+
   res.json({
     success: true,
+    leaderboard,
     completed_chores: completedChores,
     chores_by_person: choresByPerson,
     points_by_person: pointsByPerson,
@@ -875,4 +896,7 @@ settingsRouter.get('/api/chore_history', async (_req: Request, res: Response) =>
     day_keys: dayKeys,
     reward_system: AppSetting.getRewardSystem(),
   });
-});
+};
+
+settingsRouter.get('/api/chore_history', handleChoreHistory);
+settingsRouter.get('/api/chore_history_data', handleChoreHistory);

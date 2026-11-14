@@ -101,7 +101,9 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
-  const todayDateStr = data?.current_date || localDay();
+  const local = localDay();
+  const serverToday = data?.current_date;
+  const todayDateStr = (serverToday && serverToday >= local) ? serverToday : local;
   const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
   const [displayedDate, setDisplayedDate] = useState<string>(todayDateStr);
   const [pastChoresCache, setPastChoresCache] = useState<Record<string, Chore[]>>({});
@@ -110,18 +112,29 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
   /** True while the user is parked on "today" — those users follow the day rollover. */
   const followTodayRef = useRef(true);
 
-  // Follow the household clock: when "today" changes (midnight rollover, or the first
-  // authoritative date from the server) anyone parked on today moves with it. Comparing
-  // against a ref rather than the freshly-derived todayDateStr is what makes this work —
-  // the previous version compared two values that had already moved together.
+  // Follow the household clock & device wake: when "today" changes
   useEffect(() => {
-    const serverToday = data?.current_date;
-    if (!serverToday) return;
-    if (followTodayRef.current && selectedDate !== serverToday) {
-      setSelectedDate(serverToday);
-      setDisplayedDate(serverToday);
+    const cur = (serverToday && serverToday >= local) ? serverToday : local;
+    if (followTodayRef.current && selectedDate !== cur) {
+      setSelectedDate(cur);
+      setDisplayedDate(cur);
     }
-  }, [data?.current_date, selectedDate]);
+  }, [serverToday, local, selectedDate]);
+
+  // Check on visibility change (e.g. tablet waking up the next day)
+  useEffect(() => {
+    const handleVis = () => {
+      if (!document.hidden && followTodayRef.current) {
+        const curLocal = localDay();
+        if (selectedDate < curLocal) {
+          setSelectedDate(curLocal);
+          setDisplayedDate(curLocal);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVis);
+    return () => document.removeEventListener('visibilitychange', handleVis);
+  }, [selectedDate]);
 
   const shiftDate = (baseIso: string, offsetDays: number): string => {
     const [y, m, d] = baseIso.split('-').map(Number);

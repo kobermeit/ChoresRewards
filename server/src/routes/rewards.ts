@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import { AppSetting, logActivity, roundPoints } from '../db';
+import { downloadAndStoreImage } from '../services/imageDownloader';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
@@ -61,7 +62,7 @@ rewardsRouter.post(
       } else if (stockImageUrl) {
         finalImageUrl = stockImageUrl;
       } else if (imageUrlInput) {
-        finalImageUrl = imageUrlInput;
+        finalImageUrl = await downloadAndStoreImage(imageUrlInput, 'rewards');
       }
 
       const isEveryone = !assignedTo || assignedTo.toLowerCase() === 'everyone' || assignedTo.toLowerCase() === 'all';
@@ -331,7 +332,7 @@ rewardsRouter.post(
       if (req.file) {
         imageUrl = `/static/uploads/rewards/${req.file.filename}`;
       } else if (req.body?.image_url) {
-        imageUrl = String(req.body.image_url).trim();
+        imageUrl = await downloadAndStoreImage(String(req.body.image_url).trim(), 'rewards');
       } else {
         res.status(400).json({ success: false, error: 'No image or URL provided' });
         return;

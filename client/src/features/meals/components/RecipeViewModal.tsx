@@ -63,7 +63,7 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                 Remove from {dayLabel}
               </Button>
             )}
-            {!recipe.notion_id && !isChild && (
+            {!isChild && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -115,25 +115,11 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#e2e8f0' }}>
               <i className="fas fa-users" style={{ color: '#34d399' }} /> {recipe.servings || '4 servings'}
             </span>
-            {recipe.notion_id && (
-              <span style={{ color: '#c4b5fd', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <i className="fas fa-arrows-rotate" /> Synced from Notion
-              </span>
-            )}
           </div>
         </div>
 
-        {/* Side-by-side columns: Ingredients & Method (Flat, Full Height) */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(240px, 300px) 1fr',
-            gap: 20,
-            flex: 1,
-            minHeight: 0,
-            overflow: 'hidden',
-          }}
-        >
+        {/* Side-by-side columns on tablet/desktop, stacked single-column on mobile */}
+        <div className="recipe-view-grid">
           {/* Left Column: Ingredients */}
           <div
             style={{
