@@ -8,8 +8,15 @@
  */
 
 const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 console.log('=== VERIFYING GIT DIFF FOR ACCIDENTAL MASS DELETIONS ===\n');
+
+if (!fs.existsSync(path.join(__dirname, '../.git'))) {
+  console.log('ℹ️ Not a git repository (or .git excluded by dockerignore). Skipping.\n');
+  process.exit(0);
+}
 
 if (process.env.ALLOW_LARGE_DELETION === '1') {
   console.log('⚠️ ALLOW_LARGE_DELETION=1 set. Skipping deletion limit check.\n');
