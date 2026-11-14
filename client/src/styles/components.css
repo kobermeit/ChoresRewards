@@ -841,12 +841,1270 @@
     background: rgba(15,23,42,0.06);
 }
 [data-theme="light"] .shopping-manage-block {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .shopping-manage-label {
+    color: rgba(15,23,42,0.6);
+}
+[data-theme="light"] .shopping-field-label {
+    color: rgba(15,23,42,0.55);
+}
+[data-theme="light"] .text-pads-empty {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .text-pad-card {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .text-pad-meta,
+[data-theme="light"] .text-pad-char-count {
+    color: rgba(15,23,42,0.4);
+}
+[data-theme="light"] .text-pad-textarea {
+    background: rgba(15,23,42,0.04);
+    color: var(--text-color);
+    border-color: rgba(15,23,42,0.12);
+}
+[data-theme="light"] .text-pad-textarea:focus {
+    background: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .text-pad-composer {
+    border-top-color: rgba(15,23,42,0.1);
+}
+
+/* Meal Library */
+[data-theme="light"] .meal-card {
+    background: rgba(15,23,42,0.035);
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .meal-card-header {
+    background: rgba(15,23,42,0.05);
+    border-bottom-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .meal-card-title,
+[data-theme="light"] .meal-card-ing-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .meal-card-ing-row {
+    border-bottom-color: rgba(15,23,42,0.06);
+}
+[data-theme="light"] .meal-card-ing-row:hover {
+    background: rgba(15,23,42,0.05);
+}
+[data-theme="light"] .meal-card-ing-qty {
+    color: rgba(15,23,42,0.45);
+}
+
+/* Upcoming Family Events (Google Calendar) widget */
+[data-theme="light"] .gcal-view-switch {
+    background: rgba(15,23,42,0.06);
+    border-color: rgba(15,23,42,0.14);
+}
+[data-theme="light"] .gcal-day-column .gcal-day-header {
+    background: rgba(15,23,42,0.04);
+    border-bottom-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .gcal-day-header {
+    border-left-color: rgba(15,23,42,0.08);
+}
+[data-theme="light"] .gcal-day-name {
+    color: var(--text-color);
+}
+[data-theme="light"] .gcal-day-date {
+    color: rgba(15,23,42,0.55);
+}
+[data-theme="light"] .gcal-day-column {
+    background: #ffffff;
+    border-color: rgba(15,23,42,0.10);
+}
+[data-theme="light"] .gcal-no-events {
+    color: rgba(15,23,42,0.4);
+    border-color: rgba(15,23,42,0.14);
+}
+[data-theme="light"] .gcal-event-time,
+[data-theme="light"] .gcal-event-title {
+    color: var(--text-color);
+}
+
+/* Settings pages (settings.html, settings_audio/notification/quiz.html) —
+   shared page-local classes defined in each template's own \3c style> block. */
+[data-theme="light"] .settings-nav a.active {
+    background: rgba(76,175,80,0.15);
+    color: #1b5e20;
+}
+[data-theme="light"] .section-title {
+    color: var(--text-color);
+}
+
+/* Base Styles */
+html, body {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard-card, .section-toggle {
+    touch-action: manipulation;
+}
+
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, var(--cr-page-bg-1) 0%, var(--cr-page-bg-2) 100%);
+    color: var(--cr-text-primary);
+    line-height: 1.7;
+    min-height: 100vh;
+}
+
+/* Ensure all headings and text use Lato */
+
+/* Header Styles */
+
+/* Navigation Styles — base (overridden by .activity-page-nav) */
+
+/* Section Styles */
+
+/* Typography */
+/* Kanban name pill overrides the global h3 color — do not touch this */
+
+/* Points Display — see prominent override at top of file */
+
+/* Avatar Styles */
+
+.avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
+    border: 3px solid rgba(255,255,255,0.55);
+    box-shadow: 0 3px 14px rgba(0,0,0,0.22);
+    transition: transform 0.25s ease, box-shadow 0.2s;
+    background: #d1d5db;
+    display: block;
+}
+
+.avatar:hover {
+    transform: scale(1.07);
+    box-shadow: 0 5px 22px rgba(0,0,0,0.30);
+}
+
+/* Action Icons */
+
+/* Style for icons with shadow */
+
+/* File Upload Styles */
+
+.edit-name-icon {
+    font-size: 16px;
+    padding: 5px;
+    border-radius: 5px;
+    color: var(--pencil-icon-color);
+}
+
+/* Tooltip styles */
+
+/* Chore Styles */
+.chore {
+    background-color: var(--background-color);
+    padding: 14px 16px;
+    margin-bottom: var(--spacing-unit);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
+    transition: box-shadow 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.chore:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* Chore card header: icon + title + delete */
+.chore-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+
+.chore-icon {
+    font-size: 1.35em;
+    flex-shrink: 0;
+    width: 22px;
+    text-align: center;
+    line-height: 1;
+}
+
+.chore-title {
+    flex: 1;
+    font-size: 1.05em;
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: break-word;
+    color: var(--text-color);
+}
+
+/* Incomplete chore tiles: big centred emoji */
+.incomplete-chores-list .chore-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.incomplete-chores-list .chore-icon {
+    font-size: 2.7em;
+    width: auto;
+}
+
+.incomplete-chores-list .chore-title {
+    text-align: center;
+}
+
+/* Small unobtrusive delete button — absolutely pinned to top-right of card */
+.btn-delete-chore-sm {
+    position: absolute !important;
+    top: 6px !important;
+    right: 6px !important;
+    background: transparent !important;
+    color: rgba(239, 68, 68, 0.45) !important;
+    border: none !important;
+    border-radius: 5px !important;
+    padding: 4px 7px !important;
+    font-size: 0.75em !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    transition: color 0.15s, background 0.15s !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.btn-delete-chore-sm:hover {
+    background: rgba(239, 68, 68, 0.14) !important;
+    color: #f87171 !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Chore metadata row: tags + points badge */
+/* Undo on completed chore cards — the toast's Undo only lasts 5 seconds */
+.btn-undo-chore {
+    background: transparent;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    color: inherit;
+    border-radius: 999px;
+    padding: 4px 12px;
+    min-height: 30px;
+    font-size: 0.8em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.btn-undo-chore:hover {
+    background: rgba(148, 163, 184, 0.18);
+}
+
+.chore-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 999px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+.earn-more-prompt {
+    margin: 10px 8px 8px;
+    padding: 14px 12px;
+    border-radius: 14px;
+    text-align: center;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px dashed rgba(251, 191, 36, 0.45);
+}
+
+.earn-more-prompt[hidden] {
+    display: none !important;
+}
+
+.earn-more-prompt-kicker {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #b45309;
+}
+
+.earn-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: #f59e0b;
+    color: #1c1917;
+}
+
+.earn-more-btn:hover {
+    background: #d97706;
+}
+
+[data-theme="light"] .earn-more-prompt {
+    background: rgba(251, 191, 36, 0.16);
+    border-color: rgba(180, 83, 9, 0.25);
+}
+
+
+
+/* Updated style for points circle to look like iPhone notification badge with purple color */
+
+/* Button Styles */
+
+/* Theme Toggle Styles */
+
+/* Chore Section Styles */
+/* Add Chores admin section — same card surface as other dashboard sections */
+
+.chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+/* Incomplete Chores Styles */
+.incomplete-chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+    list-style: none;
+    padding: 0;
+}
+
+/* Completed Chores Styles */
+.completed-chores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Style for icons with shadow */
+
+.chore i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.chore {
+    background: var(--cr-surface-1);
+    padding: 18px 20px;
+    margin-bottom: var(--spacing-unit);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px var(--cr-shadow);
+    color: var(--cr-text-primary);
+    transition: box-shadow 0.18s, transform 0.18s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+.chore:hover {
+    box-shadow: 0 6px 24px rgba(99, 102, 241, 0.13);
+    transform: translateY(-2px) scale(1.01);
+}
+
+
+
+/* Color picker styling */
+
+/* Completed rewards styles */
+.completed-rewards {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    margin: 1rem;
+    background: linear-gradient(135deg, var(--cr-surface-1) 0%, var(--cr-surface-2) 100%);
+    border: 1px solid var(--cr-surface-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 20px var(--cr-shadow);
+}
+
+/* Complete button styling */
+
+/* Style for icons with shadow */
+/* #pin-overlay — layout handled by .auth-overlay class */
+/* Activity Log Specific Styles */
+
+/* Activity Log Container */
+
+/* Activity Log Header */
+
+/* Filter Controls */
+
+/* Activity Log List */
+
+/* Activity Log Item */
+
+/* Activity Icon */
+:root {
+    --icon-color: #000000;
+}
+
+/* Activity Type Colors */
+
+/* Activity Content */
+
+/* Empty State */
+
+/* Error State */
+
+/* Stats Summary */
+
+/* Responsive Design */
+
+/* Dark Mode Overrides */
+
+/* Animation for new items */
+
+/* Loading State */
+/* === Tablet-friendly Form Controls for Chores & Rewards === */
+
+/* General form controls: larger padding, font, and height */
+
+/* Make buttons larger and more touch-friendly */
+
+/* Chore/reward suggestion buttons */
+
+/* Checkbox label spacing */
+
+/* Responsive: Even bigger on tablets */
+
+/* Ensure select dropdown arrows are visible and large enough */
+
+/* Make sure forms are not too wide on tablets */
+
+/* Optional: Increase label size for better readability */
+
+/* Ensure reset and palette icons are visible in dark mode, even on white backgrounds */
+
+/* Stock image picker for reward creation */
+.stock-image-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+.stock-image-tile.selected {
+    border-color: #7c3aed;
+    background: rgba(124,58,237,0.18);
+    box-shadow: 0 0 0 2px #7c3aed44;
+}
+/* ===================================================
+   Add Chore Form — Professional Revamp
+   =================================================== */
+
+/* Suggestions bar */
+
+/* Suggestion chips (normal mode) */
+.chore-suggestion-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-color);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin: 2px 2px;
+}
+
+.chore-suggestion-chip:hover {
+    background: rgba(76,175,80,0.18);
+    border-color: rgba(76,175,80,0.55);
+}
+
+/* Edit mode items */
+
+/* Form card */
+
+/* Field group (label + control) */
+.chore-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.chore-field-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Larger title input */
+
+/* Person pill buttons */
+.chore-assign-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chore-assign-pill.selected {
+    background: rgba(76,175,80,0.25);
+    border-color: #4CAF50;
+    color: #fff;
+}
+
+.pill-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(76,175,80,0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.chore-assign-pill.selected .pill-avatar {
+    background: #4CAF50;
+}
+
+/* Points + Repeating two-column row */
+
+/* Points stepper — modern pill design */
+
+/* Label above quick chips */
+
+/* Toggle switch */
+.chore-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.chore-toggle-input {
+    display: none;
+}
+
+.chore-toggle-track {
+    width: 48px;
+    height: 26px;
+    border-radius: 13px;
+    background: rgba(255,255,255,0.12);
+    border: 2px solid rgba(255,255,255,0.15);
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.chore-toggle-input:checked + .chore-toggle-track {
+    background: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.chore-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s cubic-bezier(.34,1.4,.64,1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.chore-toggle-input:checked + .chore-toggle-track .chore-toggle-thumb {
+    transform: translateX(22px);
+}
+
+.chore-toggle-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 24px;
+}
+
+/* Days of week row */
+.chore-days-row {
+    background: rgba(76,175,80,0.05);
+    border: 1px solid rgba(76,175,80,0.2);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    animation: choreSlideDown 0.18s ease;
+}
+
+.chore-day-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chore-day-pill {
+    cursor: pointer;
+    line-height: 1;
+}
+
+.chore-day-pill input[type="checkbox"] {
+    display: none;
+}
+
+.chore-day-pill span {
+    display: flex;
+    align-items: center;
+    padding: 6px 13px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    color: var(--text-color);
+    font-size: 0.84rem;
+    font-weight: 600;
+    transition: background 0.14s, border-color 0.14s;
+    min-height: 34px;
+    min-width: 40px;
+    justify-content: center;
+}
+
+.chore-day-pill input:checked + span {
+    background: rgba(76,175,80,0.25);
+    border-color: #4CAF50;
+    color: #fff;
+}
+
+.chore-days-hint {
+    font-size: 0.76rem;
+    color: rgba(255,255,255,0.32);
+    font-style: italic;
+    margin-left: 4px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* Due date row */
+.chore-due-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.chore-due-toggle-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Submit button */
+
+/* Chore emoji picker */
+.chore-emoji-picker-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chore-emoji-preview-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1.15rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.18s, border-color 0.18s;
+}
+.chore-emoji-preview-btn:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(96,165,250,0.5);
+}
+
+.chore-emoji-grid {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 500;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: #1e2132;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 10px;
+    width: 280px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+
+.chore-emoji-opt {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.25rem;
+    padding: 5px 7px;
+    line-height: 1;
+    transition: background 0.15s, border-color 0.15s;
+    color: inherit;
+}
+.chore-emoji-opt:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.2);
+}
+.chore-emoji-opt[data-emoji=""] {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.6);
+    padding: 6px 8px;
+}
+
+/* Tablet overrides for the new chore form */
+@media (min-width: 600px) and (max-width: 1024px) {
+    .chore-day-pill span { min-height: 38px; font-size: 0.95rem; padding: 7px 15px; }
+}
+
+/* Weekly meal planner */
+.meal-planner-section {
+    background: linear-gradient(135deg, #141f33 0%, #1a2840 100%);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 16px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.24);
+    padding: 14px 14px 16px;
+    margin: 0 0 16px;
+}
+
+.meal-planner-title {
+    margin-bottom: 8px;
+    color: #f8fafc;
+}
+
+.meal-week-display {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(140px, 1fr));
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.meal-week-display.meal-week-display-1week {
+    min-height: calc(100vh - 280px);
+    align-items: stretch;
+}
+
+.meal-week-display-1week .meal-day-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.meal-week-display-1week .meal-kanban-cards {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.meal-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 6px;
+}
+
+.meal-day-header strong {
+    color: #f8fafc;
+    font-size: 0.9rem;
+}
+
+.meal-day-header span {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.78rem;
+}
+
+.meal-day-empty {
+    color: rgba(255,255,255,0.52);
+    font-size: 0.83rem;
+    font-style: italic;
+    padding: 8px 4px;
+}
+
+/* ── Meal planner slot rows ───────────────────────────────────────────────── */
+
+/* Drag-over highlight */
+
+/* ── Inline picker ───────────────────────────────────────────────────────── */
+
+/* Search results, in place of the old flat <select>. This list is laid out in
+   flow rather than absolutely positioned on purpose: .meal-week-display sets
+   overflow-x:auto, which makes it a scroll container that clips on BOTH axes,
+   so a popover anchored to the picker gets cut off. */
+
+/* Nav save button */
+
+.meal-recurring-track .chore-toggle-thumb {
+    width: 16px;
+    height: 16px;
+}
+
+.meal-recurring-input:checked + .meal-recurring-track .chore-toggle-thumb {
+    transform: translateX(18px);
+}
+
+.meal-quick-add {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    min-height: 36px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 36px;
+}
+
+.meal-quick-add:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
+    background-color: rgba(0,0,0,0.25);
+}
+
+.meal-quick-add:hover {
+    border-color: rgba(255,255,255,0.25);
+    background-color: rgba(0,0,0,0.3);
+}
+
+.meal-quick-add option {
+    background: #1a1f2e;
+    color: #fff;
+    padding: 8px;
+}
+
+@media (max-width: 900px) {
+    .meal-week-display {
+        grid-template-columns: repeat(4, minmax(140px, 1fr));
+    }
+}
+@media (max-width: 600px) {
+    .meal-week-display {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.meal-week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 10px;
+}
+
+.meal-week-nav-label {
+    color: #f8fafc;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
+}
+
+.meal-this-week-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: rgba(99,102,241,0.22);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.35);
+    border-radius: 20px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+}
+
+.meal-nav-spinner {
+    color: rgba(255,255,255,0.5);
+    font-size: 1rem;
+}
+
+.meal-nav-btn {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.07);
+    color: #f8fafc;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.meal-nav-btn:hover {
+    background: rgba(96,165,250,0.15);
+    border-color: rgba(96,165,250,0.45);
+}
+
+.meal-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Shopping List ─────────────────────────────────────────────── */
+.shopping-list-section {
+    margin-top: 10px;
+}
+
+.shopping-stores-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.shopping-store-col {
+    background: linear-gradient(150deg, rgba(26, 38, 56, 0.96) 0%, rgba(16, 25, 39, 0.98) 100%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    border-top: 2.5px solid #34d399 !important;
+    border-radius: var(--card-radius, 16px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    overflow: visible;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 240px);
+}
+
+.shopping-store-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 13px;
+    background: linear-gradient(135deg, #1e2d42 0%, #162234 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #f8fafc;
+    flex-shrink: 0;
+}
+
+.shopping-store-icon { font-size: 1.15rem; }
+.shopping-store-icon-img {
+    width: 1.5em;
+    height: 1.5em;
+    object-fit: contain;
+    border-radius: 4px;
+    vertical-align: middle;
+    display: inline-block;
+}
+.shopping-icon-picker-opt .shopping-store-icon-img {
+    width: 2em;
+    height: 2em;
+    border-radius: 5px;
+}
+.shopping-store-icon-btn {
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 1px 2px;
+    transition: background 0.15s;
+    user-select: none;
+}
+.shopping-store-icon-btn:hover { background: rgba(255,255,255,0.12); }
+.shopping-store-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.shopping-store-delete-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.28);
+    cursor: pointer;
+    font-size: 0.68rem;
+    padding: 3px 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+}
+.shopping-store-delete-btn:hover {
+    color: #f87171;
+    background: rgba(248,113,113,0.12);
+}
+
+.shopping-store-items {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 60px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.shopping-item-qty-btn {
+    min-width: 32px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    color: #93c5fd;
+    font-weight: 800;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+.shopping-item-qty-btn:hover {
+    background: rgba(59, 130, 246, 0.22);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #bfdbfe;
+}
+
+.shopping-meal-groups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    align-items: start;
+}
+
+.shopping-meal-group {
     background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
     border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: var(--card-radius, 14px);
-    padding: 12px 14px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    border-radius: var(--card-radius, 12px) !important;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.shopping-meal-group-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.08) !important;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.shopping-meal-group-planned .shopping-meal-group-header {
+    background: rgba(96,165,250,0.10);
+    border-bottom-color: rgba(96,165,250,0.18);
+}
+
+.shopping-meal-group-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shopping-planned-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: rgba(96,165,250,0.18);
+    border: 1px solid rgba(96,165,250,0.35);
+    color: #93c5fd;
+    border-radius: 999px;
+    padding: 1px 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.shopping-item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+}
+
+.shopping-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4ade80;
+    flex-shrink: 0;
+}
+
+.shopping-item-name {
+    font-size: 0.85rem;
+    color: #f8fafc;
+    transition: opacity 0.2s, text-decoration 0.2s;
+}
+
+.shopping-item-qty {
+    color: rgba(255,255,255,0.42);
+    font-size: 0.75rem;
+    margin-left: 5px;
+}
+
+.shopping-item-checked .shopping-item-name {
+    text-decoration: line-through;
+    opacity: 0.38;
+}
+
+.shopping-remove-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+}
+
+.shopping-remove-btn:hover {
+    color: #f87171;
+    background: rgba(248,113,113,0.1);
+}
+
+.shopping-archive-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s, background 0.2s;
+}
+.shopping-archive-btn:hover {
+    color: #fbbf24;
+    background: rgba(251,191,36,0.1);
+}
+
+/* ── Archived Shopping Section ─────────────────────────────────────────── */
+.shopping-archived-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 6px 4px;
+    user-select: none;
+}
+.shopping-archived-toggle:hover { color: rgba(255,255,255,0.8); }
+.shopping-archived-count {
+    background: rgba(251,191,36,0.2);
+    color: #fbbf24;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.shopping-archived-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+}
+.shopping-archived-row:hover { background: rgba(255,255,255,0.04); }
+.shopping-archived-name {
+    flex: 1;
+    font-size: 0.84rem;
+    color: rgba(255,255,255,0.65);
+}
+.shopping-archived-store {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 1px 7px;
+    flex-shrink: 0;
+}
+.shopping-restore-btn {
+    border: 1px solid rgba(96,165,250,0.25);
+    background: rgba(96,165,250,0.1);
+    color: #93c5fd;
+    cursor: pointer;
+    font-size: 0.74rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    transition: background 0.18s, color 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.shopping-restore-btn:hover {
+    background: rgba(96,165,250,0.22);
+    color: #bfdbfe;
+}
+
+.shopping-action-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
 }
 
 /* ── Text Pads ───────────────────────────────────────────────────────────── */
@@ -966,11 +2224,12 @@
 }
 
 .shopping-manage-block {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
+    background: linear-gradient(150deg, #24344d 0%, #152238 100%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: var(--card-radius, 14px);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .shopping-manage-label {

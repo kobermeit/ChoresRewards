@@ -64,6 +64,11 @@ app.use('/static', express.static(STATIC_DIR, staticCacheOptions));
 app.use('/api/static/uploads', express.static(UPLOADS_DIR, uploadsCacheOptions));
 app.use('/api/static', express.static(STATIC_DIR, staticCacheOptions));
 
+// Serve built Vite React frontend static assets (manifest.json, assets/, sw.js, favicons)
+if (fs.existsSync(CLIENT_DIST_DIR)) {
+  app.use(express.static(CLIENT_DIST_DIR));
+}
+
 // Replay protection for queued offline mutations (idempotency ledger)
 app.use(mutationDedupeMiddleware);
 
@@ -108,9 +113,8 @@ for (const router of routers) {
   app.use('/api', router);
 }
 
-// Serve built Vite React frontend from client/dist when available
+// SPA fallback for HTML5 routing
 if (fs.existsSync(CLIENT_DIST_DIR)) {
-  app.use(express.static(CLIENT_DIST_DIR));
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/static/')) {
       next();
