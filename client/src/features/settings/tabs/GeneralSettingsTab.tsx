@@ -21,6 +21,23 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   const [masterPin, setMasterPin] = useState('');
   const [lastDailyReset, setLastDailyReset] = useState<string | null>(null);
 
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash');
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [testingGemini, setTestingGemini] = useState(false);
+
+  useEffect(() => {
+    apiGet<{ success: boolean; has_key: boolean; model: string }>('settings/gemini')
+      .then((res) => {
+        if (res?.success) {
+          setHasGeminiKey(res.has_key);
+          if (res.model) setGeminiModel(res.model);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (initialSettings) {
       setTz(initialSettings.timezone || 'Australia/Brisbane');
@@ -57,11 +74,40 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
         await apiPost('save_pin_settings', { pin: masterPin.trim(), pin_enabled: true });
         setMasterPin('');
       }
+      if (geminiApiKey.trim() || geminiModel.trim()) {
+        await apiPost('settings/gemini', {
+          api_key: geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
+          model: geminiModel.trim() || 'gemini-2.0-flash',
+        });
+        if (geminiApiKey.trim()) {
+          setHasGeminiKey(true);
+          setGeminiApiKey('');
+        }
+      }
       showToast('Saved General Settings');
       await refresh();
       onSettingsUpdated?.();
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', { type: 'error' });
+    }
+  };
+
+  const handleTestGemini = async () => {
+    setTestingGemini(true);
+    try {
+      const res = await apiPost<{ success: boolean; message: string; model: string }>('settings/test_gemini', {
+        api_key: geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
+        model: geminiModel.trim() || 'gemini-2.0-flash',
+      });
+      if (res?.success) {
+        showToast(res.message, { type: 'success' });
+      } else {
+        showToast(res?.message || 'Gemini connection failed', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Error testing Gemini connection', { type: 'error' });
+    } finally {
+      setTestingGemini(false);
     }
   };
 
@@ -204,6 +250,87 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
           value={weatherLoc}
           onChange={(e) => setWeatherLoc(e.target.value)}
         />
+
+        {/* Google Gemini AI Vision Settings */}
+        <div
+          style={{
+            padding: 16,
+            borderRadius: 12,
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="fas fa-camera" style={{ color: '#38bdf8' }} />
+                Gemini AI Vision (Recipe Transcription)
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
+                Used to instantly transcribe photos of recipe books, screenshots, or cards into structured ingredients.
+              </div>
+            </div>
+            {hasGeminiKey && (
+              <span style={{ fontSize: '0.74rem', color: '#86efac', background: 'rgba(34, 197, 94, 0.15)', padding: '2px 8px', borderRadius: 12 }}>
+                ✓ API Key Set
+              </span>
+            )}
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <Input
+              label="Gemini API Key"
+              type={showGeminiKey ? 'text' : 'password'}
+              placeholder={hasGeminiKey ? 'Key configured (enter new key to replace)...' : 'AIzaSy...'}
+              value={geminiApiKey}
+              onChange={(e) => setGeminiApiKey(e.target.value)}
+              helperText="Get a free Gemini API key from Google AI Studio (aistudio.google.com)."
+            />
+            <button
+              type="button"
+              onClick={() => setShowGeminiKey((s) => !s)}
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: 36,
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.5)',
+                cursor: 'pointer',
+              }}
+              title={showGeminiKey ? 'Hide key' : 'Show key'}
+              aria-label={showGeminiKey ? 'Hide key' : 'Show key'}
+            >
+              <i className={showGeminiKey ? 'fas fa-eye-slash' : 'fas fa-eye'} />
+            </button>
+          </div>
+
+          <Input
+            label="Gemini Model"
+            type="text"
+            placeholder="gemini-2.0-flash"
+            value={geminiModel}
+            onChange={(e) => setGeminiModel(e.target.value)}
+            helperText="Default: gemini-2.0-flash. You can specify any Google Gemini model (e.g. gemini-1.5-flash, gemini-2.0-flash-lite)."
+          />
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon="fas fa-plug"
+              onClick={handleTestGemini}
+              disabled={testingGemini || (!geminiApiKey && !hasGeminiKey)}
+              isLoading={testingGemini}
+            >
+              Test Gemini Connection
+            </Button>
+          </div>
+        </div>
 
         <div>
           <Input

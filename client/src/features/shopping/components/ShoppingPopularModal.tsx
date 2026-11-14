@@ -131,7 +131,7 @@ export const ShoppingPopularModal: React.FC<ShoppingPopularModalProps> = ({
                   <span style={{ fontSize: '0.88rem', color: '#f8fafc', fontWeight: 600 }}>{item.name}</span>
                 </div>
                 <span style={{ fontSize: '0.74rem', opacity: 0.6 }}>
-                  {item.times_added}× added · {item.default_store || 'aldi'}
+                  {item.times_purchased ? `${item.times_purchased}× bought` : `${item.times_added}× added`} · {item.default_store || 'aldi'}
                 </span>
               </label>
             );

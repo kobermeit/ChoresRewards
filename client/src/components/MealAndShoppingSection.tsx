@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MealPlannerSection } from '../features/meals/MealPlannerSection';
 import { ShoppingListSection } from '../features/shopping/ShoppingListSection';
 import { RecipeLibrarySection } from '../features/meals/RecipeLibrarySection';
 import { RecipeViewModal } from '../features/meals/components/RecipeViewModal';
 import { RecipeEditModal } from '../features/meals/components/RecipeEditModal';
+import { Modal } from './common/Modal';
 import { RecipeItem, ShoppingStore } from '../types';
 import { useApp } from '../context/AppContext';
 import { apiPost } from '../api';
@@ -20,6 +21,10 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
   const { data, refresh, showToast, isChild } = useApp();
   const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<RecipeItem | null>(null);
+  const [addChoiceModalOpen, setAddChoiceModalOpen] = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stores: ShoppingStore[] = React.useMemo(() => {
     return data?.shopping_list?.stores && data.shopping_list.stores.length > 0
@@ -56,6 +61,29 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
     (recipeObj as any)._cardId = card.id;
     (recipeObj as any)._dateIso = dateIso;
     setActiveRecipe(recipeObj);
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!file) return;
+    try {
+      setAddChoiceModalOpen(false);
+      setEditingRecipe(null);
+      const fd = new FormData();
+      fd.append('image', file);
+
+      showToast('Photo uploaded! Transcribing recipe with Gemini AI in background...', { type: 'info' });
+
+      const res = await apiPost<{ success: boolean; status?: string; message?: string; error?: string }>(
+        'recipes/transcribe_photo',
+        fd
+      );
+
+      if (!res.success) {
+        showToast(res.error || 'Failed to start transcription', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to upload recipe photo', { type: 'error' });
+    }
   };
 
   const handleDeletePlannerCard = async (dateIso: string, cardId: string) => {
@@ -117,21 +145,35 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
 
   return (
     <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handlePhotoUpload(file);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handlePhotoUpload(file);
+          e.target.value = '';
+        }}
+      />
+
       {(subView === 'all' || subView === 'meals') && (
         <MealPlannerSection
           isStandalonePage={isStandalonePage}
           onOpenRecipeModal={handleOpenRecipe}
-          onAddRecipe={() =>
-            setEditingRecipe({
-              meal_key: '',
-              title: '',
-              image_url: null,
-              ingredients: [],
-              instructions: '',
-              servings: '4',
-              prep_time: '25 mins',
-            })
-          }
+          onAddRecipe={() => setAddChoiceModalOpen(true)}
         />
       )}
 
@@ -142,6 +184,156 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
       {(subView === 'all' || subView === 'library') && (
         <RecipeLibrarySection isStandalonePage={isStandalonePage} />
       )}
+
+      <Modal
+        open={addChoiceModalOpen}
+        onClose={() => setAddChoiceModalOpen(false)}
+        title="Add Recipe"
+        icon="fas fa-utensils"
+        maxWidth={460}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => {
+              setAddChoiceModalOpen(false);
+              cameraInputRef.current?.click();
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.25) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'transform 0.12s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(59, 130, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#60a5fa',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-camera" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Take Photo (Camera)</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                Snap a picture of a cookbook, magazine, or handwritten recipe card.
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAddChoiceModalOpen(false);
+              fileInputRef.current?.click();
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#e2e8f0',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-image" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Upload Photo / Screenshot</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Upload an existing photo from your gallery or screenshot folder.
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAddChoiceModalOpen(false);
+              setEditingRecipe({
+                meal_key: '',
+                title: '',
+                image_url: null,
+                ingredients: [],
+                instructions: '',
+                servings: '4',
+                prep_time: '25 mins',
+              });
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#e2e8f0',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-pen-to-square" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Create Blank Recipe</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Type out title, ingredients, and instructions manually.
+              </div>
+            </div>
+          </button>
+        </div>
+      </Modal>
 
       <RecipeViewModal
         recipe={activeRecipe}
@@ -158,6 +350,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
         onClose={() => setEditingRecipe(null)}
         stores={stores}
         onSave={handleSaveRecipeEdits}
+        onTranscribePhoto={handlePhotoUpload}
       />
     </>
   );

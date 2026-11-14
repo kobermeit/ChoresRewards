@@ -290,6 +290,7 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         ...shopping,
         stores: getShoppingStores(),
         intelligence: shoppingIntel,
+        pantry: (shoppingIntel.catalog || []).filter((c: any) => c.is_staple).map((c: any) => c.name),
       },
       notes_kanban: notesKanban,
       text_pads: getTextPads(),
@@ -305,11 +306,6 @@ stateRouter.get('/api/bootstrap', async (req: Request, res: Response) => {
         ical_url: gcal.ical_url || '',
         last_sync: gcal.last_sync || null,
         error: gcal.error,
-      },
-      notion: {
-        configured: Boolean(AppSetting.get('notion_api_token', '')) && Boolean(AppSetting.get('notion_database_id', '')),
-        database_id: AppSetting.get('notion_database_id', '') || '',
-        has_token: Boolean(AppSetting.get('notion_api_token', '')),
       },
     });
   } catch (err: any) {

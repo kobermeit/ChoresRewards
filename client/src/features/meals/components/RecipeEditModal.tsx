@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { Modal } from '../../../components/common/Modal';
-import { Button, IconButton, Input, Select, Textarea } from '../../../components/ui';
+import { Button, IconButton, Input, Textarea } from '../../../components/ui';
+import { ItemQuickAddBar, getCleanStoreName } from '../../../components/common/ItemQuickAddBar';
 import { RecipeItem, RecipeIngredient, ShoppingStore } from '../../../types';
 
 export interface RecipeEditModalProps {
@@ -10,6 +11,7 @@ export interface RecipeEditModalProps {
   onClose: () => void;
   stores: ShoppingStore[];
   onSave: (updated: RecipeItem) => Promise<void>;
+  onTranscribePhoto?: (file: File) => void;
 }
 
 export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
@@ -18,6 +20,7 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   onClose,
   stores,
   onSave,
+  onTranscribePhoto,
 }) => {
   const { data } = useApp();
   const [title, setTitle] = useState('');
@@ -25,53 +28,46 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   const [servings, setServings] = useState('');
   const [instructions, setInstructions] = useState('');
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
-  const [newIngName, setNewIngName] = useState('');
-  const [newIngQty, setNewIngQty] = useState('');
   const [newIngStore, setNewIngStore] = useState('');
   const [saving, setSaving] = useState(false);
-  const [comboboxOpen, setComboboxOpen] = useState(false);
 
-  const catalogPool = useMemo(() => {
-    return (data?.shopping?.intelligence?.catalog || []) as Array<{ name: string; default_store?: string }>;
-  }, [data?.shopping?.intelligence?.catalog]);
+  const lastRecipeKeyRef = useRef<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredCatalog = useMemo(() => {
-    const q = newIngName.trim().toLowerCase();
-    if (!q) return [];
-    return catalogPool.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 6);
-  }, [catalogPool, newIngName]);
-
+  // Initialize state only when the modal is opened or a different recipe is selected.
+  // Never re-initialize during background data/store refetches so added items are never wiped.
   useEffect(() => {
-    if (recipe) {
-      setTitle(recipe.title || '');
-      setPrepTime(recipe.prep_time || '25 mins');
-      setServings(recipe.servings || '4 servings');
-      setInstructions(recipe.instructions || '');
-      setIngredients(
-        (recipe.ingredients || []).map((i: any) => ({
-          name: typeof i === 'string' ? i : i.name || '',
-          qty: typeof i === 'object' ? i.qty || '' : '',
-          store: typeof i === 'object' ? i.store || 'aldi' : 'aldi',
-        }))
-      );
-      setNewIngStore(stores[0]?.id || 'aldi');
+    if (open && recipe) {
+      const currentKey = `${recipe.meal_key || 'new'}_${recipe.id || 0}`;
+      if (lastRecipeKeyRef.current !== currentKey) {
+        lastRecipeKeyRef.current = currentKey;
+        setTitle(recipe.title || '');
+        setPrepTime(recipe.prep_time || '25 mins');
+        setServings(recipe.servings || '4 servings');
+        setInstructions(recipe.instructions || '');
+        setIngredients(
+          (recipe.ingredients || []).map((i: any) => ({
+            name: typeof i === 'string' ? i : i.name || '',
+            qty: typeof i === 'object' ? (i.qty || '1') : '1',
+            store: typeof i === 'object' ? i.store || 'aldi' : 'aldi',
+            prep: typeof i === 'object' ? i.prep || '' : '',
+            raw_name: typeof i === 'object' ? i.raw_name || '' : '',
+            uncataloged: typeof i === 'object' ? Boolean(i.uncataloged) : false,
+            in_pantry: typeof i === 'object' ? Boolean(i.in_pantry) : false,
+          }))
+        );
+        setNewIngStore(stores[0]?.id || 'aldi');
+      }
+    } else if (!open) {
+      lastRecipeKeyRef.current = null;
     }
-  }, [recipe, stores]);
+  }, [open, recipe?.meal_key, recipe?.id]);
 
-  const handleAddIngredient = () => {
-    const name = newIngName.trim();
-    if (!name) return;
-    setIngredients((prev) => [
-      ...prev,
-      {
-        name,
-        qty: newIngQty.trim(),
-        store: newIngStore || stores[0]?.id || 'aldi',
-      },
-    ]);
-    setNewIngName('');
-    setNewIngQty('');
-    setComboboxOpen(false);
+  const handleUpdateIngredient = (index: number, patch: Partial<RecipeIngredient>) => {
+    setIngredients((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item))
+    );
   };
 
   const handleRemoveIngredient = (index: number) => {
@@ -123,7 +119,87 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
         </div>
       }
     >
+      {/* Hidden file pickers for AI photo upload */}
+      {onTranscribePhoto && (
+        <>
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onClose();
+                onTranscribePhoto(file);
+              }
+              e.target.value = '';
+            }}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onClose();
+                onTranscribePhoto(file);
+              }
+              e.target.value = '';
+            }}
+          />
+        </>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Gemini AI Photo Banner for new recipes */}
+        {!recipe?.meal_key && onTranscribePhoto && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.15) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 200, flex: 1 }}>
+              <i className="fas fa-wand-magic-sparkles" style={{ color: '#818cf8', fontSize: '1.1rem' }} />
+              <div style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.35 }}>
+                <span style={{ fontWeight: 700 }}>Have a photo of this recipe?</span>
+                <span style={{ display: 'block', fontSize: '0.76rem', color: '#94a3b8' }}>
+                  Gemini AI will read title, ingredients, servings, and instructions.
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="fas fa-camera"
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Camera
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="fas fa-image"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Input
           label="Recipe Title"
           required
@@ -135,7 +211,7 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input
             label="Prep / Cook Time"
-            placeholder="e.g. 30 mins"
+            placeholder="e.g. 25 mins"
             value={prepTime}
             onChange={(e) => setPrepTime(e.target.value)}
           />
@@ -147,28 +223,33 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
           />
         </div>
 
-        {/* Ingredients Builder */}
+        {/* Ingredients Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc' }}>
-            Ingredients ({ingredients.length})
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc' }}>
+              Ingredients ({ingredients.length})
+            </label>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+              Click an item to add · Adjust Qty on row
+            </span>
+          </div>
 
           <div
             style={{
-              maxHeight: 180,
+              maxHeight: 220,
               overflowY: 'auto',
               borderRadius: 'var(--input-radius, 10px)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               background: 'rgba(15, 23, 42, 0.4)',
-              padding: 6,
+              padding: 8,
               display: 'flex',
               flexDirection: 'column',
-              gap: 4,
+              gap: 6,
             }}
           >
             {ingredients.length === 0 ? (
-              <div style={{ padding: '12px 8px', textAlign: 'center', fontSize: '0.82rem', color: '#94a3b8' }}>
-                No ingredients yet. Add them below!
+              <div style={{ padding: '16px 8px', textAlign: 'center', fontSize: '0.84rem', color: '#94a3b8' }}>
+                No ingredients yet. Search staples or type a new item below!
               </div>
             ) : (
               ingredients.map((ing, idx) => (
@@ -177,26 +258,56 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '4px 8px',
-                    borderRadius: 6,
+                    gap: 10,
+                    padding: '6px 10px',
+                    borderRadius: 8,
                     background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
                     fontSize: '0.86rem',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                    <span style={{ fontWeight: 600, color: '#f8fafc' }}>{ing.name}</span>
-                    {ing.qty && (
-                      <span style={{ fontSize: '0.78rem', color: '#93c5fd', background: 'rgba(59, 130, 246, 0.15)', padding: '1px 6px', borderRadius: 4 }}>
-                        {ing.qty}
-                      </span>
-                    )}
-                    {ing.store && (
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>
-                        {ing.store}
-                      </span>
-                    )}
-                  </div>
+                  <input
+                    type="text"
+                    className="modern-input"
+                    value={ing.qty || '1'}
+                    onChange={(e) => handleUpdateIngredient(idx, { qty: e.target.value })}
+                    placeholder="Qty"
+                    title="Recipe quantity (e.g. 1, 80ml, 250g, 1 can)"
+                    style={{
+                      width: 72,
+                      height: 30,
+                      padding: '2px 8px',
+                      fontSize: '0.84rem',
+                      textAlign: 'center',
+                      borderRadius: 6,
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#93c5fd',
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontWeight: 600, color: '#f8fafc', flex: 1, minWidth: 100 }}>
+                    {ing.name}
+                  </span>
+                  {ing.prep && (
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                      ({ing.prep})
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: '0.76rem',
+                      color: '#94a3b8',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      padding: '3px 10px',
+                      borderRadius: 4,
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {getCleanStoreName(ing.store, stores)}
+                  </span>
                   <IconButton
                     icon="fas fa-times"
                     size="sm"
@@ -209,87 +320,34 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
             )}
           </div>
 
-          {/* Add ingredient row */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 2, position: 'relative' }}>
-              <Input
-                inputSize="sm"
-                placeholder="Ingredient name (e.g. Garlic)"
-                value={newIngName}
-                onChange={(e) => {
-                  setNewIngName(e.target.value);
-                  setComboboxOpen(true);
-                }}
-                onFocus={() => setComboboxOpen(true)}
-                onBlur={() => setTimeout(() => setComboboxOpen(false), 200)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddIngredient();
-                  }
-                }}
-              />
-              {comboboxOpen && filteredCatalog.length > 0 && (
-                <div
-                  className="shopping-combobox-dropdown"
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    maxHeight: 180,
-                    overflowY: 'auto',
-                    zIndex: 10001,
-                    marginTop: 4,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                  }}
-                >
-                  {filteredCatalog.map((item) => (
-                    <div
-                      key={item.name}
-                      className="shopping-combobox-item"
-                      style={{ padding: '6px 10px', fontSize: '0.85rem' }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setNewIngName(item.name);
-                        if (item.default_store) setNewIngStore(item.default_store);
-                        setComboboxOpen(false);
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{item.name}</span>
-                      {item.default_store && (
-                        <span className="shopping-combobox-times">{item.default_store}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div style={{ flex: 1 }}>
-              <Input
-                inputSize="sm"
-                placeholder="Qty (e.g. 2 cloves)"
-                value={newIngQty}
-                onChange={(e) => setNewIngQty(e.target.value)}
-              />
-            </div>
-            <div style={{ width: 110 }}>
-              <Select
-                value={newIngStore}
-                onChange={(e) => setNewIngStore(e.target.value)}
-                options={stores.map((s) => ({ value: s.id, label: s.name }))}
-                style={{ height: 32, fontSize: '0.82rem', padding: '0 8px' }}
-              />
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon="fas fa-plus"
-              onClick={handleAddIngredient}
-            >
-              Add
-            </Button>
-          </div>
+          {/* Shared ItemQuickAddBar - exact same component used on Shopping List */}
+          <ItemQuickAddBar
+            placeholder="Search staples (e.g. Milk, Onions, 2 cloves garlic) or type new ingredient…"
+            buttonLabel="Add"
+            stores={stores}
+            selectedStore={newIngStore}
+            onStoreChange={(s) => setNewIngStore(s)}
+            onAdd={({ name, qty, store, isStaple }) => {
+              const isPantry = Boolean(
+                isStaple ||
+                (data?.shopping?.pantry || []).some(
+                  (p: string) => p.toLowerCase() === name.toLowerCase()
+                )
+              );
+              setIngredients((prev) => [
+                ...prev,
+                {
+                  name,
+                  qty: qty || '1',
+                  store: store || newIngStore || 'aldi',
+                  prep: '',
+                  raw_name: name,
+                  uncataloged: false,
+                  in_pantry: isPantry,
+                },
+              ]);
+            }}
+          />
         </div>
 
         <Textarea
@@ -303,3 +361,5 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
     </Modal>
   );
 };
+
+export default RecipeEditModal;

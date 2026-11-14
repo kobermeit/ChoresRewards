@@ -1,6 +1,6 @@
 {
   "name": "choresrewards-server",
-  "version": "1.23.3",
+  "version": "1.23.4",
   "description": "ChoresRewards Node.js + Express + Postgres Backend",
   "main": "dist/index.js",
   "scripts": {

@@ -137,10 +137,14 @@ choresrewards/
 
 ## Plan of Action First
 - **Provide a Plan of Action First**: When the user sends a message with feedback or changes without an explicit "go and fix this now" instruction, respond quickly with a clear plan of action detailing how the message was interpreted and the intended implementation steps, so the user can review and confirm before work begins.
+- **Post-Batch Open Items Summary**: Whenever concluding a batch of changes and pushing/committing to git, always end your response with a concise bullet point summary of **Open, Deferred, or Pending Items** (e.g. items requiring discussion, user script/input, or architectural decisions) so pending items are never lost across releases. Do not output this summary during purely conversational, discussion, or intermediate planning turns.
 
 ## Local Server & Process Lifecycle
 - **The local container is a production image, not a dev server**: `localhost:8099` (Docker) serves the client bundle and server code compiled *inside the image at build time*. Editing files does **not** hot-reload it — a refresh shows the old build. Live reload only exists in dev mode (`npm run dev` + `npm run dev:server`).
-- **Rebuild the local container once per batch, not per edit**: when a batch of changes is finished and you are about to tell the user it's done, rebuild + restart the local container (`docker compose up -d --build`, or `docker build -t choresrewards:local . && docker rm -f choresrewards-local && docker run …`) so the user can refresh and see everything. Never rebuild after each individual edit (slow, wasteful).
+- **Rebuild the local container once per batch, not per edit**: when a batch of changes is finished and you are about to tell the user it's done, rebuild + restart the local container (`node scripts/start_app.js --build` or `docker compose up -d --build`) so the user can refresh and see everything. Never rebuild after each individual edit (slow, wasteful).
+- **Mandatory Active Server Verification Before Declaring Ready to Test**:
+  - **NEVER tell the user "ready to test", "ready in your browser", or similar unless `http://localhost:8099/api/health` has been actively probed and verified returning `{ status: 'ok' }`.**
+  - If the server is offline or stale, execute the single command `node scripts/start_app.js --build` (or `docker compose up -d --build`). Do NOT run prolonged exploratory diagnostics or manually fiddle with Docker processes — run the single startup command, confirm health on `http://127.0.0.1:8099/api/health`, and report ready.
 - **Never bump versions during development previews**: version bumps happen only at deploy time (see Versioning Protocol) to avoid micro-bumps between releases.
 - **Keep server running while actively collaborating**: Do NOT kill the local server while pair programming / actively working with the user unless the user explicitly indicates they are stepping away or concluding the session.
 - **Sleep & Power Management**: When the user states they are finishing, leaving, or stepping away, clean up and terminate background server processes so the host PC can sleep.
@@ -194,7 +198,7 @@ choresrewards/
   - Extra bonus chores pool in settings with add, edit, and delete flow
   - Profile switcher modal and active user transitions
   - Visual polish: NO broken images, broken avatars, layout shifts, or horizontal scrollbars
-  - Never modify user-configured external configs (like Calendar iCal/Embed URLs or Notion tokens).
+  - Never modify user-configured external configs (like Calendar iCal/Embed URLs).
 - Maintain a high bar of visual polish, alignment, and responsiveness.
 
 ## Low-Power Client Hardware Baseline (Raspberry Pi & Budget Tablet Standard)

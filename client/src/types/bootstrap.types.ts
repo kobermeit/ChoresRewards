@@ -59,6 +59,7 @@ export interface BootstrapData {
     meal_order: string[];
     archived: Array<{ name: string; store: string; qty?: string; purchased_at?: string }>;
     stores: ShoppingStore[];
+    pantry?: string[];
     intelligence?: {
       catalog: ShoppingCatalogItem[];
       frequently_added: ShoppingCatalogItem[];

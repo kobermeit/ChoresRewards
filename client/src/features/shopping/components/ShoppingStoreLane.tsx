@@ -1,14 +1,12 @@
 import React, { memo } from 'react';
 import { IconButton } from '../../../components/ui';
-import { MealIngredient, ShoppingStore } from '../../../types';
-import { getMealEmoji, renderStoreIcon } from '../../meals/mealUtils';
+import { ShoppingStore } from '../../../types';
+import { renderStoreIcon } from '../../meals/mealUtils';
 import { LaneQuickAddDropdown } from './LaneQuickAddDropdown';
 
 export interface ShoppingStoreLaneProps {
   store: ShoppingStore;
   storesCount: number;
-  mealGroups: Array<[string, MealIngredient[]]>;
-  plannedMealsMap: Record<string, string>;
   generalItems: any[];
   shopChecked?: Record<string, boolean>;
   shopQuantities?: Record<string, any>;
@@ -29,8 +27,6 @@ export interface ShoppingStoreLaneProps {
 export const ShoppingStoreLane: React.FC<ShoppingStoreLaneProps> = memo(({
   store,
   storesCount,
-  mealGroups,
-  plannedMealsMap,
   generalItems,
   shopChecked = {},
   shopQuantities = {},
@@ -43,23 +39,6 @@ export const ShoppingStoreLane: React.FC<ShoppingStoreLaneProps> = memo(({
   onRemoveGeneralItem,
 }) => {
   let uncheckedCount = 0;
-  mealGroups.forEach(([mealKey, allIngs]) => {
-    const ingList: MealIngredient[] = Array.isArray(allIngs)
-      ? allIngs
-      : allIngs && typeof allIngs === 'object'
-      ? Object.values(allIngs)
-      : [];
-    ingList
-      .filter(
-        (i: MealIngredient) =>
-          (i.store || '').toLowerCase() === store.id.toLowerCase() ||
-          (i.store || '').toLowerCase() === store.name.toLowerCase()
-      )
-      .forEach((ing: MealIngredient) => {
-        const key = `meal::${mealKey}::${ing.name.toLowerCase()}`;
-        if (!shopChecked[key]) uncheckedCount++;
-      });
-  });
   generalItems.forEach((g) => {
     const key = `general::${g.name.toLowerCase()}`;
     if (!g.checked && !shopChecked[key]) uncheckedCount++;
@@ -103,99 +82,7 @@ export const ShoppingStoreLane: React.FC<ShoppingStoreLaneProps> = memo(({
       </div>
 
       <div className="shopping-store-items">
-        {mealGroups.length > 0 && (
-          <div className="shopping-meal-groups-grid">
-            {mealGroups.map(([mealKey, allIngs]) => {
-              const ingList: MealIngredient[] = Array.isArray(allIngs)
-                ? allIngs
-                : allIngs && typeof allIngs === 'object'
-                ? Object.values(allIngs)
-                : [];
-              const storeIngs = ingList.filter(
-                (i: MealIngredient) =>
-                  (i.store || '').toLowerCase() === store.id.toLowerCase() ||
-                  (i.store || '').toLowerCase() === store.name.toLowerCase()
-              );
-              const isPlanned = Boolean(plannedMealsMap[mealKey.toLowerCase()]);
-              const displayName =
-                plannedMealsMap[mealKey.toLowerCase()] ||
-                mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
-
-              const visibleIngs = hideChecked
-                ? storeIngs.filter((ing) => {
-                    const itemKey = `meal::${mealKey}::${ing.name.toLowerCase()}`;
-                    return !shopChecked[itemKey];
-                  })
-                : storeIngs;
-
-              if (visibleIngs.length === 0) return null;
-
-              return (
-                <div
-                  key={mealKey}
-                  className={`shopping-meal-group${isPlanned ? ' shopping-meal-group-planned' : ''}`}
-                >
-                  <div className="shopping-meal-group-header">
-                    <span>{getMealEmoji(displayName)}</span>
-                    <span className="shopping-meal-group-name">{displayName}</span>
-                    {isPlanned && <span className="shopping-planned-badge">This week</span>}
-                  </div>
-                  {visibleIngs.map((ing: MealIngredient) => {
-                    const itemKey = `meal::${mealKey}::${ing.name.toLowerCase()}`;
-                    const checked = Boolean(shopChecked[itemKey]);
-                    const savedQty = shopQuantities[itemKey];
-                    const numericQty =
-                      savedQty !== undefined
-                        ? savedQty
-                        : /^\d+$/.test(String(ing.qty || '').trim())
-                        ? String(ing.qty).trim()
-                        : '1';
-
-                    return (
-                      <div
-                        key={itemKey}
-                        className={`shopping-item${checked ? ' shopping-item-checked' : ''}`}
-                      >
-                        <label className="shopping-item-label">
-                          <input
-                            type="checkbox"
-                            className="shopping-checkbox"
-                            checked={checked}
-                            onChange={() => onToggleCheck(itemKey, checked)}
-                          />
-                          <button
-                            type="button"
-                            className="shopping-item-qty-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              onOpenQuantityPicker({
-                                key: itemKey,
-                                name: ing.name,
-                                currentQty: numericQty,
-                                onRemove: undefined,
-                              });
-                            }}
-                            title="Change quantity"
-                            aria-label={`Change quantity for ${ing.name}`}
-                          >
-                            {numericQty}×
-                          </button>
-                          <span className="shopping-item-name">
-                            {ing.name}
-                            {ing.qty && <span className="shopping-item-recipe-detail">({ing.qty})</span>}
-                          </span>
-                        </label>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {generalItems.length === 0 && mealGroups.length === 0 ? (
+        {generalItems.length === 0 ? (
           <div className="shopping-empty-msg" style={{ padding: '8px 4px', fontSize: '0.82rem', opacity: 0.6 }}>
             No items yet.
           </div>

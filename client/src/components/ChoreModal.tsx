@@ -336,7 +336,7 @@ export const ChoreModal: React.FC = () => {
       }
 
       if (isTimeBased) {
-        formData.append('duration_seconds', String(Math.max(10, durationSeconds)));
+        formData.append('duration_seconds', String(Math.max(0, durationSeconds)));
       } else {
         formData.append('duration_seconds', '0');
       }
@@ -1248,7 +1248,7 @@ export const ChoreModal: React.FC = () => {
                 label="Timer Duration (Minutes : Seconds)"
                 totalSeconds={durationSeconds}
                 onChange={(sec) => setDurationSeconds(sec)}
-                minSeconds={30}
+                minSeconds={0}
                 stepSeconds={30}
                 helperText="Countdown timer duration when this chore is started."
               />

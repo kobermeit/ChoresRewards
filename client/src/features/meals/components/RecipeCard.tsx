@@ -11,7 +11,6 @@ export interface RecipeCardProps {
   items: MealIngredient[];
   imageUrl: string;
   displayName: string;
-  isSynced: boolean;
   isChild: boolean;
   stores: ShoppingStore[];
   onClick: () => void;
@@ -24,7 +23,6 @@ export const RecipeCard: React.FC<RecipeCardProps> = memo(({
   items,
   imageUrl,
   displayName,
-  isSynced,
   isChild,
   stores,
   onClick,
@@ -48,36 +46,14 @@ export const RecipeCard: React.FC<RecipeCardProps> = memo(({
           fallbackIcon="fa-utensils"
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {isSynced ? (
-          <div style={{ position: 'absolute', top: 6, left: 6, zIndex: 3 }}>
-            <span
-              title="Synced from Notion (read-only)"
-              style={{
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                color: '#c4b5fd',
-                background: 'rgba(15, 23, 42, 0.75)',
-                backdropFilter: 'blur(4px)',
-                border: '1px solid rgba(167, 139, 250, 0.4)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '2px 7px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
-              }}
-            >
-              <i className="fas fa-arrows-rotate" style={{ fontSize: '0.62rem' }} /> Notion
-            </span>
-          </div>
-        ) : !isChild ? (
+        {!isChild && (
           <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 3 }}>
             <IconButton
               size="sm"
               variant="ghost"
               icon="fas fa-pencil-alt"
               aria-label="Edit recipe"
-              title="Edit manual recipe"
+              title="Edit recipe"
               style={{
                 width: 28,
                 height: 28,
@@ -103,7 +79,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = memo(({
               }}
             />
           </div>
-        ) : null}
+        )}
 
         {/* Recipe Name Overlay */}
         <div

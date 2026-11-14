@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { apiPost } from '../../api';
 import { RecipeItem, MealIngredient, ShoppingStore } from '../../types';
 import { PageContainer, Button } from '../../components/ui';
+import { Modal } from '../../components/common/Modal';
 import { RecipeCard } from './components/RecipeCard';
 import { RecipeViewModal } from './components/RecipeViewModal';
 import { RecipeEditModal } from './components/RecipeEditModal';
@@ -16,9 +17,14 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
 }) => {
   const { data, refresh, showToast, isChild } = useApp();
 
-  const [notionSyncing, setNotionSyncing] = useState(false);
   const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<RecipeItem | null>(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevRecipeKeysRef = useRef<Set<string>>(new Set());
 
   const stores: ShoppingStore[] = useMemo(() => {
     return data?.shopping_list?.stores && data.shopping_list.stores.length > 0
@@ -36,6 +42,20 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
     return Array.isArray(data?.recipes) ? data.recipes : [];
   }, [data?.recipes]);
 
+  // Notify when a background AI transcription completes and appears in the recipe list
+  useEffect(() => {
+    const currentKeys = new Set(allLibraryRecipes.map((r) => r.meal_key));
+    if (prevRecipeKeysRef.current.size > 0) {
+      for (const r of allLibraryRecipes) {
+        if (!prevRecipeKeysRef.current.has(r.meal_key)) {
+          showToast(`✨ Recipe "${r.title}" transcribed and ready!`, { type: 'success' });
+          break;
+        }
+      }
+    }
+    prevRecipeKeysRef.current = currentKeys;
+  }, [allLibraryRecipes, showToast]);
+
   const recipesRecord: Record<string, RecipeItem> = useMemo(() => {
     const map: Record<string, RecipeItem> = {};
     allLibraryRecipes.forEach((r) => {
@@ -47,24 +67,28 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
 
   const mealImages: Record<string, string> = data?.meal_images || {};
 
-  const handleSyncNotion = async () => {
-    setNotionSyncing(true);
+  const handlePhotoUpload = async (file: File) => {
+    if (!file) return;
     try {
-      const res = await apiPost<{ success: boolean; synced_count?: number; synced?: number; error?: string }>(
-        'recipes/sync_notion',
-        {}
+      setIsUploading(true);
+      const fd = new FormData();
+      fd.append('image', file);
+      setAddModalOpen(false);
+
+      showToast('Photo uploaded! Transcribing recipe with Gemini AI in background...', { type: 'info' });
+
+      const res = await apiPost<{ success: boolean; status?: string; message?: string; error?: string }>(
+        'recipes/transcribe_photo',
+        fd
       );
-      if (res.success) {
-        const count = res.synced_count ?? res.synced ?? 0;
-        showToast(`✨ Synced ${count} recipes from Notion!`, { type: 'success' });
-        await refresh();
-      } else {
-        showToast(res.error || 'Notion sync failed', { type: 'error' });
+
+      if (!res.success) {
+        showToast(res.error || 'Failed to start transcription', { type: 'error' });
       }
     } catch (err: any) {
-      showToast(err?.message || 'Failed to sync with Notion', { type: 'error' });
+      showToast(err?.message || 'Failed to upload recipe photo', { type: 'error' });
     } finally {
-      setNotionSyncing(false);
+      setIsUploading(false);
     }
   };
 
@@ -102,9 +126,10 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
           name: i.raw_name || i.name,
           qty: i.qty || '',
           store: i.store || stores[0]?.id || 'aldi',
+          in_pantry: Boolean(i.in_pantry),
         })),
       });
-      showToast(`Added ${ings.length} ingredients from "${recipe.title}" to shopping list!`);
+      showToast(`Added ingredients from "${recipe.title}" to shopping list!`);
       await refresh();
     } catch (err: any) {
       showToast(err?.message || 'Failed to add ingredients', { type: 'error' });
@@ -119,25 +144,53 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
       badge={allLibraryRecipes.length}
       boxed={!isStandalonePage}
       actions={
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={notionSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate'}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSyncNotion();
-          }}
-          disabled={notionSyncing}
-          title="Sync recipes directly from Notion database"
-        >
-          {notionSyncing ? 'Syncing...' : 'Sync from Notion'}
-        </Button>
+        !isChild ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="fas fa-plus"
+              onClick={(e) => {
+                e.stopPropagation();
+                setAddModalOpen(true);
+              }}
+              title="Add a new recipe"
+            >
+              Add Recipe
+            </Button>
+          </div>
+        ) : null
       }
     >
+      {/* Hidden Native Camera & File Upload Inputs */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handlePhotoUpload(file);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handlePhotoUpload(file);
+          e.target.value = '';
+        }}
+      />
+
       <div className="shopping-ingredients-library" id="shopping-ingredients-library">
         {allLibraryRecipes.length === 0 ? (
           <div className="shopping-empty-msg" style={{ margin: '8px 0' }}>
-            No meals in library yet. Sync from Notion or plan a custom meal above.
+            No meals in library yet. Add a recipe or plan a custom meal above.
           </div>
         ) : (
           <div className="meal-card-grid">
@@ -158,7 +211,6 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
                 : [];
               const imageUrl = recipe.image_url || mealImages[mealKey] || '';
               const displayName = recipe.title || mealKey;
-              const isSynced = Boolean(fullRecipe?.notion_id);
 
               return (
                 <RecipeCard
@@ -168,7 +220,6 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
                   items={items}
                   imageUrl={imageUrl}
                   displayName={displayName}
-                  isSynced={isSynced}
                   isChild={Boolean(isChild)}
                   stores={stores}
                   onClick={() => setActiveRecipe(fullRecipe || recipe)}
@@ -179,6 +230,156 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
           </div>
         )}
       </div>
+
+      {/* Add Recipe Choice Modal */}
+      <Modal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        title="Add Recipe"
+        icon="fas fa-utensils"
+        maxWidth={460}
+      >
+        <p style={{ margin: '0 0 16px', fontSize: '0.86rem', color: 'rgba(255,255,255,0.7)' }}>
+          Snap a photo of a recipe book page or card, upload a screenshot, or type in a new recipe manually.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={isUploading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'rgba(56, 189, 248, 0.1)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(56, 189, 248, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#38bdf8',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-camera" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Take Photo (Camera)</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Launches your phone or tablet camera to snap a recipe.
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#e2e8f0',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-image" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Upload Photo / Screenshot</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Pick an existing image from your photo library or files.
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAddModalOpen(false);
+              setEditingRecipe({
+                meal_key: '',
+                title: '',
+                ingredients: [],
+                instructions: '',
+                prep_time: '25 mins',
+                servings: '4 servings',
+              } as any);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                color: '#e2e8f0',
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-pen-to-square" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.94rem' }}>Create Blank Recipe</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Type out title, ingredients, and instructions manually.
+              </div>
+            </div>
+          </button>
+        </div>
+      </Modal>
 
       <RecipeViewModal
         recipe={activeRecipe}
@@ -194,6 +395,7 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
         onClose={() => setEditingRecipe(null)}
         stores={stores}
         onSave={handleSaveRecipeEdits}
+        onTranscribePhoto={handlePhotoUpload}
       />
     </PageContainer>
   );

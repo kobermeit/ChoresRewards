@@ -23,6 +23,8 @@ export interface RecipeIngredient {
   qty: string;
   prep?: string;
   raw_name?: string;
+  uncataloged?: boolean;
+  in_pantry?: boolean;
 }
 
 export interface RecipeItem {

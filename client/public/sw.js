@@ -12,7 +12,7 @@
  * Served from client/public, so it lives at the app base path (Ingress safe).
  * Bump SW_VERSION whenever the caching strategy changes.
  */
-const SW_VERSION = 'cr-v1';
+const SW_VERSION = 'cr-v2';
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const ASSET_CACHE = `${SW_VERSION}-asset`;
 const API_CACHE = `${SW_VERSION}-api`;

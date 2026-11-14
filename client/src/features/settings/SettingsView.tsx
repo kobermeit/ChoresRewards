@@ -14,12 +14,14 @@ import { CalendarSettingsTab } from './tabs/CalendarSettingsTab';
 import { ScreensaverSettingsTab } from './tabs/ScreensaverSettingsTab';
 import { QuizSettingsTab } from './tabs/QuizSettingsTab';
 import { BackupSettingsTab } from './tabs/BackupSettingsTab';
+import { PantrySettingsTab } from './tabs/PantrySettingsTab';
 
 export type SettingsTabId =
   | 'general'
   | 'family'
   | 'chores'
   | 'extra'
+  | 'pantry'
   | 'setup'
   | 'seasonal'
   | 'sounds'
@@ -61,6 +63,7 @@ export const SettingsView: React.FC = () => {
         { id: 'family', label: 'Family Members', icon: 'fas fa-users', badge: data?.family?.length ? `${data.family.length}` : null },
         { id: 'chores', label: 'All Chores Catalog', icon: 'fas fa-broom', badge: null },
         { id: 'extra', label: 'Extra Bonus Pool', icon: 'fas fa-bolt', badge: null },
+        { id: 'pantry', label: 'Pantry Staples', icon: 'fas fa-box-archive', badge: data?.shopping?.pantry?.length ? `${data.shopping.pantry.length}` : null },
         { id: 'quiz', label: 'Daily Brain Quiz', icon: 'fas fa-brain', badge: null },
       ],
     },
@@ -232,6 +235,7 @@ export const SettingsView: React.FC = () => {
           {tab === 'family' && <FamilySettingsTab />}
           {tab === 'chores' && <ChoresSettingsTab />}
           {tab === 'extra' && <ExtraChoresSettingsTab />}
+          {tab === 'pantry' && <PantrySettingsTab />}
           {tab === 'sounds' && <SoundsSettingsTab onNavigateToSeasonal={() => setTab('seasonal')} />}
           {tab === 'discord' && <NotificationsSettingsTab />}
           {tab === 'calendar' && <CalendarSettingsTab />}

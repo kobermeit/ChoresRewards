@@ -257,6 +257,7 @@ export const shoppingCatalog = pgTable(
     defaultStore: varchar('default_store', { length: 255 }),
     timesAdded: integer('times_added').default(0),
     timesPurchased: integer('times_purchased').default(0),
+    isStaple: boolean('is_staple').default(false),
     lastAddedAt: timestamp('last_added_at', { mode: 'string' }),
     lastPurchasedAt: timestamp('last_purchased_at', { mode: 'string' }),
     avgIntervalDays: doublePrecision('avg_interval_days'),

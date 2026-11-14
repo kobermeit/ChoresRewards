@@ -33,7 +33,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
   const [planMealTitle, setPlanMealTitle] = useState('');
   const [planAudience, setPlanAudience] = useState('Everyone');
   const [planSelectedDays, setPlanSelectedDays] = useState<string[]>([]);
-  const [planAddShopping, setPlanAddShopping] = useState(true);
+  const [planAddShopping, setPlanAddShopping] = useState(false);
 
   const mp = data?.meal_planner;
   const currentWeekStart = activeWeekStart || mp?.week_start || '';
@@ -198,10 +198,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
     setPlanMealTitle('');
     setPlanAudience('Everyone');
     setPlanSelectedDays([defaultDateIso]);
-    const diffDays = Math.round(
-      (new Date(`${defaultDateIso}T00:00:00`).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)
-    );
-    setPlanAddShopping(diffDays >= 0 && diffDays <= 7);
+    setPlanAddShopping(false);
     setPlanModalOpen(true);
   };
 
@@ -209,10 +206,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
     setPlanMealTitle(suggestedTitle);
     setPlanAudience('Everyone');
     setPlanSelectedDays([dateIso]);
-    const diffDays = Math.round(
-      (new Date(`${dateIso}T00:00:00`).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)
-    );
-    setPlanAddShopping(diffDays >= 0 && diffDays <= 7);
+    setPlanAddShopping(false);
     setPlanModalOpen(true);
   };
 

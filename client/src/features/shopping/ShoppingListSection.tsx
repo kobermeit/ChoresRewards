@@ -1,10 +1,11 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { pruneShoppingCheckedOverrides, setShoppingCheckedOverride } from '../../store/uiSlice';
 import { apiPost } from '../../api';
-import { ShoppingStore, ShoppingCatalogItem, MealIngredient } from '../../types';
-import { PageContainer, Button, IconButton, CustomDropdown, WheelPickerOverlay } from '../../components/ui';
+import { ShoppingStore, ShoppingCatalogItem } from '../../types';
+import { PageContainer, Button, IconButton, WheelPickerOverlay } from '../../components/ui';
+import { ItemQuickAddBar } from '../../components/common/ItemQuickAddBar';
 import { ShoppingStoreLane } from './components/ShoppingStoreLane';
 import { NewStoreModal } from './components/NewStoreModal';
 import { ShoppingHistoryModal } from './components/ShoppingHistoryModal';
@@ -29,9 +30,7 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
     (state) => state.ui.shoppingCheckedOverrides || EMPTY_CHECKS
   );
 
-  const [shoppingSearch, setShoppingSearch] = useState('');
   const [shoppingStore, setShoppingStore] = useState('');
-  const [shoppingComboboxOpen, setShoppingComboboxOpen] = useState(false);
   const [hideChecked, setHideChecked] = useState(false);
   const [frequentlyModalOpen, setFrequentlyModalOpen] = useState(false);
   const [suggestedModalOpen, setSuggestedModalOpen] = useState(false);
@@ -44,18 +43,6 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
     currentQty: number | string;
     onRemove?: () => void;
   } | null>(null);
-
-  const comboboxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
-        setShoppingComboboxOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
 
   const shop = data?.shopping || data?.shopping_list;
   // Defensive: an older/partial bootstrap payload must not reach Object.entries() below.
@@ -76,12 +63,6 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
     catalog: [],
   };
 
-  const isMealActive = (mealKey: string): boolean => {
-    if (!shop?.active) return false;
-    if (Array.isArray(shop.active)) return shop.active.includes(mealKey);
-    return Boolean((shop.active as Record<string, any>)[mealKey]);
-  };
-
   const stores: ShoppingStore[] = useMemo(() => {
     return shop?.stores && shop.stores.length > 0
       ? shop.stores
@@ -91,61 +72,6 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
           { id: 'woolies', name: 'Woolworths', icon: '🍎' },
         ];
   }, [shop?.stores]);
-
-  const ingredientsMap: Record<string, any> = data?.meal_planner?.ingredients || data?.meal_ingredients || {};
-
-  const plannedMealsMap = useMemo(() => {
-    const planned: Record<string, string> = {};
-    const plan = data?.meal_planner?.plan || {};
-    const activeDates = new Set<string>();
-    (data?.meal_planner?.week_days || []).forEach((d: any) => {
-      if (d?.date_str) activeDates.add(d.date_str);
-    });
-
-    const todayStr = data?.current_date || new Date().toISOString().slice(0, 10);
-    Object.entries(plan).forEach(([dateStr, daySlots]: [string, any]) => {
-      // Only include today or upcoming dates (ignore past dates that have already occurred)
-      if (dateStr < todayStr) return;
-      if (activeDates.size > 0 && !activeDates.has(dateStr)) return;
-      if (Array.isArray(daySlots)) {
-        daySlots.forEach((c: any) => {
-          const title = (c?.title || c?.name || '').trim();
-          const mealKey = (c?.meal_key || title).toLowerCase().trim();
-          if (mealKey) {
-            planned[mealKey] = title || mealKey;
-          }
-        });
-      } else if (daySlots && typeof daySlots === 'object') {
-        ['breakfast', 'lunch', 'dinner'].forEach((k) => {
-          const v = (daySlots[k] || '').trim();
-          if (v) {
-            planned[v.toLowerCase()] = v;
-          }
-        });
-      }
-    });
-    return planned;
-  }, [data?.meal_planner?.plan, data?.meal_planner?.week_days]);
-
-  const catalogPool: ShoppingCatalogItem[] = useMemo(() => {
-    if (intel.catalog && intel.catalog.length > 0) return intel.catalog;
-    const items: Record<string, ShoppingCatalogItem> = {};
-    (intel.frequently_added || []).forEach((f) => {
-      items[f.normalized_key] = f;
-    });
-    (intel.suggested || []).forEach((s) => {
-      if (!items[s.normalized_key]) items[s.normalized_key] = s;
-    });
-    return Object.values(items);
-  }, [intel]);
-
-  const filteredCatalog = useMemo(() => {
-    const q = shoppingSearch.trim().toLowerCase();
-    if (!q) return catalogPool.slice(0, 8);
-    return catalogPool
-      .filter((c) => c.name.toLowerCase().includes(q) || (c.default_store || '').toLowerCase().includes(q))
-      .slice(0, 10);
-  }, [catalogPool, shoppingSearch]);
 
   const storeItemsMap = useMemo(() => {
     const map: Record<string, Array<{ name: string; qty?: string }>> = {};
@@ -181,41 +107,21 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
 
   const totalShoppingItems = useMemo(() => {
     let count = 0;
-    // 1. General items
     (shop?.general || []).forEach((g: any) => {
       const key = `general::${String(g.name).toLowerCase()}`;
       if (!g.checked && !effectiveShopChecked[key]) count++;
     });
-
-    // 2. Meal ingredients for active planned meals only
-    Object.entries(ingredientsMap).forEach(([mealKey, ings]) => {
-      const isPlannedOrActive =
-        Boolean(plannedMealsMap[mealKey.toLowerCase()]) || isMealActive(mealKey);
-      if (isPlannedOrActive) {
-        const ingList: MealIngredient[] = Array.isArray(ings)
-          ? ings
-          : ings && typeof ings === 'object'
-          ? Object.values(ings)
-          : [];
-        ingList.forEach((ing) => {
-          const key = `meal::${mealKey.toLowerCase()}::${ing.name.toLowerCase()}`;
-          if (!effectiveShopChecked[key] && !shop?.hidden?.[key]) count++;
-        });
-      }
-    });
     return count;
-  }, [ingredientsMap, plannedMealsMap, shop, effectiveShopChecked]);
+  }, [shop, effectiveShopChecked]);
 
-  const handleSelectComboboxItem = async (itemName: string, preferredStore?: string) => {
+  const handleSelectComboboxItem = async (itemName: string, preferredStore?: string, qty?: string) => {
     const trimmed = itemName.trim();
     if (!trimmed) return;
-    setShoppingSearch('');
-    setShoppingComboboxOpen(false);
     try {
       const storeToUse = shoppingStore || preferredStore || stores[0]?.id || 'aldi';
       await apiPost('add_general_shopping_item', {
         name: trimmed,
-        qty: '',
+        qty: qty || '',
         store: storeToUse,
       });
       const storeName = stores.find((s) => s.id === storeToUse)?.name || storeToUse;
@@ -397,121 +303,19 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
       }
     >
       {/* Smart Search Combobox */}
-      <div className="shopping-manage-block" style={{ margin: '10px 0 14px 0' }}>
-        <div className="shopping-add-row" style={{ position: 'relative' }}>
-          <div className="shopping-combobox-wrap" ref={comboboxRef}>
-            <input
-              type="text"
-              className="modern-input"
-              placeholder="Search staples (e.g. Paper Towel, Milk, Bread) or type new item…"
-              value={shoppingSearch}
-              onFocus={() => setShoppingComboboxOpen(true)}
-              onChange={(e) => {
-                setShoppingSearch(e.target.value);
-                setShoppingComboboxOpen(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (
-                    filteredCatalog.length > 0 &&
-                    shoppingSearch.trim().toLowerCase() === filteredCatalog[0].name.toLowerCase()
-                  ) {
-                    handleSelectComboboxItem(filteredCatalog[0].name, filteredCatalog[0].default_store);
-                  } else if (shoppingSearch.trim()) {
-                    handleSelectComboboxItem(shoppingSearch.trim());
-                  }
-                } else if (e.key === 'Escape') {
-                  setShoppingComboboxOpen(false);
-                }
-              }}
-            />
-            {shoppingComboboxOpen && (
-              <div className="shopping-combobox-dropdown">
-                {filteredCatalog.map((item) => (
-                  <div
-                    key={item.normalized_key}
-                    className="shopping-combobox-item"
-                    onClick={() => handleSelectComboboxItem(item.name, item.default_store)}
-                  >
-                    <span>{item.name}</span>
-                    <span className="shopping-combobox-times">
-                      {item.times_added ? `${item.times_added}× added` : ''} · {item.default_store || 'aldi'}
-                    </span>
-                  </div>
-                ))}
-                {shoppingSearch.trim() &&
-                  !catalogPool.some(
-                    (c) => c.name.toLowerCase() === shoppingSearch.trim().toLowerCase()
-                  ) && (
-                    <div
-                      className="shopping-combobox-item shopping-combobox-item-custom"
-                      onClick={() => handleSelectComboboxItem(shoppingSearch.trim())}
-                    >
-                      <span>+ Add &ldquo;{shoppingSearch.trim()}&rdquo; to shopping list</span>
-                      <span className="shopping-combobox-times">new item</span>
-                    </div>
-                  )}
-              </div>
-            )}
-          </div>
-          <CustomDropdown
-            value={shoppingStore || stores[0]?.id || ''}
-            onChange={(val) => {
-              if (val === '__add_new_store__') {
-                setNewStoreModalOpen(true);
-              } else {
-                setShoppingStore(val);
-              }
-            }}
-            options={[
-              ...stores.map((s) => ({ value: s.id, label: s.name, icon: s.icon })),
-              { value: '__add_new_store__', label: '+ Add store…', action: true },
-            ]}
-            showFilter={false}
-            height={38}
-            className="shopping-store-dropdown"
-            style={{ flex: '0 0 auto', width: 170, minWidth: 140 }}
-            ariaLabel="Select store"
-          />
-          <Button
-            variant="primary"
-            size="md"
-            icon="fas fa-plus"
-            className="shopping-add-btn"
-            onClick={() => {
-              if (shoppingSearch.trim()) {
-                handleSelectComboboxItem(shoppingSearch.trim());
-              }
-            }}
-          >
-            Add Item
-          </Button>
-        </div>
-      </div>
+      <ItemQuickAddBar
+        placeholder="Search staples (e.g. Paper Towel, Milk, Bread) or type new item…"
+        buttonLabel="Add Item"
+        stores={stores}
+        selectedStore={shoppingStore || stores[0]?.id || ''}
+        onStoreChange={(s) => setShoppingStore(s)}
+        onAddNewStore={() => setNewStoreModalOpen(true)}
+        onAdd={({ name, qty, store }) => handleSelectComboboxItem(name, store, qty)}
+      />
 
       {/* Stores Columns */}
       <div className="shopping-stores-row" id="shopping-stores-row">
         {stores.map((store) => {
-          const mealGroupsForStore = Object.entries(ingredientsMap).filter(([mealKey, ings]) => {
-            const isPlannedOrActive =
-              Boolean(plannedMealsMap[mealKey.toLowerCase()]) || isMealActive(mealKey);
-            const ingList: MealIngredient[] = Array.isArray(ings)
-              ? ings
-              : ings && typeof ings === 'object'
-              ? Object.values(ings)
-              : [];
-            return (
-              isPlannedOrActive &&
-              ingList.some(
-                (i: MealIngredient) =>
-                  ((i.store || '').toLowerCase() === store.id.toLowerCase() ||
-                  (i.store || '').toLowerCase() === store.name.toLowerCase()) &&
-                  !shop?.hidden?.[`meal::${mealKey.toLowerCase()}::${i.name.toLowerCase()}`]
-              )
-            );
-          });
-
           const storeGeneral = (shop?.general || []).filter(
             (g) =>
               (g.store || '').toLowerCase() === store.id.toLowerCase() ||
@@ -523,8 +327,6 @@ export const ShoppingListSection: React.FC<ShoppingListSectionProps> = ({
               key={store.id}
               store={store}
               storesCount={stores.length}
-              mealGroups={mealGroupsForStore}
-              plannedMealsMap={plannedMealsMap}
               generalItems={storeGeneral}
               shopChecked={effectiveShopChecked}
               shopQuantities={(shop as any)?.quantities}

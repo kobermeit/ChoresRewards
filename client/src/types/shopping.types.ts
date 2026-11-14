@@ -14,8 +14,12 @@ export interface ShoppingCatalogItem {
   last_added_at: string | null;
   last_purchased_at: string | null;
   avg_interval_days: number | null;
-  days_since_last?: number;
+  days_since_last?: number | null;
   reason?: string;
+  is_active?: boolean;
+  is_due?: boolean;
+  is_staple?: boolean;
+  cycle_percent?: number | null;
 }
 
 export interface ShoppingPurchaseLogItem {

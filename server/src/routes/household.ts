@@ -1,12 +1,19 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { AppSetting, logActivity, normalizeShoppingKey } from '../db';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { downloadAndStoreImage } from '../services/imageDownloader';
 import { getMondayOfWeek, addDays } from '../utils/time';
+import {
+  getGeminiApiKey,
+  getGeminiModel,
+  testGeminiConnection,
+  transcribeRecipeImage,
+} from '../services/gemini';
 
 export interface MealCardItem {
   id: string;
@@ -21,6 +28,8 @@ export interface RecipeIngredient {
   qty: string;
   prep?: string;
   raw_name?: string;
+  uncataloged?: boolean;
+  in_pantry?: boolean;
 }
 
 export interface RecipeItem {
@@ -182,6 +191,64 @@ function parseJsonSetting<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+export function resolveShoppingQuantity(rawQty: string): string {
+  const trimmed = String(rawQty || '').trim();
+  if (!trimmed) return '1';
+
+  const measurementUnits = /^(?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[\/.\d]+)?|\.\d+)\s*(?:g|grams?|kg|kilos?|kilograms?|ml|mls|mils?|milliliters?|millilitres?|l|liters?|litres?|oz|ounces?|lbs?|pounds?|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|tsp?|tsps?|pinch(?:es)?|dash(?:es)?|handfuls?|sprigs?|stalks?|slices?)$/i;
+
+  if (measurementUnits.test(trimmed)) {
+    return '1';
+  }
+
+  const containerMatch = trimmed.match(/^(\d+(?:[\/.\d]+)?)\s*(cans?|tins?|pkts?|packets?|punnets?|bunches?|heads?|bags?|bottles?|boxes?)$/i);
+  if (containerMatch) {
+    return `${containerMatch[1]} ${containerMatch[2]}`.trim();
+  }
+
+  const countMatch = trimmed.match(/^(\d+(?:[\/.\d]+)?)(?:\s+(?:large|medium|small|cloves?|x|pcs?|pieces?|count|ea|each))?$/i);
+  if (countMatch && countMatch[1]) {
+    if (/cloves?/i.test(trimmed)) {
+      return '1';
+    }
+    return countMatch[1];
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return '1';
+}
+
+let pantryStaplesCache: string[] | null = null;
+
+export async function hydratePantryCache(): Promise<string[]> {
+  try {
+    const rows = await sqlAll('SELECT name FROM shopping_catalog WHERE is_staple = true ORDER BY name ASC') as Array<{ name: string }>;
+    pantryStaplesCache = rows.map((r) => r.name);
+  } catch {
+    pantryStaplesCache = [];
+  }
+  return pantryStaplesCache;
+}
+
+export function invalidatePantryCache(): void {
+  pantryStaplesCache = null;
+}
+
+export function getPantryItems(): string[] {
+  if (pantryStaplesCache !== null) return pantryStaplesCache;
+  return [];
+}
+
+export function isPantryItem(name: string): boolean {
+  if (!name) return false;
+  const clean = normalizeShoppingKey(name);
+  const items = getPantryItems().map((p) => normalizeShoppingKey(p));
+  return items.some((p) => clean === p || clean.includes(p) || p.includes(clean));
 }
 
 export function getWeekDaysList(weekStartIso: string) {
@@ -487,88 +554,219 @@ export async function touchCatalogItemOnAdd(rawName: string, store = 'aldi', inc
   }
 }
 
+/**
+ * Calculates the average purchase interval in days for a catalog item based on its historical
+ * purchase events in `shopping_purchase_log`. Purchases within the same 12-hour window are clustered
+ * as a single shopping trip. Returns an exponential moving average (EMA) or null if fewer than 2 trips.
+ */
+export async function calculateCatalogInterval(catalogId: number): Promise<number | null> {
+  try {
+    const logs = await sqlAll(`
+      SELECT purchased_at
+      FROM shopping_purchase_log
+      WHERE catalog_id = ?
+      ORDER BY purchased_at ASC
+    `, [catalogId]) as Array<{ purchased_at: string }>;
+
+    if (!logs || logs.length < 2) return null;
+
+    const tripTimes: number[] = [];
+    for (const row of logs) {
+      if (!row.purchased_at) continue;
+      const t = new Date(row.purchased_at).getTime();
+      if (isNaN(t)) continue;
+      if (tripTimes.length === 0) {
+        tripTimes.push(t);
+      } else {
+        const lastT = tripTimes[tripTimes.length - 1];
+        if (t - lastT >= 12 * 3600 * 1000) {
+          tripTimes.push(t);
+        }
+      }
+    }
+
+    if (tripTimes.length < 2) return null;
+
+    let runningAvg: number | null = null;
+    for (let i = 1; i < tripTimes.length; i++) {
+      const gapDays = (tripTimes[i] - tripTimes[i - 1]) / (1000 * 86400);
+      if (gapDays >= 0.5 && gapDays <= 180) {
+        if (runningAvg === null) {
+          runningAvg = gapDays;
+        } else {
+          runningAvg = runningAvg * 0.65 + gapDays * 0.35;
+        }
+      }
+    }
+
+    return runningAvg !== null ? Number(runningAvg.toFixed(1)) : null;
+  } catch (err) {
+    console.warn('[household] calculateCatalogInterval error:', err);
+    return null;
+  }
+}
+
 export async function recordCatalogPurchase(rawName: string, store = 'aldi', qty = '') {
   const cleanName = String(rawName || '').trim();
   if (!cleanName) return;
   const norm = normalizeShoppingKey(cleanName);
   const now = new Date();
   const nowIso = now.toISOString();
+
   let cat = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]) as any;
   if (!cat) {
     const info = await sqlRun(`
-      INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at, last_purchased_at)
-      VALUES (?, ?, ?, 1, 1, ?, ?)
-    `, [cleanName, norm, store || 'aldi', nowIso, nowIso]);
+      INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at, last_purchased_at, created_at, updated_at)
+      VALUES (?, ?, ?, 1, 1, ?, ?, ?, ?)
+    `, [cleanName, norm, store || 'aldi', nowIso, nowIso, nowIso, nowIso]);
     cat = await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [info.lastInsertRowid]) as any;
-  } else {
-    let nextAvg = cat.avg_interval_days;
-    if (cat.last_purchased_at) {
-      const prevMs = new Date(cat.last_purchased_at).getTime();
-      const diffDays = (now.getTime() - prevMs) / (1000 * 86400);
-      if (diffDays >= 0.5 && diffDays <= 180) {
-        nextAvg = nextAvg ? Number((nextAvg * 0.65 + diffDays * 0.35).toFixed(1)) : Number(diffDays.toFixed(1));
-      }
-    } else if (!nextAvg) {
-      nextAvg = 14;
-    }
-    await sqlRun(`
-      UPDATE shopping_catalog
-      SET times_purchased = COALESCE(times_purchased, 0) + 1,
-          last_purchased_at = ?,
-          avg_interval_days = ?,
-          default_store = COALESCE(?, default_store)
-      WHERE id = ?
-    `, [nowIso, nextAvg, store || cat.default_store, cat.id]);
   }
 
+  // Insert purchase log record
   await sqlRun(`
-    INSERT INTO shopping_purchase_log (catalog_id, purchased_at, store, qty)
-    VALUES (?, ?, ?, ?)
-  `, [cat.id, nowIso, store || cat.default_store || 'aldi', qty || '']);
+    INSERT INTO shopping_purchase_log (catalog_id, purchased_at, store, qty, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, [cat.id, nowIso, store || cat.default_store || 'aldi', qty || '', nowIso, nowIso]);
+
+  // Derive exact purchase count and interval from purchase log
+  const countRow = await sqlOne(`
+    SELECT COUNT(*) as count, MAX(purchased_at) as last_p
+    FROM shopping_purchase_log
+    WHERE catalog_id = ?
+  `, [cat.id]) as any;
+
+  const totalPurchases = Number(countRow?.count || 1);
+  const computedInterval = await calculateCatalogInterval(cat.id);
+  const finalInterval = computedInterval ?? cat.avg_interval_days ?? null;
+
+  await sqlRun(`
+    UPDATE shopping_catalog
+    SET times_purchased = ?,
+        last_purchased_at = ?,
+        avg_interval_days = ?,
+        default_store = COALESCE(?, default_store),
+        updated_at = ?
+    WHERE id = ?
+  `, [totalPurchases, nowIso, finalInterval, store || cat.default_store, nowIso, cat.id]);
 }
 
 export async function getShoppingIntelligence(activeGeneralItems: Array<{ name: string }>) {
   const activeNorms = new Set(activeGeneralItems.map((g) => normalizeShoppingKey(g.name)));
-  const catalog = await sqlAll('SELECT * FROM shopping_catalog ORDER BY times_added DESC, name ASC') as Array<any>;
 
-  const frequentlyAdded = catalog
-    .filter((c) => (c.times_added || 0) >= 2)
-    .slice(0, 30);
+  // Self-heal: calculate interval for any catalog items with 2+ purchases in log but no avg_interval_days
+  try {
+    const uncomputed = await sqlAll(`
+      SELECT c.id
+      FROM shopping_catalog c
+      WHERE c.avg_interval_days IS NULL
+        AND (
+          SELECT COUNT(*) FROM shopping_purchase_log l WHERE l.catalog_id = c.id
+        ) >= 2
+      LIMIT 25
+    `) as Array<{ id: number }>;
+
+    for (const u of uncomputed) {
+      const interval = await calculateCatalogInterval(u.id);
+      if (interval !== null) {
+        await sqlRun('UPDATE shopping_catalog SET avg_interval_days = ? WHERE id = ?', [interval, u.id]);
+      }
+    }
+  } catch {
+    // Non-blocking self-healing
+  }
+
+  const catalog = await sqlAll('SELECT * FROM shopping_catalog ORDER BY times_added DESC, times_purchased DESC, name ASC') as Array<any>;
 
   const nowMs = Date.now();
+
+  // Frequently added / popular staples
+  // Items added or bought multiple times that are NOT already active on the list
+  const frequentlyAdded = catalog
+    .filter((c) => {
+      if (activeNorms.has(c.normalized_key)) return false;
+      const score = (c.times_purchased || 0) * 2 + (c.times_added || 0);
+      return score >= 2;
+    })
+    .sort((a, b) => {
+      const scoreB = (b.times_purchased || 0) * 2 + (b.times_added || 0);
+      const scoreA = (a.times_purchased || 0) * 2 + (a.times_added || 0);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 100);
+
+  // Suggested restock: items whose purchase cycle is >= 80% due
   const suggested = catalog
     .map((c) => {
       if (activeNorms.has(c.normalized_key)) return null;
-      const avgDays = c.avg_interval_days || (c.times_added >= 3 ? 7 : 14);
+      const avgDays = c.avg_interval_days || (c.times_purchased >= 3 ? 7 : c.times_added >= 3 ? 7 : 14);
       const lastRef = c.last_purchased_at || c.last_added_at;
       let daysSince = 0;
       if (lastRef) {
         daysSince = Math.max(0, Math.round((nowMs - new Date(lastRef).getTime()) / (1000 * 86400)));
       }
-      const isDue = lastRef ? (daysSince / avgDays >= 0.8 || daysSince >= avgDays) : ((c.times_added || 0) >= 2);
+      const cycleRatio = avgDays > 0 ? (daysSince / avgDays) : 0;
+      const isDue = lastRef ? (cycleRatio >= 0.8) : ((c.times_added || 0) >= 2);
       if (!isDue) return null;
+
+      const cyclePct = Math.round(cycleRatio * 100);
+      let reason: string;
+      if (c.last_purchased_at) {
+        reason = `Last bought ${daysSince}d ago (usually every ~${Math.round(avgDays)}d — ${cyclePct}% of cycle)`;
+      } else if (c.last_added_at) {
+        reason = `Added ${c.times_added}× previously (${daysSince}d ago)`;
+      } else {
+        reason = `Added ${c.times_added}× previously`;
+      }
+
       return {
         ...c,
         days_since_last: daysSince,
         avg_interval_days: avgDays,
-        reason: lastRef
-          ? `Last bought ${daysSince}d ago (usually every ~${Math.round(avgDays)}d)`
-          : `Added ${c.times_added} times previously`,
+        cycle_percent: cyclePct,
+        cycle_ratio: cycleRatio,
+        reason,
       };
     })
     .filter(Boolean)
-    .slice(0, 25);
+    .sort((a: any, b: any) => (b.cycle_ratio || 0) - (a.cycle_ratio || 0))
+    .slice(0, 100);
+
+  // Full catalog decorated with status metadata for ManageCatalogModal
+  const decoratedCatalog = catalog.map((c) => {
+    const isActive = activeNorms.has(c.normalized_key);
+    const avgDays = c.avg_interval_days || (c.times_purchased >= 3 ? 7 : c.times_added >= 3 ? 7 : 14);
+    const lastRef = c.last_purchased_at || c.last_added_at;
+    let daysSince: number | null = null;
+    let cycleRatio = 0;
+    if (lastRef) {
+      daysSince = Math.max(0, Math.round((nowMs - new Date(lastRef).getTime()) / (1000 * 86400)));
+      cycleRatio = avgDays > 0 ? daysSince / avgDays : 0;
+    }
+    const isDue = !isActive && (lastRef ? cycleRatio >= 0.8 : (c.times_added || 0) >= 2);
+    const isStaple = Boolean(c.is_staple);
+    const cyclePct = lastRef && avgDays > 0 ? Math.round(cycleRatio * 100) : null;
+
+    return {
+      ...c,
+      is_active: isActive,
+      is_due: isDue,
+      is_staple: isStaple,
+      days_since_last: daysSince,
+      cycle_percent: cyclePct,
+    };
+  });
 
   const recentlyPurchased = await sqlAll(`
       SELECT l.id, l.purchased_at, l.store, l.qty, c.name, c.normalized_key, c.default_store
       FROM shopping_purchase_log l
       JOIN shopping_catalog c ON c.id = l.catalog_id
       ORDER BY l.purchased_at DESC, l.id DESC
-      LIMIT 40
+      LIMIT 120
     `) as Array<any>;
 
   return {
-    catalog,
+    catalog: decoratedCatalog,
     frequently_added: frequentlyAdded,
     suggested,
     recently_purchased: recentlyPurchased,
@@ -633,7 +831,7 @@ export function detectStoreFromText(
     );
     if (match) return match.id;
   }
-  if (/\b(fruit|vege|produce|bakery|butcher)\b/i.test(t)) {
+  if (/\b(fruit\s*(?:&|and)\s*veg(?:etables?)?|produce\s*market|green\s*grocer|bakery|butcher)\b/i.test(t)) {
     const match = list.find((s) => {
       const id = s.id.toLowerCase();
       const name = s.name.toLowerCase();
@@ -673,6 +871,7 @@ export function getShoppingData() {
       ? Object.keys(raw.active)
       : [],
     meal_order: Array.isArray(raw?.meal_order) ? raw.meal_order : [],
+    pantry: getPantryItems(),
   };
 }
 
@@ -704,24 +903,28 @@ export async function addIngredientsToShoppingBatch(rawItems: any[]): Promise<nu
     if (!rawInput) continue;
     const cleanName = cleanShoppingItemName(rawInput) || rawInput;
 
+    // Skip pantry staples (in-stock items) when planning/batch-adding to shopping list
+    if (it?.in_pantry || isPantryItem(cleanName)) {
+      continue;
+    }
+
     const storeInput = typeof it === 'object' && it?.store ? String(it.store).trim() : '';
     const detectedStore = detectStoreFromText(rawInput, stores);
-    const targetStore = storeInput || detectedStore || 'aldi';
+    const targetStore = storeInput || detectedStore || '';
 
-    let qty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';
-    if (qty.startsWith('.')) qty = '0' + qty;
-    if (!qty) {
+    let rawQty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';
+    if (!rawQty) {
       const qMatch = rawInput.match(
         /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?|\.\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+/i
       );
       if (qMatch && qMatch[1]) {
-        qty = qMatch[1].trim();
-        if (qty.startsWith('.')) qty = '0' + qty;
+        rawQty = qMatch[1].trim();
       }
     }
+    const qty = resolveShoppingQuantity(rawQty);
 
     const norm = normalizeShoppingKey(cleanName);
-    const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
+    const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore || undefined, true);
     const canonicalName = catEntry?.name || cleanName;
     const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
@@ -987,358 +1190,6 @@ householdRouter.post('/api/recipes/import', async (req: Request, res: Response) 
   }
 });
 
-// Helper to parse ingredient strings into structured { name, qty, store, prep, raw_name }
-function parseNotionIngredientLine(raw: string): RecipeIngredient {
-  let clean = String(raw || '').trim();
-  // Strip bullet markers (- , * , 1. , 1) ) - requires whitespace after number dot to preserve decimals like 1.5kg
-  clean = clean.replace(/^[-*•☐☑]\s*|^\d+[\.\)]\s+/, '').trim();
-  if (!clean) return { name: '', qty: '', store: 'aldi' };
-
-  // Match:
-  // 1) Unicode fractions: ¼, ½, ¾, 1 ¼, etc.
-  // 2) Standard fractions: 1/4, 1/2, 2 1/2
-  // 3) Decimals & integers: 1.5, 0.5, 2, 750
-  // Followed by optional measurement unit: g, kg, ml, l, oz, lb, cups?, tbs?, tbsp?, tsp?, cloves?, etc.
-  const regex = /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+(.*)$/i;
-  const match = clean.match(regex);
-  let qty = '';
-  let name = clean;
-  if (match && match[1] && match[2]) {
-    qty = match[1].trim();
-    name = match[2].trim();
-  }
-
-  if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
-  const { prep } = cleanIngredientBuyName(name);
-  const detectedStore = detectStoreFromText(clean);
-
-  return {
-    name,
-    qty,
-    store: detectedStore || 'aldi',
-    prep,
-    raw_name: clean,
-  };
-}
-
-// Helper to fetch all children blocks recursively expanding column_list and columns
-async function fetchNotionBlocksExpanded(blockId: string, token: string): Promise<any[]> {
-  const fetchChildren = async (id: string): Promise<any[]> => {
-    const list: any[] = [];
-    let cursor: string | undefined = undefined;
-    do {
-      const url = new URL(`https://api.notion.com/v1/blocks/${id}/children`);
-      url.searchParams.set('page_size', '100');
-      if (cursor) url.searchParams.set('start_cursor', cursor);
-
-      const resp = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Notion-Version': '2022-06-28',
-        },
-      });
-      if (!resp.ok) break;
-      const data = (await resp.json()) as any;
-      if (Array.isArray(data?.results)) list.push(...data.results);
-      cursor = data?.has_more ? data.next_cursor : undefined;
-    } while (cursor);
-    return list;
-  };
-
-  const topBlocks = await fetchChildren(blockId);
-  const flattened: any[] = [];
-
-  for (const blk of topBlocks) {
-    if (blk.type === 'column_list' && blk.has_children) {
-      try {
-        const columns = await fetchChildren(blk.id);
-        for (const col of columns) {
-          if (col.type === 'column' && col.has_children) {
-            const colItems = await fetchChildren(col.id);
-            flattened.push(...colItems);
-          } else {
-            flattened.push(col);
-          }
-        }
-      } catch {
-        flattened.push(blk);
-      }
-    } else {
-      flattened.push(blk);
-    }
-  }
-
-  return flattened;
-}
-
-// Notion Settings Endpoints
-householdRouter.get('/api/settings/notion', (_req: Request, res: Response) => {
-  const token = AppSetting.get('notion_api_token', '') || '';
-  const rawDbId = AppSetting.get('notion_database_id', '') || '';
-  res.json({
-    success: true,
-    configured: Boolean(token && rawDbId),
-    has_token: Boolean(token),
-    database_id: rawDbId,
-    masked_token: token ? `${token.slice(0, 7)}••••••••${token.slice(-4)}` : '',
-  });
-});
-
-householdRouter.post('/api/settings/notion', (req: Request, res: Response) => {
-  try {
-    const token = req.body?.notion_token !== undefined ? String(req.body.notion_token).trim() : null;
-    const rawDbId = req.body?.database_id !== undefined ? String(req.body.database_id).trim() : null;
-
-    if (token !== null && token !== '') AppSetting.set('notion_api_token', token);
-    if (rawDbId !== null) AppSetting.set('notion_database_id', rawDbId);
-
-    logActivity('settings_updated', 'Updated Notion Recipe integration settings');
-    res.json({ success: true, message: 'Notion settings saved successfully' });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to save settings' });
-  }
-});
-
-householdRouter.post('/api/settings/test_notion', async (req: Request, res: Response) => {
-  try {
-    const token = String(req.body?.notion_token || AppSetting.get('notion_api_token', '') || '').trim();
-    const rawDbId = String(req.body?.database_id || AppSetting.get('notion_database_id', '') || '').trim();
-
-    if (!token) {
-      res.status(400).json({ success: false, error: 'Please enter a Notion Integration Token.' });
-      return;
-    }
-    if (!rawDbId) {
-      res.status(400).json({ success: false, error: 'Please enter a Notion Database ID or URL.' });
-      return;
-    }
-
-    const matchId = rawDbId.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    const dbId = matchId ? matchId[1].replace(/-/g, '') : rawDbId.replace(/-/g, '');
-
-    const dbResp = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
-      },
-    });
-
-    if (!dbResp.ok) {
-      const errText = await dbResp.text();
-      res.status(400).json({
-        success: false,
-        error: `Notion returned status ${dbResp.status}: ${errText.slice(0, 180)}`,
-      });
-      return;
-    }
-
-    const dbData = (await dbResp.json()) as any;
-    const titleArr = dbData?.title || [];
-    const dbTitle = titleArr.map((t: any) => t?.plain_text || '').join('') || 'Untitled Database';
-
-    res.json({
-      success: true,
-      database_title: dbTitle,
-      message: `Connected successfully to Notion database "${dbTitle}"!`,
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Connection test failed' });
-  }
-});
-
-// Comprehensive Notion Database Sync endpoint
-householdRouter.post('/api/recipes/sync_notion', async (req: Request, res: Response) => {
-  try {
-    const token = String(req.body?.notion_token ?? AppSetting.get('notion_api_token', '') ?? '').trim();
-    const rawDbId = String(req.body?.database_id ?? AppSetting.get('notion_database_id', '') ?? '').trim();
-    if (req.body?.notion_token !== undefined && String(req.body.notion_token).trim()) {
-      AppSetting.set('notion_api_token', token);
-    }
-    if (req.body?.database_id !== undefined && String(req.body.database_id).trim()) {
-      AppSetting.set('notion_database_id', rawDbId);
-    }
-
-    if (!token || !rawDbId) {
-      res.status(400).json({
-        success: false,
-        error: 'Notion integration is not configured. Go to Settings -> Integrations to enter your Notion Token and Database ID.',
-      });
-      return;
-    }
-
-    // Extract 32-char hex ID if user pasted a full Notion URL
-    const matchId = rawDbId.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    const dbId = matchId ? matchId[1].replace(/-/g, '') : rawDbId.replace(/-/g, '');
-
-    // Query database with pagination support
-    const allPages: any[] = [];
-    let queryCursor: string | undefined = undefined;
-
-    do {
-      const queryResp = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          page_size: 100,
-          ...(queryCursor ? { start_cursor: queryCursor } : {}),
-        }),
-      });
-
-      if (!queryResp.ok) {
-        const errText = await queryResp.text();
-        res.status(400).json({
-          success: false,
-          error: `Notion API error (${queryResp.status}): ${errText.slice(0, 200)}`,
-        });
-        return;
-      }
-
-      const queryData = (await queryResp.json()) as any;
-      if (Array.isArray(queryData?.results)) {
-        allPages.push(...queryData.results);
-      }
-      queryCursor = queryData?.has_more ? queryData.next_cursor : undefined;
-    } while (queryCursor);
-
-    let syncedCount = 0;
-
-    const extractRichText = (arr: any[]): string =>
-      Array.isArray(arr) ? arr.map((t: any) => t?.plain_text || '').join('') : '';
-
-    for (const page of allPages) {
-      const props = page.properties || {};
-
-      // 1. Title / Name
-      let title = '';
-      const nameProp = props['Name'] || Object.values(props).find((p: any) => p?.type === 'title');
-      if (nameProp?.type === 'title') {
-        title = extractRichText(nameProp.title).trim();
-      }
-      if (!title) continue;
-
-      // 2. Cover / Image
-      let imageUrl: string | null = page.cover?.external?.url || page.cover?.file?.url || null;
-      if (!imageUrl && props['Image']?.type === 'files' && props['Image'].files?.length > 0) {
-        imageUrl = props['Image'].files[0]?.external?.url || props['Image'].files[0]?.file?.url || null;
-      }
-
-      // 3. Servings
-      let servings = '';
-      if (props['Servings']?.type === 'number' && props['Servings'].number != null) {
-        servings = `${props['Servings'].number} servings`;
-      }
-
-      // 4. Prep Time / Cuisine / Type tags
-      const mealType = props['Type']?.type === 'select' ? props['Type'].select?.name : '';
-      const cuisine = props['Cuisine']?.type === 'select' ? props['Cuisine'].select?.name : '';
-      const tags = (props['Tags']?.type === 'multi_select' ? props['Tags'].multi_select : [])
-        .map((t: any) => t?.name)
-        .filter(Boolean);
-      const metaParts = [mealType, cuisine, tags.slice(0, 2).join(', ')].filter(Boolean);
-      const prepTime = metaParts.length > 0 ? metaParts.join(' • ') : '25 mins';
-
-      // 5. Ingredients and Directions from Body Blocks
-      let ingredients: Array<{ name: string; qty: string; store: string }> = [];
-      let instructionsText = '';
-
-      try {
-        const blocks = await fetchNotionBlocksExpanded(page.id, token);
-        let currentSection: 'ingredients' | 'directions' | 'notes' | 'none' = 'none';
-        const parsedIngs: Array<{ name: string; qty: string; store: string }> = [];
-        const dirSteps: string[] = [];
-        const notesLines: string[] = [];
-
-        for (const blk of blocks) {
-          const bType = blk.type;
-          const rich = blk[bType]?.rich_text;
-          const line = extractRichText(rich).trim();
-
-          // Image block check
-          if (!line && bType === 'image' && !imageUrl) {
-            imageUrl = blk.image?.external?.url || blk.image?.file?.url || null;
-            continue;
-          }
-
-          if (bType.startsWith('heading_')) {
-            const lower = line.toLowerCase();
-            if (lower.includes('ingred')) {
-              currentSection = 'ingredients';
-            } else if (
-              lower.includes('direct') ||
-              lower.includes('step') ||
-              lower.includes('method') ||
-              lower.includes('instruct')
-            ) {
-              currentSection = 'directions';
-            } else if (lower.includes('note')) {
-              currentSection = 'notes';
-            } else {
-              currentSection = 'none';
-            }
-            continue;
-          }
-
-          if (!line) continue;
-
-          if (currentSection === 'ingredients') {
-            const item = parseNotionIngredientLine(line);
-            if (item.name) parsedIngs.push(item);
-          } else if (currentSection === 'directions') {
-            dirSteps.push(line);
-          } else if (currentSection === 'notes') {
-            notesLines.push(line);
-          } else {
-            // If outside a detected heading, infer based on block type
-            if (bType === 'bulleted_list_item' || bType === 'to_do') {
-              const item = parseNotionIngredientLine(line);
-              if (item.name) parsedIngs.push(item);
-            } else if (bType === 'numbered_list_item') {
-              dirSteps.push(line);
-            } else {
-              dirSteps.push(line);
-            }
-          }
-        }
-
-        ingredients = parsedIngs;
-        if (dirSteps.length > 0) {
-          instructionsText = dirSteps.map((s, idx) => `${idx + 1}. ${s}`).join('\n\n');
-        }
-        if (notesLines.length > 0) {
-          instructionsText += (instructionsText ? '\n\nNotes:\n' : '') + notesLines.map((n) => `• ${n}`).join('\n');
-        }
-      } catch {
-        // block read error fallback
-      }
-
-      await upsertRecipe({
-        title,
-        image_url: imageUrl,
-        ingredients,
-        instructions: instructionsText,
-        servings,
-        prep_time: prepTime,
-        notion_id: page.id,
-      });
-      syncedCount++;
-    }
-
-    logActivity('settings_updated', `Synced ${syncedCount} recipe(s) from Notion`);
-    res.json({
-      success: true,
-      synced_count: syncedCount,
-      recipes: await getAllRecipes(),
-    });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message || 'Notion sync failed' });
-  }
-});
-
 householdRouter.post('/api/save_meal_ingredients', async (req: Request, res: Response) => {
   const mealKey = String(req.body?.meal || '').trim().toLowerCase().slice(0, 80);
   const items = Array.isArray(req.body?.ingredients) ? req.body.ingredients : [];
@@ -1385,6 +1236,287 @@ householdRouter.post('/api/save_recipe', async (req: Request, res: Response) => 
   res.json({ success: true, recipe: saved, recipes: await getAllRecipes() });
 });
 
+householdRouter.post(
+  '/api/recipes/transcribe_photo',
+  mealImageUpload.single('image'),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ success: false, error: 'No image uploaded' });
+      return;
+    }
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {}
+      res.status(400).json({
+        success: false,
+        error: 'Gemini API key is not configured. Please add your key in Settings.',
+      });
+      return;
+    }
+
+    const filePath = req.file.path;
+    const filename = req.file.filename;
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const relativeImageUrl = `/static/uploads/meals/${filename}`;
+    const jobId = `transcribe_${Date.now()}`;
+
+    // Respond immediately so user is never blocked in the UI
+    res.json({
+      success: true,
+      status: 'processing',
+      job_id: jobId,
+      message: 'Recipe photo received. Processing with Gemini AI in the background...',
+    });
+
+    // Background processing
+    setImmediate(async () => {
+      try {
+        const buffer = fs.readFileSync(filePath);
+        const extracted = await transcribeRecipeImage(buffer, mimeType);
+        const stores = getShoppingStores();
+
+        // Parse and match ingredients with shopping catalog & pantry
+        const ingredients: RecipeIngredient[] = [];
+        for (const ing of extracted.ingredients || []) {
+          const rawText = String(ing.raw || ing.name || '').trim();
+          const buyName = String(ing.name || cleanShoppingItemName(rawText) || rawText).trim();
+          const norm = normalizeShoppingKey(buyName);
+          const inPantry = isPantryItem(buyName) || Boolean((ing as any).pantry_guess);
+
+          let store = 'aldi';
+          let uncataloged = true;
+          try {
+            const cat = (await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm])) as any;
+            if (cat) {
+              store = cat.default_store || 'aldi';
+              uncataloged = false;
+            } else {
+              const detected = detectStoreFromText(rawText + ' ' + buyName, stores);
+              store = detected || 'aldi';
+            }
+          } catch {
+            // fallback
+          }
+
+          ingredients.push({
+            name: buyName,
+            raw_name: rawText,
+            qty: String(ing.qty || '').trim(),
+            store,
+            prep: String(ing.prep || '').trim(),
+            uncataloged,
+            in_pantry: inPantry,
+          });
+        }
+
+        // Generate unique meal_key
+        const baseKey =
+          extracted.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 50) || `recipe_${Date.now()}`;
+
+        let mealKey = baseKey;
+        const existing = await sqlOne('SELECT id FROM recipes WHERE meal_key = ?', [mealKey]);
+        if (existing) {
+          mealKey = `${baseKey}_${Math.random().toString(36).slice(2, 6)}`;
+        }
+
+        const instructionsText = (extracted.instructions || []).join('\n\n');
+
+        await upsertRecipe({
+          meal_key: mealKey,
+          title: extracted.title,
+          image_url: relativeImageUrl,
+          ingredients,
+          instructions: instructionsText,
+          servings: extracted.servings || '',
+          prep_time: extracted.prep_time || '',
+        });
+
+        logActivity('recipe_transcribed', `Transcribed recipe "${extracted.title}" from photo with Gemini AI`);
+      } catch (err: any) {
+        console.error('[gemini] Background recipe transcription failed:', err?.message || err);
+        logActivity('error', `Recipe photo transcription failed: ${err?.message || err}`);
+      }
+    });
+  }
+);
+
+// Gemini AI Settings Endpoints
+householdRouter.get('/api/settings/gemini', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    has_key: Boolean(getGeminiApiKey()),
+    model: getGeminiModel(),
+  });
+});
+
+householdRouter.post('/api/settings/gemini', (req: Request, res: Response) => {
+  const apiKey = req.body?.api_key !== undefined ? String(req.body.api_key).trim() : undefined;
+  const model = req.body?.model !== undefined ? String(req.body.model).trim() : undefined;
+
+  if (apiKey !== undefined) {
+    AppSetting.set('gemini_api_key', apiKey);
+  }
+  if (model !== undefined) {
+    AppSetting.set('gemini_model', model || 'gemini-2.0-flash');
+  }
+
+  res.json({
+    success: true,
+    has_key: Boolean(getGeminiApiKey()),
+    model: getGeminiModel(),
+  });
+});
+
+householdRouter.post('/api/settings/test_gemini', async (req: Request, res: Response) => {
+  const apiKey = req.body?.api_key !== undefined ? String(req.body.api_key).trim() : undefined;
+  const model = req.body?.model !== undefined ? String(req.body.model).trim() : undefined;
+  const result = await testGeminiConnection(apiKey, model);
+  res.json(result);
+});
+
+// Household Pantry Endpoints (backed by shopping_catalog.is_staple)
+householdRouter.get('/api/pantry', async (_req: Request, res: Response) => {
+  try {
+    const items = await sqlAll('SELECT * FROM shopping_catalog WHERE is_staple = true ORDER BY name ASC') as Array<any>;
+    res.json({
+      success: true,
+      items: items.map((i) => i.name),
+      catalog_items: items,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Failed to fetch pantry' });
+  }
+});
+
+householdRouter.post('/api/pantry/toggle', async (req: Request, res: Response) => {
+  const id = req.body?.id ? Number(req.body.id) : null;
+  const name = String(req.body?.name || '').trim();
+  const store = String(req.body?.store || '').trim();
+
+  let item;
+  if (id) {
+    item = await sqlOne('UPDATE shopping_catalog SET is_staple = NOT COALESCE(is_staple, false), updated_at = NOW() WHERE id = ? RETURNING *', [id]);
+  } else if (name) {
+    const norm = normalizeShoppingKey(name);
+    const existing = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]);
+    if (existing) {
+      item = await sqlOne('UPDATE shopping_catalog SET is_staple = NOT COALESCE(is_staple, false), updated_at = NOW() WHERE id = ? RETURNING *', [existing.id]);
+    } else {
+      item = await sqlOne(
+        'INSERT INTO shopping_catalog (name, normalized_key, default_store, is_staple, times_added, times_purchased) VALUES (?, ?, ?, true, 1, 0) RETURNING *',
+        [name, norm, store || 'aldi']
+      );
+    }
+  }
+
+  await hydratePantryCache();
+  if (!item) {
+    res.status(400).json({ success: false, error: 'Item not found or name missing' });
+    return;
+  }
+  res.json({ success: true, item });
+});
+
+householdRouter.post('/api/pantry/add', async (req: Request, res: Response) => {
+  const name = String(req.body?.name || '').trim();
+  const store = String(req.body?.store || '').trim();
+  if (!name) {
+    res.status(400).json({ success: false, error: 'Item name required' });
+    return;
+  }
+  const norm = normalizeShoppingKey(name);
+  let item = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]);
+  if (item) {
+    item = await sqlOne('UPDATE shopping_catalog SET is_staple = true, updated_at = NOW() WHERE id = ? RETURNING *', [item.id]);
+  } else {
+    item = await sqlOne(
+      'INSERT INTO shopping_catalog (name, normalized_key, default_store, is_staple, times_added, times_purchased) VALUES (?, ?, ?, true, 1, 0) RETURNING *',
+      [name, norm, store || 'aldi']
+    );
+  }
+  await hydratePantryCache();
+  res.json({ success: true, item });
+});
+
+// Update/set pantry items (supports { items: string[] } or { name: string })
+householdRouter.post('/api/pantry', async (req: Request, res: Response) => {
+  try {
+    const rawItems = Array.isArray(req.body?.items) ? req.body.items : null;
+    if (rawItems) {
+      const cleanNames = rawItems.map((n: string) => String(n || '').trim()).filter(Boolean);
+      // Reset all staples
+      await sqlRun('UPDATE shopping_catalog SET is_staple = false');
+      for (const name of cleanNames) {
+        const norm = normalizeShoppingKey(name);
+        const existing = (await sqlOne('SELECT id FROM shopping_catalog WHERE normalized_key = ?', [norm])) as any;
+        if (existing) {
+          await sqlRun('UPDATE shopping_catalog SET is_staple = true, updated_at = NOW() WHERE id = ?', [existing.id]);
+        } else {
+          await sqlRun(
+            'INSERT INTO shopping_catalog (name, normalized_key, default_store, is_staple, times_added, times_purchased) VALUES (?, ?, ?, true, 1, 0)',
+            [name, norm, 'aldi']
+          );
+        }
+      }
+      await hydratePantryCache();
+      const updated = (await sqlAll('SELECT * FROM shopping_catalog WHERE is_staple = true ORDER BY name ASC')) as Array<any>;
+      res.json({ success: true, items: updated.map((i) => i.name), catalog_items: updated });
+      return;
+    }
+
+    const name = String(req.body?.name || '').trim();
+    if (name) {
+      const norm = normalizeShoppingKey(name);
+      let item = (await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm])) as any;
+      if (item) {
+        item = await sqlOne('UPDATE shopping_catalog SET is_staple = true, updated_at = NOW() WHERE id = ? RETURNING *', [item.id]);
+      } else {
+        item = await sqlOne(
+          'INSERT INTO shopping_catalog (name, normalized_key, default_store, is_staple, times_added, times_purchased) VALUES (?, ?, ?, true, 1, 0) RETURNING *',
+          [name, norm, 'aldi']
+        );
+      }
+      await hydratePantryCache();
+      res.json({ success: true, item });
+      return;
+    }
+
+    res.status(400).json({ success: false, error: 'items array or item name required' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Failed to update pantry' });
+  }
+});
+
+// Toggle staple status on any catalog item
+householdRouter.post('/api/shopping/catalog/toggle_staple', async (req: Request, res: Response) => {
+  const id = Number(req.body?.id);
+  if (!id || isNaN(id)) {
+    res.status(400).json({ success: false, error: 'Valid catalog ID required' });
+    return;
+  }
+  const explicit = req.body?.is_staple;
+  let updated;
+  if (typeof explicit === 'boolean') {
+    updated = await sqlOne('UPDATE shopping_catalog SET is_staple = ?, updated_at = NOW() WHERE id = ? RETURNING *', [explicit, id]);
+  } else {
+    updated = await sqlOne('UPDATE shopping_catalog SET is_staple = NOT COALESCE(is_staple, false), updated_at = NOW() WHERE id = ? RETURNING *', [id]);
+  }
+  await hydratePantryCache();
+  if (!updated) {
+    res.status(404).json({ success: false, error: 'Catalog item not found' });
+    return;
+  }
+  logActivity('catalog_staple_toggle', `Toggled staple status for "${updated.name}" to ${Boolean(updated.is_staple)}`);
+  res.json({ success: true, item: updated });
+});
+
 // Smart Shopping List Endpoints (Deduplication, Frequently Added, Suggested, Archive Checked, Recently Purchased)
 householdRouter.post('/api/add_general_shopping_item', async (req: Request, res: Response) => {
   const rawInput = String(req.body?.name || '').trim().slice(0, 120);
@@ -1410,9 +1542,9 @@ householdRouter.post('/api/add_general_shopping_item', async (req: Request, res:
     }
   }
 
-  const targetStore = detectedStore || storeInput || 'aldi';
+  const targetStore = storeInput || detectedStore || '';
   const norm = normalizeShoppingKey(cleanName);
-  const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
+  const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore || undefined, true);
   const canonicalName = catEntry?.name || cleanName;
   const finalStore = targetStore || catEntry?.default_store || 'aldi';
 
@@ -1550,6 +1682,17 @@ async function handleArchiveCheckedShopping(_req: Request, res: Response) {
 
 householdRouter.post('/api/shopping/archive_checked', handleArchiveCheckedShopping);
 householdRouter.post('/api/clear_shopping_checked', handleArchiveCheckedShopping);
+
+householdRouter.post('/api/shopping/catalog/add', async (req: Request, res: Response) => {
+  const name = String(req.body?.name || '').trim();
+  const store = String(req.body?.store || 'aldi').trim();
+  if (!name) {
+    res.status(400).json({ success: false, error: 'Name required' });
+    return;
+  }
+  const cat = await touchCatalogItemOnAdd(name, store, false);
+  res.json({ success: true, item: cat });
+});
 
 householdRouter.post('/api/shopping/catalog/delete', async (req: Request, res: Response) => {
   const rawIds = Array.isArray(req.body?.ids)

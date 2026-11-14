@@ -114,7 +114,8 @@ async function runSmokeAudit() {
 
     // 2. Audit Main App Shell & Computed Styles
     console.log('🔍 Auditing Main App Shell on / ...');
-    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle0' });
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#root', { timeout: 10000 });
     await new Promise((r) => setTimeout(r, 600));
 
     const computed = await page.evaluate(() => {
@@ -145,8 +146,9 @@ async function runSmokeAudit() {
 
     // 3. Audit Shopping Store Icon Constraints
     console.log('🔍 Checking store icon constraints on #/shopping ...');
-    await page.goto(`${baseUrl}/#/shopping`, { waitUntil: 'networkidle0' });
-    await new Promise((r) => setTimeout(r, 500));
+    await page.goto(`${baseUrl}/#/shopping`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#root', { timeout: 10000 });
+    await new Promise((r) => setTimeout(r, 600));
 
     const iconWidths = await page.evaluate(() => {
       const imgs = Array.from(document.querySelectorAll('.shopping-store-icon-img'));

@@ -51,3 +51,4 @@ migrations/versions/__pycache__/
 choresrewards-backup-*.tar.gz
 
 mockups/
+scripts/VoiceNotes/

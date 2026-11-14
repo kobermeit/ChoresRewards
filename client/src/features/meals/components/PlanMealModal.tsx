@@ -53,27 +53,21 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
   const customImg = matchedRecipe?.image_url || mealImages[matchKey];
 
   const recipeOptions: CustomDropdownOption[] = useMemo(() => {
-    const opts: CustomDropdownOption[] = allLibraryRecipes.map((r) => {
-      const key = (r.meal_key || r.title).toLowerCase();
-      const img = r.image_url || mealImages[key];
-      return {
-        value: r.title,
-        label: r.title,
-        icon: img || getMealEmoji(r.title),
-      };
-    });
+    const opts: CustomDropdownOption[] = allLibraryRecipes.map((r) => ({
+      value: r.title,
+      label: r.title,
+    }));
 
     const trimmed = planMealTitle.trim();
     if (trimmed && !opts.some((o) => o.value.toLowerCase() === trimmed.toLowerCase())) {
       opts.unshift({
         value: trimmed,
         label: trimmed,
-        icon: customImg || getMealEmoji(trimmed),
       });
     }
 
     return opts;
-  }, [allLibraryRecipes, mealImages, planMealTitle, customImg]);
+  }, [allLibraryRecipes, planMealTitle]);
 
   const handleCommitSave = async () => {
     if (!planMealTitle.trim() || planSelectedDays.length === 0) return;
@@ -341,16 +335,7 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
               onChange={(e) => setPlanAddShopping(e.target.checked)}
               style={{ accentColor: '#38bdf8', width: 16, height: 16 }}
             />
-            <span>
-              Add meal ingredients to Shopping List
-              {planSelectedDays.length > 0 && (() => {
-                const firstDate = planSelectedDays[0];
-                const diff = Math.round(
-                  (new Date(`${firstDate}T00:00:00`).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)
-                );
-                return diff > 7 ? ' (Future week — unchecked by default)' : '';
-              })()}
-            </span>
+            <span>Add meal ingredients to Shopping List</span>
           </label>
         </div>
       </div>
