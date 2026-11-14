@@ -125,9 +125,6 @@ export const CalendarView: React.FC = () => {
   };
 
   const calendarCells = buildCalendarCells(currentYear, currentMonth, events, localToday);
-  const eventsThisMonthCount = events.filter((e) =>
-    e.start_date_iso.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`)
-  ).length;
 
   const { scheduleEvents, scheduleGroups } = buildScheduleGroups(events, localToday);
 
@@ -397,7 +394,6 @@ export const CalendarView: React.FC = () => {
           currentYear={currentYear}
           currentMonth={currentMonth}
           calendarCells={calendarCells}
-          eventsThisMonthCount={eventsThisMonthCount}
           onPrevMonth={prevMonth}
           onNextMonth={nextMonth}
           onToday={goToday}

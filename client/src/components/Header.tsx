@@ -61,7 +61,12 @@ export const Header: React.FC = () => {
       apiGet('notifications')
         .then((res) => {
           if (res?.success) {
-            setNotifs(res);
+            setNotifs({
+              alerts: Array.isArray(res.alerts) ? res.alerts : [],
+              recent: Array.isArray(res.recent) ? res.recent : [],
+              alert_count: res.alert_count ?? 0,
+              overdue_count: res.overdue_count ?? 0,
+            });
           }
         })
         .catch(() => {});
@@ -131,7 +136,7 @@ function getRelativeAge(from: Date | null, to: Date): string {
     }
   };
 
-  const visibleAlerts = notifs.alerts.filter((a) => adultMode || !a.admin_only);
+  const visibleAlerts = (notifs?.alerts || []).filter((a) => adultMode || !a.admin_only);
   const notifWrapRef = useRef<HTMLDivElement | null>(null);
   const notifPanelRef = useRef<HTMLDivElement | null>(null);
 

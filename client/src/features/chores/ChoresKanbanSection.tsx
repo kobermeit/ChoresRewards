@@ -719,7 +719,6 @@ export const ChoresKanbanSection: React.FC<ChoresKanbanSectionProps> = ({ isStan
                 onEditChore={(c) => openEditChoreModal(c)}
                 onDeleteChore={(c) => setChoreToDelete(c)}
                 onShowChoreDetails={setDetailChore}
-                onDropColumn={() => {}}
               />
             );
           })}

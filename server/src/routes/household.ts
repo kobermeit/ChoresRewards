@@ -270,7 +270,7 @@ export function normalizeDayCards(rawDay: any): MealCardItem[] {
   return [];
 }
 
-export function getMealPlanForWeek(weekStartIso: string) {
+export function getMealPlanForWeek(weekStartIso: string, numWeeks = 2) {
   const storedPlan = parseJsonSetting<Record<string, any>>('meal_planner_plan_json', {});
   const recurring = getRecurringMeals();
   const plan: Record<string, any> = {};
@@ -287,7 +287,8 @@ export function getMealPlanForWeek(weekStartIso: string) {
     AppSetting.set('meal_planner_plan_json', JSON.stringify(storedPlan));
   }
 
-  for (let i = 0; i < 7; i++) {
+  const totalDays = Math.max(7, numWeeks * 7);
+  for (let i = 0; i < totalDays; i++) {
     const dateIso = addDays(weekStartIso, i);
     const dayCards = normalizeDayCards(storedPlan[dateIso]);
     cardsByDay[dateIso] = dayCards;
@@ -299,7 +300,12 @@ export function getMealPlanForWeek(weekStartIso: string) {
 }
 
 export async function getAllRecipes(): Promise<Record<string, RecipeItem>> {
-  const rows = await sqlAll('SELECT * FROM recipes ORDER BY title') as Array<any>;
+  let rows: Array<any> = [];
+  try {
+    rows = await sqlAll('SELECT * FROM recipes ORDER BY title') as Array<any>;
+  } catch {
+    rows = [];
+  }
   const map: Record<string, RecipeItem> = {};
   const ingMap = getMealIngredients();
   const imgMap = getMealImages();
@@ -356,7 +362,12 @@ export async function upsertRecipe(input: {
 }): Promise<RecipeItem> {
   const title = String(input.title || '').trim() || 'Untitled Recipe';
   const mealKey = String(input.meal_key || title).toLowerCase().trim();
-  const existing = await sqlOne('SELECT * FROM recipes WHERE meal_key = ?', [mealKey]) as any;
+  let existing: any = null;
+  try {
+    existing = await sqlOne('SELECT * FROM recipes WHERE meal_key = ?', [mealKey]) as any;
+  } catch {
+    existing = null;
+  }
 
   let ingredients = input.ingredients;
   if (!ingredients) {
@@ -398,19 +409,23 @@ export async function upsertRecipe(input: {
   const prepTime = input.prep_time !== undefined ? String(input.prep_time) : existing?.prep_time || '';
   const notionId = input.notion_id !== undefined ? input.notion_id : existing?.notion_id || null;
 
-  await sqlRun(`
-    INSERT INTO recipes (meal_key, title, image_url, ingredients_json, instructions, servings, prep_time, notion_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(meal_key) DO UPDATE SET
-      title = excluded.title,
-      image_url = COALESCE(excluded.image_url, recipes.image_url),
-      ingredients_json = excluded.ingredients_json,
-      instructions = excluded.instructions,
-      servings = excluded.servings,
-      prep_time = excluded.prep_time,
-      notion_id = COALESCE(excluded.notion_id, recipes.notion_id),
-      updated_at = CURRENT_TIMESTAMP
-  `, [mealKey, title, imageUrl, JSON.stringify(cleanedIngs), instructions, servings, prepTime, notionId]);
+  try {
+    await sqlRun(`
+      INSERT INTO recipes (meal_key, title, image_url, ingredients_json, instructions, servings, prep_time, notion_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(meal_key) DO UPDATE SET
+        title = excluded.title,
+        image_url = COALESCE(excluded.image_url, recipes.image_url),
+        ingredients_json = excluded.ingredients_json,
+        instructions = excluded.instructions,
+        servings = excluded.servings,
+        prep_time = excluded.prep_time,
+        notion_id = COALESCE(excluded.notion_id, recipes.notion_id),
+        updated_at = CURRENT_TIMESTAMP
+    `, [mealKey, title, imageUrl, JSON.stringify(cleanedIngs), instructions, servings, prepTime, notionId]);
+  } catch (err: any) {
+    console.warn('[recipes] Database unavailable, falling back to JSON settings:', err?.message || err);
+  }
 
   // Sync back to meal_ingredients_json and meal_planner_suggestions_json so shopping list & suggestions stay in sync
   const ingMap = getMealIngredients();
@@ -447,24 +462,28 @@ export async function touchCatalogItemOnAdd(rawName: string, store = 'aldi', inc
   if (!cleanName) return null;
   const norm = normalizeShoppingKey(cleanName);
   const nowIso = new Date().toISOString();
-  const existing = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]) as any;
-  if (existing) {
-    if (incrementCount) {
-      await sqlRun(`
-        UPDATE shopping_catalog
-        SET times_added = COALESCE(times_added, 0) + 1,
-            last_added_at = ?,
-            default_store = COALESCE(?, default_store)
-        WHERE id = ?
-      `, [nowIso, store || existing.default_store, existing.id]);
+  try {
+    const existing = await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm]) as any;
+    if (existing) {
+      if (incrementCount) {
+        await sqlRun(`
+          UPDATE shopping_catalog
+          SET times_added = COALESCE(times_added, 0) + 1,
+              last_added_at = ?,
+              default_store = COALESCE(?, default_store)
+          WHERE id = ?
+        `, [nowIso, store || existing.default_store, existing.id]);
+      }
+      return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [existing.id]) as any;
+    } else {
+      const info = await sqlRun(`
+        INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at)
+        VALUES (?, ?, ?, 1, 0, ?)
+      `, [cleanName, norm, store || 'aldi', nowIso]);
+      return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [info.lastInsertRowid]) as any;
     }
-    return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [existing.id]) as any;
-  } else {
-    const info = await sqlRun(`
-      INSERT INTO shopping_catalog (name, normalized_key, default_store, times_added, times_purchased, last_added_at)
-      VALUES (?, ?, ?, 1, 0, ?)
-    `, [cleanName, norm, store || 'aldi', nowIso]);
-    return await sqlOne('SELECT * FROM shopping_catalog WHERE id = ?', [info.lastInsertRowid]) as any;
+  } catch (err: any) {
+    return { name: cleanName, default_store: store || 'aldi' };
   }
 }
 
@@ -675,13 +694,74 @@ export function getDashboardNotes() {
   return Array.isArray(raw) ? raw : [];
 }
 
+export async function addIngredientsToShoppingBatch(rawItems: any[]): Promise<number> {
+  const current = getShoppingData();
+  const stores = getShoppingStores();
+  let addedCount = 0;
+
+  for (const it of rawItems) {
+    const rawInput = String(typeof it === 'string' ? it : it?.name || '').trim().slice(0, 120);
+    if (!rawInput) continue;
+    const cleanName = cleanShoppingItemName(rawInput) || rawInput;
+
+    const storeInput = typeof it === 'object' && it?.store ? String(it.store).trim() : '';
+    const detectedStore = detectStoreFromText(rawInput, stores);
+    const targetStore = storeInput || detectedStore || 'aldi';
+
+    let qty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';
+    if (qty.startsWith('.')) qty = '0' + qty;
+    if (!qty) {
+      const qMatch = rawInput.match(
+        /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?|\.\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+/i
+      );
+      if (qMatch && qMatch[1]) {
+        qty = qMatch[1].trim();
+        if (qty.startsWith('.')) qty = '0' + qty;
+      }
+    }
+
+    const norm = normalizeShoppingKey(cleanName);
+    const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
+    const canonicalName = catEntry?.name || cleanName;
+    const finalStore = targetStore || catEntry?.default_store || 'aldi';
+
+    const existingIdx = current.general.findIndex((g: any) => normalizeShoppingKey(g.name) === norm);
+    if (existingIdx >= 0) {
+      current.general[existingIdx].checked = false;
+      if (qty && !current.general[existingIdx].qty) {
+        current.general[existingIdx].qty = qty;
+      }
+      if (finalStore && current.general[existingIdx].store !== finalStore) {
+        current.general[existingIdx].store = finalStore;
+      }
+      const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
+      delete current.checked[itemKey];
+    } else {
+      current.general.push({
+        id: `shop_${crypto.randomBytes(6).toString('hex')}`,
+        name: canonicalName,
+        qty: qty || '',
+        store: finalStore,
+        checked: false,
+      });
+      const itemKey = `general::${canonicalName.toLowerCase()}`;
+      delete current.checked[itemKey];
+      addedCount++;
+    }
+  }
+
+  AppSetting.set('shopping_list_json', JSON.stringify(current));
+  return addedCount;
+}
+
 export const householdRouter = Router();
 
 householdRouter.get('/api/meal_planner', async (req: Request, res: Response) => {
   const weekParam = String(req.query.week_start || req.query.week || '');
+  const weeksCount = parseInt(String(req.query.weeks || '2'), 10) || 2;
   const weekStart = getMondayOfWeek(weekParam);
   const weekDays = getWeekDaysList(weekStart);
-  const { plan, cards_by_day, recurring } = getMealPlanForWeek(weekStart);
+  const { plan, cards_by_day, recurring } = getMealPlanForWeek(weekStart, weeksCount);
   const suggestions = getMealSuggestions();
   res.json({
     success: true,
@@ -696,12 +776,13 @@ householdRouter.get('/api/meal_planner', async (req: Request, res: Response) => 
 });
 
 // Add or update a meal card on one or more days (e.g., Monday & Tuesday)
-householdRouter.post(['/api/meal_planner/card', '/api/meal_planner/card/save'], (req: Request, res: Response) => {
+householdRouter.post(['/api/meal_planner/card', '/api/meal_planner/card/save'], async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const title = String(body.title || body.value || '').trim();
     const audience = String(body.audience || 'Everyone').trim() || 'Everyone';
     const cardId = body.card_id ? String(body.card_id).trim() : '';
+    const addToShopping = Boolean(body.add_to_shopping);
     const daysInput: string[] = Array.isArray(body.days)
       ? body.days.map((d: any) => String(d).trim()).filter(Boolean)
       : body.date_iso
@@ -719,7 +800,7 @@ householdRouter.post(['/api/meal_planner/card', '/api/meal_planner/card/save'], 
     for (const dateIso of daysInput) {
       const currentCards = normalizeDayCards(storedPlan[dateIso]);
       if (cardId) {
-        const idx = currentCards.findIndex((c) => c.id === cardId);
+        const idx = currentCards.findIndex((c) => c.id === cardId || c.meal_key === cardId.toLowerCase());
         if (idx >= 0) {
           currentCards[idx] = { id: cardId, title, audience, meal_key: mealKey };
         } else {
@@ -745,9 +826,23 @@ householdRouter.post(['/api/meal_planner/card', '/api/meal_planner/card/save'], 
       AppSetting.set('meal_planner_suggestions_json', JSON.stringify(suggestions));
     }
 
+    // If requested, add recipe ingredients to shopping list
+    if (addToShopping) {
+      const recipes = await getAllRecipes();
+      const rec = recipes[mealKey];
+      const ingredients = rec?.ingredients && rec.ingredients.length > 0
+        ? rec.ingredients
+        : (getMealIngredients() || {})[mealKey] || [];
+      if (ingredients.length > 0) {
+        await addIngredientsToShoppingBatch(ingredients);
+      } else {
+        await addIngredientsToShoppingBatch([{ name: title, qty: '', store: 'aldi' }]);
+      }
+    }
+
     logActivity('settings_updated', `Planned meal "${title}" (${audience}) for ${daysInput.join(', ')}`);
     const weekStart = getMondayOfWeek(daysInput[0]);
-    const { plan, cards_by_day } = getMealPlanForWeek(weekStart);
+    const { plan, cards_by_day } = getMealPlanForWeek(weekStart, 2);
     res.json({ success: true, plan, cards_by_day });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message || 'Failed to save meal card' });
@@ -764,7 +859,10 @@ householdRouter.post('/api/meal_planner/card/delete', (req: Request, res: Respon
       return;
     }
     const storedPlan = parseJsonSetting<Record<string, any>>('meal_planner_plan_json', {});
-    const currentCards = normalizeDayCards(storedPlan[dateIso]).filter((c) => c.id !== cardId);
+    const targetId = cardId.toLowerCase();
+    const currentCards = normalizeDayCards(storedPlan[dateIso]).filter(
+      (c) => c.id !== cardId && c.id.toLowerCase() !== targetId && c.meal_key !== targetId && c.title.toLowerCase() !== targetId
+    );
     if (currentCards.length > 0) {
       storedPlan[dateIso] = currentCards;
     } else {
@@ -772,48 +870,12 @@ householdRouter.post('/api/meal_planner/card/delete', (req: Request, res: Respon
     }
     AppSetting.set('meal_planner_plan_json', JSON.stringify(storedPlan));
     const weekStart = getMondayOfWeek(dateIso);
-    const { plan, cards_by_day } = getMealPlanForWeek(weekStart);
+    const { plan, cards_by_day } = getMealPlanForWeek(weekStart, 2);
     res.json({ success: true, plan, cards_by_day });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err?.message });
   }
 });
-
-// Move / reorder a meal card between days via drag-and-drop
-householdRouter.post('/api/meal_planner/card/move', (req: Request, res: Response) => {
-  try {
-    const sourceDate = String(req.body?.source_date || '').trim();
-    const targetDate = String(req.body?.target_date || '').trim();
-    const cardId = String(req.body?.card_id || '').trim();
-    if (!sourceDate || !targetDate || !cardId || sourceDate === targetDate) {
-      res.json({ success: true });
-      return;
-    }
-    const storedPlan = parseJsonSetting<Record<string, any>>('meal_planner_plan_json', {});
-    const srcCards = normalizeDayCards(storedPlan[sourceDate]);
-    const cardIdx = srcCards.findIndex((c) => c.id === cardId);
-    if (cardIdx < 0) {
-      res.json({ success: true });
-      return;
-    }
-    const [movedCard] = srcCards.splice(cardIdx, 1);
-    const dstCards = normalizeDayCards(storedPlan[targetDate]);
-    dstCards.push(movedCard);
-
-    if (srcCards.length > 0) storedPlan[sourceDate] = srcCards;
-    else delete storedPlan[sourceDate];
-    storedPlan[targetDate] = dstCards;
-
-    AppSetting.set('meal_planner_plan_json', JSON.stringify(storedPlan));
-    const weekStart = getMondayOfWeek(targetDate);
-    const { plan, cards_by_day } = getMealPlanForWeek(weekStart);
-    res.json({ success: true, plan, cards_by_day });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err?.message });
-  }
-});
-
-
 
 householdRouter.post('/api/add_meal_suggestion', (req: Request, res: Response) => {
   const meal = String(req.body?.meal || '').trim().slice(0, 80);
@@ -841,7 +903,7 @@ householdRouter.get('/api/recipes', async (_req: Request, res: Response) => {
   res.json({ success: true, recipes: await getAllRecipes() });
 });
 
-householdRouter.post('/api/recipes', async (req: Request, res: Response) => {
+householdRouter.post(['/api/recipes', '/api/recipes/save', '/api/save_recipe'], async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     if (!body.title) {
@@ -1390,65 +1452,8 @@ householdRouter.post('/api/add_general_shopping_item', async (req: Request, res:
 
 householdRouter.post('/api/shopping/batch_add', async (req: Request, res: Response) => {
   const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
-  const current = getShoppingData();
-  const stores = getShoppingStores();
-  let addedCount = 0;
-
-  for (const it of rawItems) {
-    const rawInput = String(typeof it === 'string' ? it : it?.name || '').trim().slice(0, 120);
-    if (!rawInput) continue;
-    const cleanName = cleanShoppingItemName(rawInput) || rawInput;
-
-    // Detect store: explicit store selection by user takes precedence, then brand detection in ingredient text
-    const storeInput = typeof it === 'object' && it?.store ? String(it.store).trim() : '';
-    const detectedStore = detectStoreFromText(rawInput, stores);
-    const targetStore = storeInput || detectedStore || 'aldi';
-
-    // Quantity extraction & normalization
-    let qty = typeof it === 'object' && it?.qty ? String(it.qty).trim() : '';
-    if (qty.startsWith('.')) qty = '0' + qty;
-    if (!qty) {
-      const qMatch = rawInput.match(
-        /^((?:(?:\d+\s+)?[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+(?:[\/.]\d+)?|\.\d+)\s*(?:g|kg|ml|l|oz|lb|cups?|tbsp?|tbs?|tablespoons?|teaspoons?|cloves?|cans?|tins?|pkts?|packets?|punnets?|pinch(?:es)?|bunch(?:es)?|slices?|stalks?|heads?)?)\s+/i
-      );
-      if (qMatch && qMatch[1]) {
-        qty = qMatch[1].trim();
-        if (qty.startsWith('.')) qty = '0' + qty;
-      }
-    }
-
-    const norm = normalizeShoppingKey(cleanName);
-    const catEntry = await touchCatalogItemOnAdd(cleanName, targetStore, true);
-    const canonicalName = catEntry?.name || cleanName;
-    const finalStore = targetStore || catEntry?.default_store || 'aldi';
-
-    const existingIdx = current.general.findIndex((g: any) => normalizeShoppingKey(g.name) === norm);
-    if (existingIdx >= 0) {
-      current.general[existingIdx].checked = false;
-      if (qty && !current.general[existingIdx].qty) {
-        current.general[existingIdx].qty = qty;
-      }
-      if (finalStore && current.general[existingIdx].store !== finalStore) {
-        current.general[existingIdx].store = finalStore;
-      }
-      const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
-      delete current.checked[itemKey];
-    } else {
-      current.general.push({
-        id: `shop_${crypto.randomBytes(6).toString('hex')}`,
-        name: canonicalName,
-        qty: qty || '',
-        store: finalStore,
-        checked: false,
-      });
-      const itemKey = `general::${canonicalName.toLowerCase()}`;
-      delete current.checked[itemKey];
-      addedCount++;
-    }
-  }
-
-  AppSetting.set('shopping_list_json', JSON.stringify(current));
-  res.json({ success: true, added_count: addedCount, ...current });
+  const addedCount = await addIngredientsToShoppingBatch(rawItems);
+  res.json({ success: true, added_count: addedCount, ...getShoppingData() });
 });
 
 householdRouter.post('/api/update_shopping_item', (req: Request, res: Response) => {

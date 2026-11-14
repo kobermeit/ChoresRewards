@@ -43,14 +43,8 @@ export const BADGE_DEFINITIONS: Record<string, { emoji: string; name: string; de
   streak_30: { emoji: '🏆', name: 'Legend', desc: '30-day streak!' },
 };
 
-/** Timestamps stay naive 'YYYY-MM-DD HH:MM:SS' strings (UTC), matching the imported SQLite data. */
-export function nowNaive(): string {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
-}
-
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { nowNaive, todayIso } from './utils/time';
+export { nowNaive, todayIso };
 
 export function roundPoints(val: unknown): number {
   const num = Number(val);

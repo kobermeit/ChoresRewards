@@ -7,7 +7,7 @@ import { downloadAndStoreImage } from '../services/imageDownloader';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
-import { getAppTimezone, getLocalNowNaive, getFamilyToday, formatDateInTz, getConfiguredTimezone } from '../utils/time';
+import { getAppTimezone, getLocalNowNaive, getFamilyToday, formatDateInTz, getConfiguredTimezone, nowNaive } from '../utils/time';
 import { sendGotifyNotification } from '../services/gotify';
 import { scrapeRewardUrl, cleanTitle, cleanDescription, decodeEntities } from '../services/scraper';
 
@@ -191,7 +191,7 @@ export async function syncRewardById(rewardId: number): Promise<{
   }
 
   const pointValue = parseFloat(AppSetting.get('point_value') || '0.50') || 0.50;
-  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const nowIso = nowNaive();
 
   try {
     const scraped = await scrapeRewardUrl(reward.source_url, pointValue);

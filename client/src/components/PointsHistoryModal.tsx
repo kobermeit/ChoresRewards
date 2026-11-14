@@ -163,7 +163,7 @@ export const PointsHistoryModal: React.FC<PointsHistoryModalProps> = ({
               let formattedDate = '';
               if (dateStr) {
                 try {
-                  const d = new Date(dateStr);
+                  const d = new Date(String(dateStr).replace(' ', 'T'));
                   formattedDate = d.toLocaleDateString(undefined, {
                     month: 'short',
                     day: 'numeric',

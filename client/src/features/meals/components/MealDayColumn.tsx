@@ -16,9 +16,7 @@ export interface MealDayColumnProps {
   onCardClick: (card: any, dateIso: string) => void;
   onSuggestionClick: (dateIso: string, suggestedTitle: string) => void;
   onAddMealClick: (dateIso: string) => void;
-  onDragStart: (cardId: string, dateIso: string) => void;
-  onDragEnd: () => void;
-  onDrop: (toDateIso: string) => void;
+  onDeleteCard?: (dateIso: string, cardId: string) => void;
 }
 
 export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
@@ -32,16 +30,12 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
   onCardClick,
   onSuggestionClick,
   onAddMealClick,
-  onDragStart,
-  onDragEnd,
-  onDrop,
+  onDeleteCard,
 }) => {
   return (
     <div
       className={`meal-day-card${isToday ? ' meal-day-card-today' : ''}`}
       data-day={day.date_iso}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={() => onDrop(day.date_iso)}
     >
       <div className="meal-day-header">
         <strong>{day.day_full}</strong>
@@ -118,9 +112,6 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
               <div
                 key={card.id}
                 className="meal-kanban-card"
-                draggable
-                onDragStart={() => onDragStart(card.id, day.date_iso)}
-                onDragEnd={onDragEnd}
                 onClick={() => onCardClick(card, day.date_iso)}
                 title="Click to view recipe, method & ingredients"
                 style={{ position: 'relative', padding: '6px 8px' }}
@@ -181,6 +172,19 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
                       {card.audience ? card.audience : 'All family'}
                     </span>
                   </div>
+                  {!isChild && onDeleteCard && (
+                    <button
+                      type="button"
+                      className="meal-kanban-delete-corner"
+                      title={`Remove "${card.title}" from ${day.day_full}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteCard(day.date_iso, card.id);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               </div>
             );

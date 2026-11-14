@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../../../components/common/Modal';
-import { Button } from '../../../components/ui';
+import { Button, CustomDropdown, CustomDropdownOption } from '../../../components/ui';
 import { AssigneeSelect } from '../../../components/ui/AssigneeSelect';
 import { FallbackImage } from '../../../components/common/FallbackImage';
 import { resolveAssetUrl } from '../../../api';
@@ -24,6 +24,7 @@ export interface PlanMealModalProps {
   mealImages: Record<string, string>;
   family?: Person[];
   onSave: () => Promise<void>;
+  selectableWeeks?: DayInfo[][];
 }
 
 export const PlanMealModal: React.FC<PlanMealModalProps> = ({
@@ -43,32 +44,36 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
   mealImages,
   family = [],
   onSave,
+  selectableWeeks,
 }) => {
-  const [comboboxOpen, setComboboxOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const comboboxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
-        setComboboxOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const filteredRecipes = useMemo(() => {
-    const q = planMealTitle.trim().toLowerCase();
-    if (!q) return allLibraryRecipes.slice(0, 8);
-    return allLibraryRecipes
-      .filter((r) => r.title.toLowerCase().includes(q))
-      .slice(0, 10);
-  }, [allLibraryRecipes, planMealTitle]);
 
   const matchKey = planMealTitle.trim().toLowerCase();
   const matchedRecipe = recipesRecord[matchKey];
   const customImg = matchedRecipe?.image_url || mealImages[matchKey];
+
+  const recipeOptions: CustomDropdownOption[] = useMemo(() => {
+    const opts: CustomDropdownOption[] = allLibraryRecipes.map((r) => {
+      const key = (r.meal_key || r.title).toLowerCase();
+      const img = r.image_url || mealImages[key];
+      return {
+        value: r.title,
+        label: r.title,
+        icon: img || getMealEmoji(r.title),
+      };
+    });
+
+    const trimmed = planMealTitle.trim();
+    if (trimmed && !opts.some((o) => o.value.toLowerCase() === trimmed.toLowerCase())) {
+      opts.unshift({
+        value: trimmed,
+        label: trimmed,
+        icon: customImg || getMealEmoji(trimmed),
+      });
+    }
+
+    return opts;
+  }, [allLibraryRecipes, mealImages, planMealTitle, customImg]);
 
   const handleCommitSave = async () => {
     if (!planMealTitle.trim() || planSelectedDays.length === 0) return;
@@ -106,74 +111,28 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* Meal Name Input + Recipe Thumbnail Preview */}
-        <div ref={comboboxRef} style={{ position: 'relative' }}>
+        {/* Meal Name Dropdown + Recipe Thumbnail Preview */}
+        <div style={{ position: 'relative' }}>
           <label
-            htmlFor="plan-meal-input"
             style={{ fontSize: '0.84rem', fontWeight: 700, color: '#e2e8f0', marginBottom: 6, display: 'block' }}
           >
             Meal Name
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ position: 'relative', flex: 1 }}>
-              <input
-                id="plan-meal-input"
-                type="text"
-                className="cr-input"
-                placeholder="Search recipe library or type new meal…"
+              <CustomDropdown
                 value={planMealTitle}
-                onChange={(e) => {
-                  setPlanMealTitle(e.target.value);
-                  setComboboxOpen(true);
-                }}
-                onFocus={() => setComboboxOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setComboboxOpen(false);
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (filteredRecipes.length > 0 && planMealTitle.trim().toLowerCase() === filteredRecipes[0].title.toLowerCase()) {
-                      setPlanMealTitle(filteredRecipes[0].title);
-                      setComboboxOpen(false);
-                    } else {
-                      setComboboxOpen(false);
-                    }
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  paddingRight: planMealTitle ? 32 : 12,
-                }}
+                placeholder="Select recipe or search…"
+                options={recipeOptions}
+                onChange={(val) => setPlanMealTitle(val)}
+                showFilter={true}
+                filterPlaceholder="Type to filter or enter new meal…"
+                allowCustomValue={true}
+                customValueLabel={(text) => `Use custom meal "${text}"`}
+                clearable={true}
+                height={40}
+                ariaLabel="Select or enter meal name"
               />
-              {planMealTitle && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlanMealTitle('');
-                    setComboboxOpen(false);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: 8,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(255,255,255,0.45)',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    padding: 4,
-                    lineHeight: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="Clear meal name"
-                  aria-label="Clear meal name"
-                >
-                  <i className="fas fa-times" />
-                </button>
-              )}
             </div>
 
             {/* Thumbnail preview */}
@@ -206,50 +165,6 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
               )}
             </div>
           </div>
-
-          {/* Combobox Dropdown */}
-          {comboboxOpen && (
-            <div
-              className="shopping-combobox-dropdown"
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 58,
-                maxHeight: 220,
-                overflowY: 'auto',
-                zIndex: 10001,
-                marginTop: 4,
-                boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
-              }}
-            >
-              {filteredRecipes.map((r) => (
-                <div
-                  key={r.meal_key}
-                  className="shopping-combobox-item"
-                  onClick={() => {
-                    setPlanMealTitle(r.title);
-                    setComboboxOpen(false);
-                  }}
-                  style={{ padding: '8px 12px' }}
-                >
-                  <span style={{ fontWeight: 600, color: '#f8fafc' }}>{r.title}</span>
-                </div>
-              ))}
-              {planMealTitle.trim() &&
-                !allLibraryRecipes.some(
-                  (r) => r.title.toLowerCase() === planMealTitle.trim().toLowerCase()
-                ) && (
-                  <div
-                    className="shopping-combobox-item shopping-combobox-item-custom"
-                    onClick={() => setComboboxOpen(false)}
-                    style={{ padding: '8px 12px' }}
-                  >
-                    <span style={{ color: '#93c5fd' }}>+ Use custom meal &ldquo;{planMealTitle.trim()}&rdquo;</span>
-                  </div>
-                )}
-            </div>
-          )}
         </div>
 
         {/* Audience using shared AssigneeSelect */}
@@ -263,7 +178,7 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
         />
 
         {/* Days selector matching ChoreModal sleek Day Pills */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--color-text-primary, #e2e8f0)' }}>
               Plan for Days
@@ -271,7 +186,10 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={() => setPlanSelectedDays(weekDays.map((d) => d.date_iso))}
+                onClick={() => {
+                  const allVisibleDays = (selectableWeeks && selectableWeeks.length > 0 ? selectableWeeks.flat() : weekDays);
+                  setPlanSelectedDays(allVisibleDays.map((d) => d.date_iso));
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -287,13 +205,11 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
               <span style={{ opacity: 0.4, fontSize: '0.74rem' }}>•</span>
               <button
                 type="button"
-                onClick={() =>
-                  setPlanSelectedDays(
-                    weekDays
-                      .filter((d) => !['Sat', 'Sun'].includes(d.day_short))
-                      .map((d) => d.date_iso)
-                  )
-                }
+                onClick={() => {
+                  const weeks = (selectableWeeks && selectableWeeks.length > 0 ? selectableWeeks : [weekDays]);
+                  const targetWeek = weeks.find((w) => w.some((d) => planSelectedDays.includes(d.date_iso))) || weeks[0];
+                  setPlanSelectedDays(targetWeek.filter((d) => !['Sat', 'Sun'].includes(d.day_short)).map((d) => d.date_iso));
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -309,13 +225,11 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
               <span style={{ opacity: 0.4, fontSize: '0.74rem' }}>•</span>
               <button
                 type="button"
-                onClick={() =>
-                  setPlanSelectedDays(
-                    weekDays
-                      .filter((d) => ['Sat', 'Sun'].includes(d.day_short))
-                      .map((d) => d.date_iso)
-                  )
-                }
+                onClick={() => {
+                  const weeks = (selectableWeeks && selectableWeeks.length > 0 ? selectableWeeks : [weekDays]);
+                  const targetWeek = weeks.find((w) => w.some((d) => planSelectedDays.includes(d.date_iso))) || weeks[0];
+                  setPlanSelectedDays(targetWeek.filter((d) => ['Sat', 'Sun'].includes(d.day_short)).map((d) => d.date_iso));
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -328,55 +242,85 @@ export const PlanMealModal: React.FC<PlanMealModalProps> = ({
               >
                 Weekends
               </button>
+              <span style={{ opacity: 0.4, fontSize: '0.74rem' }}>•</span>
+              <button
+                type="button"
+                onClick={() => setPlanSelectedDays([])}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                }}
+              >
+                Clear
+              </button>
             </div>
           </div>
 
-          {/* Touch-Friendly Day Pills */}
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
-            {weekDays.map((d) => {
-              const active = planSelectedDays.includes(d.date_iso);
-              return (
-                <button
-                  key={d.date_iso}
-                  type="button"
-                  onClick={() => {
-                    if (active) {
-                      setPlanSelectedDays((prev) => prev.filter((iso) => iso !== d.date_iso));
-                    } else {
-                      setPlanSelectedDays((prev) => [...prev, d.date_iso]);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    height: 38,
-                    borderRadius: 'var(--btn-radius, 10px)',
-                    border: active
-                      ? '1.5px solid #38bdf8'
-                      : '1px solid rgba(255, 255, 255, 0.12)',
-                    background: active
-                      ? 'rgba(56, 189, 248, 0.25)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                    color: active ? '#ffffff' : '#94a3b8',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1.1,
-                  }}
-                  title={d.day_full}
-                >
-                  <span>{d.day_short}</span>
-                  {d.is_today && (
-                    <span style={{ fontSize: '0.58rem', color: active ? '#bae6fd' : '#38bdf8' }}>•</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {/* Touch-Friendly Day Pills with Date Numbers */}
+          {((selectableWeeks && selectableWeeks.length > 0) ? selectableWeeks : [weekDays]).map((week, wIdx) => {
+            const hasMultipleWeeks = Boolean(selectableWeeks && selectableWeeks.length > 1);
+            return (
+              <div key={week[0]?.date_iso || wIdx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {hasMultipleWeeks && (
+                  <div style={{ fontSize: '0.74rem', fontWeight: 700, color: wIdx === 0 ? '#93c5fd' : '#a78bfa', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>📅 Week {wIdx + 1} ({week[0]?.day_short} {parseInt(week[0]?.date_iso.slice(8) || '0', 10)} – {week[6]?.day_short} {parseInt(week[6]?.date_iso.slice(8) || '0', 10)})</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
+                  {week.map((d) => {
+                    const active = planSelectedDays.includes(d.date_iso);
+                    const dayNum = parseInt(d.date_iso.slice(8), 10);
+                    return (
+                      <button
+                        key={d.date_iso}
+                        type="button"
+                        onClick={() => {
+                          if (active) {
+                            setPlanSelectedDays((prev) => prev.filter((iso) => iso !== d.date_iso));
+                          } else {
+                            setPlanSelectedDays((prev) => [...prev, d.date_iso]);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          height: 42,
+                          borderRadius: 'var(--btn-radius, 10px)',
+                          border: active
+                            ? '1.5px solid #38bdf8'
+                            : '1px solid rgba(255, 255, 255, 0.12)',
+                          background: active
+                            ? 'rgba(56, 189, 248, 0.25)'
+                            : 'rgba(255, 255, 255, 0.05)',
+                          color: active ? '#ffffff' : '#94a3b8',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.12s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          lineHeight: 1.15,
+                          gap: 1,
+                        }}
+                        title={`${d.day_full}, ${d.date_label}`}
+                      >
+                        <span style={{ fontSize: '0.76rem' }}>{d.day_short}</span>
+                        <span style={{ fontSize: '0.72rem', opacity: active ? 1 : 0.75, fontWeight: active ? 800 : 600 }}>{dayNum}</span>
+                        {d.is_today && (
+                          <span style={{ fontSize: '0.52rem', color: active ? '#bae6fd' : '#38bdf8', lineHeight: 0.5 }}>•</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Add ingredients checkbox */}

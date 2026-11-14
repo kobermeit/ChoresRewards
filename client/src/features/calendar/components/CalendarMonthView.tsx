@@ -7,7 +7,6 @@ interface CalendarMonthViewProps {
   currentYear: number;
   currentMonth: number;
   calendarCells: CalendarCell[];
-  eventsThisMonthCount: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
@@ -18,7 +17,6 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
   currentYear,
   currentMonth,
   calendarCells,
-  eventsThisMonthCount,
   onPrevMonth,
   onNextMonth,
   onToday,
@@ -75,17 +73,13 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
             {MONTH_NAMES[currentMonth]} {currentYear}
           </h2>
         </div>
-
-        <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>
-          {eventsThisMonthCount} events this month
-        </div>
       </div>
 
-      {/* Day of Week Headers */}
+      {/* Day of Week Headers - strict 7 equal minmax(0, 1fr) columns */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           background: 'rgba(255, 255, 255, 0.02)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           textAlign: 'center',
@@ -96,20 +90,21 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
         }}
       >
         {DAY_NAMES.map((day) => (
-          <div key={day} style={{ padding: '8px 4px' }}>
+          <div key={day} style={{ padding: '8px 4px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {day}
           </div>
         ))}
       </div>
 
-      {/* Grid Cells */}
+      {/* Grid Cells - strict 7 equal minmax(0, 1fr) columns */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           gridAutoRows: 'minmax(115px, auto)',
           gap: '1px',
           background: 'rgba(255, 255, 255, 0.06)',
+          overflow: 'hidden',
         }}
       >
         {calendarCells.map((cell, idx) => (
@@ -127,12 +122,14 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
               flexDirection: 'column',
               gap: 4,
               minHeight: 110,
+              minWidth: 0,
+              overflow: 'hidden',
               position: 'relative',
               transition: 'background 0.15s',
             }}
           >
             {/* Date Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, minWidth: 0 }}>
               <span
                 style={{
                   width: 26,
@@ -149,19 +146,20 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
                     ? '#e2e8f0'
                     : '#64748b',
                   background: cell.isToday ? '#0284c7' : 'transparent',
+                  flexShrink: 0,
                 }}
               >
                 {cell.dayNum}
               </span>
               {cell.events.length > 0 && (
-                <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>
+                <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cell.events.length} {cell.events.length === 1 ? 'event' : 'events'}
                 </span>
               )}
             </div>
 
             {/* Event Chips */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', maxHeight: 110 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', maxHeight: 110, minWidth: 0 }}>
               {cell.events.slice(0, 3).map((ev) => (
                 <div
                   key={ev.id}
@@ -181,12 +179,13 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
+                    minWidth: 0,
                     transition: 'transform 0.1s, background 0.1s',
                   }}
                   title={`${ev.time_display ? ev.time_display + ': ' : ''}${ev.title}`}
                 >
-                  <span>{ev.emoji || '📅'}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ flexShrink: 0 }}>{ev.emoji || '📅'}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
                     {ev.title}
                   </span>
                   {ev.person_name && ev.person_name !== 'Family' && (
@@ -216,6 +215,9 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = memo(({
                     fontWeight: 700,
                     cursor: 'pointer',
                     padding: '1px 4px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   +{cell.events.length - 3} more...

@@ -23,6 +23,7 @@ export interface CustomDropdownProps {
   disabled?: boolean;
   allowCustomValue?: boolean;
   customValueLabel?: (text: string) => string;
+  clearable?: boolean;
 }
 
 export const CustomDropdown: React.FC<CustomDropdownProps> = ({
@@ -39,6 +40,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   disabled = false,
   allowCustomValue = false,
   customValueLabel,
+  clearable = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -74,15 +76,20 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
       const q = filter.trim().toLowerCase();
       list = options.filter((opt) => opt.label.toLowerCase().includes(q));
     }
-    if (allowCustomValue && filter.trim() && list.length === 0) {
+    if (allowCustomValue && filter.trim()) {
       const trimmed = filter.trim();
-      const customOpt: CustomDropdownOption = {
-        value: trimmed,
-        label: customValueLabel ? customValueLabel(trimmed) : `Add "${trimmed}"`,
-        action: true,
-        icon: 'fas fa-plus',
-      };
-      return [customOpt];
+      const exactMatch = list.some(
+        (opt) => opt.value.toLowerCase() === trimmed.toLowerCase() || opt.label.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (!exactMatch) {
+        const customOpt: CustomDropdownOption = {
+          value: trimmed,
+          label: customValueLabel ? customValueLabel(trimmed) : `Add "${trimmed}"`,
+          action: true,
+          icon: 'fas fa-plus',
+        };
+        return [...list, customOpt];
+      }
     }
     return list;
   }, [options, filter, showFilter, allowCustomValue, customValueLabel]);
@@ -161,21 +168,59 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
               {renderIcon(selectedOption.icon)}
               <span style={{ fontWeight: 600 }}>{selectedOption.label}</span>
             </>
+          ) : value ? (
+            <span style={{ fontWeight: 600 }}>{value}</span>
           ) : (
             <span style={{ color: 'var(--color-text-muted, #94a3b8)' }}>{placeholder}</span>
           )}
         </span>
-        <i
-          className="fas fa-chevron-down"
-          style={{
-            fontSize: '0.72rem',
-            opacity: 0.6,
-            marginLeft: 8,
-            flexShrink: 0,
-            transition: 'transform 0.18s ease',
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+          {clearable && Boolean(value) && (
+            <span
+              role="button"
+              tabIndex={0}
+              title="Clear selection"
+              aria-label="Clear selection"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setFilter('');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: 'rgba(255, 255, 255, 0.6)',
+                fontSize: '0.68rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                e.currentTarget.style.color = '#fca5a5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+              }}
+            >
+              <i className="fas fa-times" />
+            </span>
+          )}
+          <i
+            className="fas fa-chevron-down"
+            style={{
+              fontSize: '0.72rem',
+              opacity: 0.6,
+              transition: 'transform 0.18s ease',
+              transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}
+          />
+        </div>
       </button>
 
       {/* Floating Popover Menu */}
@@ -212,6 +257,13 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 placeholder={filterPlaceholder}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                data-lpignore="true"
+                data-form-type="other"
+                name="filter-search-no-autocomplete"
                 style={{
                   width: '100%',
                   height: 30,
@@ -240,6 +292,8 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 return (
                   <div
                     key={opt.value}
+                    className={`cr-custom-dropdown-option ${isSelected ? 'is-selected' : ''}`.trim()}
+                    data-value={opt.value}
                     onClick={() => handleSelect(opt.value)}
                     style={{
                       display: 'flex',

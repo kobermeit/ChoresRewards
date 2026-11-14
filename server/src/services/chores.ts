@@ -6,7 +6,7 @@ import { AppSetting, BADGE_DEFINITIONS, logActivity } from '../db';
 import { getDb } from '../db/client';
 import { chore as choreTable, personBadge, personStreak } from '../db/schema';
 import { DATA_DIR } from '../config';
-import { getFamilyToday, getMondayOfWeek, addDays, isDayOfWeekScheduled, getNextScheduledDate } from '../utils/time';
+import { getFamilyToday, getMondayOfWeek, addDays, isDayOfWeekScheduled, getNextScheduledDate, nowNaive } from '../utils/time';
 import { sendGotifyNotification, shouldNotifyPerson } from './gotify';
 import { defaultQuizQuestions } from '../defaultQuizQuestions';
 
@@ -200,7 +200,7 @@ export async function resetDailyChores(): Promise<void> {
 
   let resetCount = 0;
   const overdueChores: Array<{ title: string; assignedTo: string; assignedToId: number | null; dueDate: string | null }> = [];
-  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const nowIso = nowNaive();
 
   for (const row of dailyChores) {
     const choreDate = row.dueDate ? String(row.dueDate).slice(0, 10) : null;

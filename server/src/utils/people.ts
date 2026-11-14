@@ -1,3 +1,5 @@
+import { getFamilyToday } from './time';
+
 export interface BirthdayInfo {
   dob: string;
   birthdayDisplay: string;
@@ -14,10 +16,9 @@ export function calculateAge(dobIso?: string | null, fallbackAge?: number | null
   const m = Number(match[2]) - 1;
   const d = Number(match[3]);
 
-  const now = new Date();
-  let age = now.getFullYear() - y;
-  const curMonth = now.getMonth();
-  const curDate = now.getDate();
+  const [curYear, curM, curDate] = getFamilyToday().split('-').map(Number);
+  const curMonth = curM - 1;
+  let age = curYear - y;
 
   if (curMonth < m || (curMonth === m && curDate < d)) {
     age--;
@@ -33,14 +34,14 @@ export function getBirthdayInfo(dobIso?: string | null): BirthdayInfo | null {
   const m = Number(match[2]) - 1;
   const d = Number(match[3]);
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
+  const [currentYear, curM, curD] = getFamilyToday().split('-').map(Number);
+  const curMonth = curM - 1;
 
-  let nextBday = new Date(currentYear, m, d);
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let nextBday = new Date(Date.UTC(currentYear, m, d));
+  const todayMidnight = new Date(Date.UTC(currentYear, curMonth, curD));
 
   if (nextBday.getTime() < todayMidnight.getTime()) {
-    nextBday = new Date(currentYear + 1, m, d);
+    nextBday = new Date(Date.UTC(currentYear + 1, m, d));
   }
 
   const diffMs = nextBday.getTime() - todayMidnight.getTime();

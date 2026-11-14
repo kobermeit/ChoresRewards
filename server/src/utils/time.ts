@@ -77,6 +77,16 @@ export function getLocalNowNaive(tz: string | null = getAppTimezone()): {
   };
 }
 
+/** Formatted local timestamp 'YYYY-MM-DD HH:MM:SS' in household timezone. */
+export function nowNaive(tz: string | null = getAppTimezone()): string {
+  return getLocalNowNaive(tz).isoNaive;
+}
+
+/** Local date string 'YYYY-MM-DD' in household timezone. */
+export function todayIso(tz: string | null = getAppTimezone()): string {
+  return getLocalNowNaive(tz).dateStr;
+}
+
 export function getFamilyToday(): string {
   const tz = getAppTimezone();
   const resetHour = getDailyResetHour();

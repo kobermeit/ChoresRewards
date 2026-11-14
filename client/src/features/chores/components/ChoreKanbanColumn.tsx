@@ -28,7 +28,6 @@ export interface ChoreKanbanColumnProps {
   onEditChore: (chore: Chore) => void;
   onDeleteChore: (chore: Chore) => void;
   onShowChoreDetails: (chore: Chore) => void;
-  onDropColumn: (person: Person) => void;
 }
 
 export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
@@ -54,7 +53,6 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
   onEditChore,
   onDeleteChore,
   onShowChoreDetails,
-  onDropColumn,
 }) => {
   const pendingChores = chores.filter((c) => !c.completed);
   const completedChores = chores.filter((c) => c.completed);
@@ -85,8 +83,6 @@ export const ChoreKanbanColumn: React.FC<ChoreKanbanColumnProps> = memo(({
         flexDirection: 'column',
         gap: 10,
       }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={() => onDropColumn(person)}
     >
       {/* Sleek Compact Column Header */}
       <div

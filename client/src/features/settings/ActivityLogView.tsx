@@ -66,7 +66,14 @@ export const ActivityLogView: React.FC = () => {
                 <div style={{ fontSize: '0.75rem', opacity: 0.65 }}>{l.action_type}</div>
               </div>
               <div style={{ fontSize: '0.8rem', opacity: 0.75 }}>
-                {new Date(l.timestamp).toLocaleString()}
+                {new Date(String(l.timestamp || l.date).replace(' ', 'T')).toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })}
               </div>
             </div>
           ))}

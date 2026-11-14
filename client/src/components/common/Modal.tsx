@@ -1,5 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useAppSelector } from '../../store';
 
 export interface ModalProps {
   open: boolean;
@@ -24,6 +26,17 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   useBodyScrollLock(open);
 
+  const activeView = useAppSelector((s) => s.ui.activeView);
+  const initialViewRef = useRef(activeView);
+
+  // Close modal automatically if user navigates to another page / tab
+  useEffect(() => {
+    if (open && activeView !== initialViewRef.current) {
+      onClose();
+    }
+    initialViewRef.current = activeView;
+  }, [open, activeView, onClose]);
+
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,8 +50,12 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!open) return null;
 
-  return (
-    <div className={`cr-modal-overlay ${className}`.trim()} onClick={onClose}>
+  const content = (
+    <div
+      className={`cr-modal-overlay ${className}`.trim()}
+      onClick={onClose}
+      style={{ zIndex: 100000 }}
+    >
       <div
         className="cr-modal-dialog"
         style={{ maxWidth }}
@@ -65,4 +82,6 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };

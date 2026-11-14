@@ -7,7 +7,7 @@ import { logActivity } from '../db';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
 import { requireAdult } from './auth';
-import { getFamilyToday, isChoreOverdue } from '../utils/time';
+import { getFamilyToday, isChoreOverdue, nowNaive } from '../utils/time';
 
 const organisePhotoUpload = multer({
   storage: multer.diskStorage({
@@ -183,7 +183,7 @@ organiseRouter.get('/api/notifications', async (_req: Request, res: Response) =>
   });
 
   // Persist unread alerts (idempotent upsert by dedupe key, preserving read state)
-  const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const nowIso = nowNaive();
   for (const alert of alerts) {
     const payload: unknown[] = [
       alert.kind,
@@ -273,7 +273,7 @@ organiseRouter.post('/api/notifications/mark_read', async (req: Request, res: Re
             (r) => r.dedupe_key
           );
 
-    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const nowIso = nowNaive();
     let updated = 0;
     for (const key of keys) {
       const result = await sqlRun('UPDATE notifications SET read_at = ? WHERE dedupe_key = ? AND read_at IS NULL', [
@@ -297,7 +297,7 @@ organiseRouter.post('/api/notifications/delete', async (req: Request, res: Respo
     if (!ids.length) {
       return res.status(400).json({ success: false, error: 'No notification ids supplied' });
     }
-    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const nowIso = nowNaive();
     let deleted = 0;
     for (const key of ids) {
       const result = await sqlRun('UPDATE notifications SET read_at = COALESCE(read_at, ?), dismissed_at = ?, updated_at = ? WHERE dedupe_key = ?', [nowIso, nowIso, nowIso, key]);

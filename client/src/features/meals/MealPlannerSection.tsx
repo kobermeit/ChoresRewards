@@ -34,7 +34,6 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
   const [planAudience, setPlanAudience] = useState('Everyone');
   const [planSelectedDays, setPlanSelectedDays] = useState<string[]>([]);
   const [planAddShopping, setPlanAddShopping] = useState(true);
-  const [draggedSlot, setDraggedSlot] = useState<{ dateIso: string; mealKey: string } | null>(null);
 
   const mp = data?.meal_planner;
   const currentWeekStart = activeWeekStart || mp?.week_start || '';
@@ -48,10 +47,10 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
       if (!activeWeekStart) {
         setActiveWeekStart(mp.week_start);
         setWeekDaysState(mp.week_days || []);
-        setWeekPlanState(mp.plan || {});
+        setWeekPlanState((prev) => ({ ...prev, ...(mp.plan || {}) }));
       } else if (activeWeekStart === mp.week_start) {
         setWeekDaysState(mp.week_days || []);
-        setWeekPlanState(mp.plan || {});
+        setWeekPlanState((prev) => ({ ...prev, ...(mp.plan || {}) }));
       }
     }
   }, [mp, activeWeekStart]);
@@ -179,7 +178,9 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
   }, [data?.meal_suggestions, data?.meal_planner?.suggestions]);
 
   const allLibraryRecipes: RecipeItem[] = useMemo(() => {
-    return Array.isArray(data?.recipes) ? data.recipes : [];
+    if (Array.isArray(data?.recipes)) return data.recipes;
+    if (data?.recipes && typeof data.recipes === 'object') return Object.values(data.recipes);
+    return [];
   }, [data?.recipes]);
 
   const recipesRecord: Record<string, RecipeItem> = useMemo(() => {
@@ -233,26 +234,38 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
     }
   };
 
-  const handleDropMeal = async (toDateIso: string) => {
-    if (draggedSlot) {
-      try {
-        await apiPost('meal_planner/card/move', {
-          card_id: draggedSlot.mealKey,
-          from_date_iso: draggedSlot.dateIso,
-          to_date_iso: toDateIso,
-        });
-        setDraggedSlot(null);
-        await handlePostMutationRefresh();
-      } catch {
-        // ignore
-      }
+  const handleDeleteCard = async (dateIso: string, cardId: string) => {
+    try {
+      await apiPost('meal_planner/card/delete', {
+        date_iso: dateIso,
+        card_id: cardId,
+      });
+      showToast('Removed meal from planner');
+      await handlePostMutationRefresh();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to remove meal', { type: 'error' });
     }
   };
+
+  useEffect(() => {
+    const handleExternalRefresh = () => {
+      handlePostMutationRefresh();
+    };
+    window.addEventListener('meal_planner_refresh', handleExternalRefresh);
+    return () => window.removeEventListener('meal_planner_refresh', handleExternalRefresh);
+  }, [currentWeekStart, plannerViewMode]);
 
   const isThisWeek = currentWeekStart === mp?.week_start;
   const week1Days = weekDays.slice(0, 7);
   const week2StartIso = shiftWeekIso(currentWeekStart, 7);
   const week2Days = computeWeekDays(week2StartIso);
+
+  const selectableWeeks = useMemo(() => {
+    if (plannerViewMode === '2weeks') {
+      return [week1Days, week2Days];
+    }
+    return [week1Days];
+  }, [plannerViewMode, week1Days, week2Days]);
 
   const getDayCards = (dateIso: string): any[] => {
     const raw = plan[dateIso];
@@ -421,9 +434,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
                     onCardClick={(c) => onOpenRecipeModal?.(c, d.date_iso)}
                     onSuggestionClick={handleSuggestionClick}
                     onAddMealClick={handleOpenAddMealModal}
-                    onDragStart={(cardId, dateIso) => setDraggedSlot({ dateIso, mealKey: cardId })}
-                    onDragEnd={() => setDraggedSlot(null)}
-                    onDrop={handleDropMeal}
+                    onDeleteCard={handleDeleteCard}
                   />
                 );
               })}
@@ -452,9 +463,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
                     onCardClick={(c) => onOpenRecipeModal?.(c, d.date_iso)}
                     onSuggestionClick={handleSuggestionClick}
                     onAddMealClick={handleOpenAddMealModal}
-                    onDragStart={(cardId, dateIso) => setDraggedSlot({ dateIso, mealKey: cardId })}
-                    onDragEnd={() => setDraggedSlot(null)}
-                    onDrop={handleDropMeal}
+                    onDeleteCard={handleDeleteCard}
                   />
                 );
               })}
@@ -480,9 +489,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
                 onCardClick={(c) => onOpenRecipeModal?.(c, d.date_iso)}
                 onSuggestionClick={handleSuggestionClick}
                 onAddMealClick={handleOpenAddMealModal}
-                onDragStart={(cardId, dateIso) => setDraggedSlot({ dateIso, mealKey: cardId })}
-                onDragEnd={() => setDraggedSlot(null)}
-                onDrop={handleDropMeal}
+                onDeleteCard={handleDeleteCard}
               />
             );
           })}
@@ -501,6 +508,7 @@ export const MealPlannerSection: React.FC<MealPlannerSectionProps> = ({
         planAddShopping={planAddShopping}
         setPlanAddShopping={setPlanAddShopping}
         weekDays={weekDays}
+        selectableWeeks={selectableWeeks}
         allLibraryRecipes={allLibraryRecipes}
         recipesRecord={recipesRecord}
         mealImages={mealImages}

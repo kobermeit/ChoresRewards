@@ -87,16 +87,16 @@ export function useSeason() {
   const { data } = useGetSeasonalQuery(undefined, { pollingInterval: 10 * 60 * 1000 });
 
   const result = useMemo(() => {
-    const season = data?.active.season ?? null;
-    const event = data?.active.event ?? null;
+    const season = data?.active?.season ?? null;
+    const event = data?.active?.event ?? null;
     // An event (e.g. Halloween) always takes precedence over the base season
     const theme = event ?? season;
-    const enabled = data?.settings.seasonal_themes_enabled ?? false;
+    const enabled = data?.settings?.seasonal_themes_enabled ?? false;
     const accent = enabled && theme?.accent ? theme.accent : null;
     const emoji = enabled && theme?.emoji ? theme.emoji : null;
     const christmasEvent = data?.events?.find((e: any) => e.key === 'christmas');
-    const isChristmasEnabled = (christmasEvent ? Boolean(christmasEvent.enabled) : true) || (data?.settings.forced_theme === 'christmas');
-    const fallingSnowEnabled = enabled && isChristmasEnabled && (data?.settings.falling_snow_enabled ?? true);
+    const isChristmasEnabled = (christmasEvent ? Boolean(christmasEvent.enabled) : true) || (data?.settings?.forced_theme === 'christmas');
+    const fallingSnowEnabled = enabled && isChristmasEnabled && (data?.settings?.falling_snow_enabled ?? true);
 
     return {
       season,
@@ -106,7 +106,7 @@ export function useSeason() {
       accent,
       emoji,
       fallingSnowEnabled,
-      forcedTheme: data?.settings.forced_theme || null,
+      forcedTheme: data?.settings?.forced_theme || null,
     };
   }, [data]);
 
@@ -127,8 +127,8 @@ export function useSeason() {
  */
 export function useSoundTheme(): { chosen: SoundTheme; effective: Exclude<SoundTheme, 'auto'> } {
   const { data } = useGetSeasonalQuery();
-  const chosen = (data?.settings.sound_theme ?? 'auto') as SoundTheme;
+  const chosen = (data?.settings?.sound_theme ?? 'auto') as SoundTheme;
   if (chosen !== 'auto') return { chosen, effective: chosen };
-  const seasonal = (data?.active.event?.sound_key || data?.active.season?.sound_key) as Exclude<SoundTheme, 'auto'> | null;
+  const seasonal = (data?.active?.event?.sound_key || data?.active?.season?.sound_key) as Exclude<SoundTheme, 'auto'> | null;
   return { chosen, effective: seasonal || 'default' };
 }

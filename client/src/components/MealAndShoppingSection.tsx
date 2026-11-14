@@ -43,7 +43,8 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
 
   const handleOpenRecipe = (card: { title: string; meal_key?: string; id?: string }, dateIso?: string) => {
     const key = (card.meal_key || card.title).toLowerCase();
-    const recipeObj = recipesRecord[key] || {
+    const existing = recipesRecord[key];
+    const recipeObj: RecipeItem = existing ? { ...existing } : {
       meal_key: key,
       title: card.title,
       image_url: null,
@@ -65,6 +66,7 @@ export const MealAndShoppingSection: React.FC<MealAndShoppingSectionProps> = ({
       });
       showToast('Removed meal from planner');
       await refresh();
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('meal_planner_refresh'));
     } catch (err: any) {
       showToast(err?.message || 'Failed to remove meal', { type: 'error' });
     }

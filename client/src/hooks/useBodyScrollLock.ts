@@ -24,4 +24,18 @@ export function useBodyScrollLock(isLocked: boolean): void {
       }
     };
   }, [isLocked]);
+
+  // Safety cleanup: if unmounted or navigation occurs, ensure scroll lock doesn't leak if no modals are open
+  useEffect(() => {
+    return () => {
+      setTimeout(() => {
+        const hasOpenModal = typeof document !== 'undefined' && document.querySelector('.cr-modal-overlay');
+        if (!hasOpenModal) {
+          lockCount = 0;
+          document.body.style.overflow = '';
+          document.body.classList.remove('cr-modal-open');
+        }
+      }, 50);
+    };
+  }, []);
 }

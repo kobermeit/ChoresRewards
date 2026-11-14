@@ -15,6 +15,12 @@ export interface CalendarCell {
   events: CalendarEvent[];
 }
 
+function eventMatchesDate(e: CalendarEvent, dateIso: string): boolean {
+  if (e.start_date_iso === dateIso) return true;
+  if (e.start_date_iso <= dateIso && e.end_date_iso && e.end_date_iso >= dateIso) return true;
+  return false;
+}
+
 export function buildCalendarCells(
   currentYear: number,
   currentMonth: number,
@@ -41,7 +47,7 @@ export function buildCalendarCells(
       dayNum,
       isCurrentMonth: false,
       isToday: dateIso === localToday,
-      events: events.filter((e) => e.start_date_iso === dateIso),
+      events: events.filter((e) => eventMatchesDate(e, dateIso)),
     });
   }
 
@@ -55,7 +61,7 @@ export function buildCalendarCells(
       dayNum: d,
       isCurrentMonth: true,
       isToday: dateIso === localToday,
-      events: events.filter((e) => e.start_date_iso === dateIso),
+      events: events.filter((e) => eventMatchesDate(e, dateIso)),
     });
   }
 
@@ -70,10 +76,10 @@ export function buildCalendarCells(
     const dateIso = `${nextYear}-${mStr}-${dStr}`;
     calendarCells.push({
       dateIso,
-      dayNum: d,
+      dayNum,
       isCurrentMonth: false,
       isToday: dateIso === localToday,
-      events: events.filter((e) => e.start_date_iso === dateIso),
+      events: events.filter((e) => eventMatchesDate(e, dateIso)),
     });
   }
 
@@ -85,7 +91,7 @@ export function buildScheduleGroups(
   localToday: string
 ): { scheduleEvents: CalendarEvent[]; scheduleGroups: Record<string, CalendarEvent[]> } {
   const scheduleEvents = [...events]
-    .filter((e) => e.start_date_iso >= localToday)
+    .filter((e) => e.start_date_iso >= localToday || (e.end_date_iso && e.end_date_iso >= localToday))
     .sort((a, b) => {
       if (a.start_date_iso !== b.start_date_iso) return a.start_date_iso.localeCompare(b.start_date_iso);
       if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
