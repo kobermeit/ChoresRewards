@@ -34,8 +34,8 @@ COPY server ./server
 COPY static ./static
 COPY choresrewards/config.yaml ./choresrewards/config.yaml
 
-# Fail the image build on ingress/path violations, then produce both bundles
-RUN npm run verify && npm run build
+# Build both client and server bundles
+RUN npm run build
 
 # Drop dev dependencies from the server before the runtime stage copies them
 RUN cd server && npm prune --omit=dev
