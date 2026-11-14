@@ -29,42 +29,51 @@ function parseIcalDate(rawVal: string, tz: string): { dateIso: string; time: str
   }
 
   if (clean.length >= 15) {
-    const y = Number(clean.slice(0, 4));
-    const m = Number(clean.slice(4, 6)) - 1;
-    const d = Number(clean.slice(6, 8));
-    const hh = Number(clean.slice(9, 11));
-    const mm = Number(clean.slice(11, 13));
-    const ss = Number(clean.slice(13, 15));
-
-    let dt: Date;
+    // If the iCal timestamp ends in 'Z', it's UTC time — convert to user's timezone 'tz'
     if (clean.endsWith('Z')) {
-      dt = new Date(Date.UTC(y, m, d, hh, mm, ss));
-    } else {
-      dt = new Date(y, m, d, hh, mm, ss);
+      const y = Number(clean.slice(0, 4));
+      const m = Number(clean.slice(4, 6)) - 1;
+      const d = Number(clean.slice(6, 8));
+      const hh = Number(clean.slice(9, 11));
+      const mm = Number(clean.slice(11, 13));
+      const ss = Number(clean.slice(13, 15));
+
+      const dt = new Date(Date.UTC(y, m, d, hh, mm, ss));
+      try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).formatToParts(dt);
+
+        const partMap: Record<string, string> = {};
+        for (const p of parts) partMap[p.type] = p.value;
+
+        const dateIso = `${partMap.year}-${partMap.month}-${partMap.day}`;
+        const time = `${partMap.hour}:${partMap.minute}`;
+        return { dateIso, time, allDay: false };
+      } catch {
+        const dateIso = `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
+        const time = `${clean.slice(9, 11)}:${clean.slice(11, 13)}`;
+        return { dateIso, time, allDay: false };
+      }
     }
 
-    try {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: tz,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).formatToParts(dt);
-
-      const partMap: Record<string, string> = {};
-      for (const p of parts) partMap[p.type] = p.value;
-
-      const dateIso = `${partMap.year}-${partMap.month}-${partMap.day}`;
-      const time = `${partMap.hour}:${partMap.minute}`;
-      return { dateIso, time, allDay: false };
-    } catch {
-      const dateIso = `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
-      const time = `${clean.slice(9, 11)}:${clean.slice(11, 13)}`;
-      return { dateIso, time, allDay: false };
-    }
+    // Floating / local wall-clock time (not ending with 'Z'): already in the event's local time
+    const y = clean.slice(0, 4);
+    const m = clean.slice(4, 6);
+    const d = clean.slice(6, 8);
+    const hh = clean.slice(9, 11);
+    const mm = clean.slice(11, 13);
+    return {
+      dateIso: `${y}-${m}-${d}`,
+      time: `${hh}:${mm}`,
+      allDay: false,
+    };
   }
 
   return { dateIso: new Date().toISOString().slice(0, 10), time: '', allDay: true };
@@ -223,6 +232,15 @@ export function parseIcsContent(
         const startParsed = parseIcalDate(startRaw, tz);
         const endParsed = parseIcalDate(endRaw, tz);
 
+        // In RFC 5545, all-day DTEND is exclusive (e.g. 20261113 -> 20261114 for a 1-day event on Nov 13).
+        // Adjust end_date_iso back by 1 day so date comparisons (start <= today && end >= today) are inclusive.
+        let endDateIso = endParsed.dateIso;
+        if (startParsed.allDay && endParsed.dateIso > startParsed.dateIso) {
+          const [ey, em, ed] = endParsed.dateIso.split('-').map(Number);
+          const prevDay = new Date(Date.UTC(ey, em - 1, ed - 1));
+          endDateIso = prevDay.toISOString().slice(0, 10);
+        }
+
         const summary = currentEvent.SUMMARY.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, '\n');
         const desc = (currentEvent.DESCRIPTION || '').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, '\n');
         const loc = (currentEvent.LOCATION || '').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, '\n');
@@ -236,7 +254,7 @@ export function parseIcsContent(
           description: desc,
           location: loc,
           start_date_iso: startParsed.dateIso,
-          end_date_iso: endParsed.dateIso,
+          end_date_iso: endDateIso,
           start_time: startParsed.time,
           end_time: endParsed.time,
           time_display: timeDisplay,

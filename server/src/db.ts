@@ -500,16 +500,15 @@ async function syncPersonRoles(): Promise<void> {
   }
 }
 
-/** Clear avatar / reward image references whose upload no longer exists on disk. */
+/** Check avatar / reward / chore image references (non-destructive; does not wipe DB columns). */
 async function cleanStaleUploadReferences(): Promise<void> {
   const db = getDb();
   try {
-    let changed = 0;
+    let missing = 0;
     const people = await db.select({ id: person.id, avatar: person.avatar }).from(person);
     for (const p of people) {
       if (p.avatar && p.avatar !== 'default_avatar.png' && !fs.existsSync(path.join(UPLOADS_DIR, p.avatar))) {
-        await db.update(person).set({ avatar: null }).where(eq(person.id, p.id));
-        changed++;
+        missing++;
       }
     }
     const rewards = await db.select({ id: reward.id, imageUrl: reward.imageUrl }).from(reward);
@@ -517,8 +516,7 @@ async function cleanStaleUploadReferences(): Promise<void> {
       if (r.imageUrl && r.imageUrl.includes('/static/uploads/')) {
         const rel = r.imageUrl.split('/static/uploads/').pop()!;
         if (!fs.existsSync(path.join(UPLOADS_DIR, rel))) {
-          await db.update(reward).set({ imageUrl: null }).where(eq(reward.id, r.id));
-          changed++;
+          missing++;
         }
       }
     }
@@ -527,16 +525,15 @@ async function cleanStaleUploadReferences(): Promise<void> {
       if (c.imageUrl && c.imageUrl.includes('/static/uploads/')) {
         const rel = c.imageUrl.split('/static/uploads/').pop()!;
         if (!fs.existsSync(path.join(UPLOADS_DIR, rel))) {
-          await db.update(chore).set({ imageUrl: null }).where(eq(chore.id, c.id));
-          changed++;
+          missing++;
         }
       }
     }
-    if (changed > 0) {
-      console.log(`[startup] Cleared ${changed} stale upload reference(s) from DB.`);
+    if (missing > 0) {
+      console.warn(`[startup] Found ${missing} upload reference(s) not currently on disk in UPLOADS_DIR.`);
     }
   } catch (err) {
-    console.error('[startup] Error checking stale uploads:', err);
+    console.error('[startup] Error checking upload references:', err);
   }
 }
 

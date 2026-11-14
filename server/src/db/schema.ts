@@ -29,8 +29,8 @@ export const activityLog = pgTable(
     type: varchar('type', { length: 255 }),
     description: text('description'),
     userName: varchar('user_name', { length: 255 }),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ dateIdx: index('idx_activity_log_date').on(t.date) })
 );
@@ -41,8 +41,8 @@ export const appSettings = pgTable(
     id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
     key: varchar('key', { length: 255 }).notNull(),
     value: text('value').notNull(),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ keyIdx: uniqueIndex('uq_app_settings_key').on(t.key) })
 );
@@ -96,8 +96,8 @@ export const chore = pgTable(
     imageUrl: text('image_url'),
     durationSeconds: integer('duration_seconds'),
     description: text('description'),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ assigneeIdx: index('idx_chore_assigned_to').on(t.assignedToId) })
 );
@@ -121,8 +121,8 @@ export const choreLog = pgTable(
     timerStatus: varchar('timer_status', { length: 30 }).default('untimed'),
     wasOverdue: boolean('was_overdue').default(false),
     notes: text('notes'),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({
     choreIdx: index('idx_chore_log_chore_id').on(t.choreId),
@@ -162,8 +162,8 @@ export const seasons = pgTable(
     emoji: varchar('emoji', { length: 16 }).default('').notNull(),
     accent: varchar('accent', { length: 16 }).default('').notNull(),
     soundKey: varchar('sound_key', { length: 255 }),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ keyIdx: uniqueIndex('uq_seasons_key').on(t.key) })
 );
@@ -182,8 +182,8 @@ export const seasonalEvents = pgTable(
     emoji: varchar('emoji', { length: 16 }).default('').notNull(),
     accent: varchar('accent', { length: 16 }).default('').notNull(),
     soundKey: varchar('sound_key', { length: 255 }),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ keyIdx: uniqueIndex('uq_seasonal_events_key').on(t.key) })
 );
@@ -260,8 +260,8 @@ export const shoppingCatalog = pgTable(
     lastAddedAt: timestamp('last_added_at', { mode: 'string' }),
     lastPurchasedAt: timestamp('last_purchased_at', { mode: 'string' }),
     avgIntervalDays: doublePrecision('avg_interval_days'),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ keyIdx: index('idx_shopping_catalog_normalized').on(t.normalizedKey) })
 );
@@ -288,8 +288,8 @@ export const recipes = pgTable(
     servings: varchar('servings', { length: 255 }),
     prepTime: varchar('prep_time', { length: 255 }),
     notionId: varchar('notion_id', { length: 255 }),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ keyIdx: uniqueIndex('uq_recipes_meal_key').on(t.mealKey) })
 );
@@ -308,8 +308,8 @@ export const notifications = pgTable(
     adminOnly: boolean('admin_only').default(false).notNull(),
     readAt: timestamp('read_at', { mode: 'string' }),
     dismissedAt: timestamp('dismissed_at', { mode: 'string' }),
-    createdAt: timestamp('created_at', { mode: 'string' }),
-    updatedAt: timestamp('updated_at', { mode: 'string' }),
+    createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   },
   (t) => ({ dedupeIdx: uniqueIndex('uq_notifications_dedupe').on(t.dedupeKey) })
 );

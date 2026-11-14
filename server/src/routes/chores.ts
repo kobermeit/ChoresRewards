@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { AppSetting, logActivity, roundPoints } from '../db';
+import { AppSetting, logActivity, roundPoints, nowNaive } from '../db';
 import { downloadAndStoreImage } from '../services/imageDownloader';
 import { sqlAll, sqlOne, sqlRun } from '../db/sql';
 import { UPLOADS_DIR } from '../config';
@@ -116,8 +116,14 @@ choresRouter.get(['/get_chores', '/chores/get_chores'], async (req: Request, res
   const chores = rows
     .filter((c) => {
       if (includeAll) return true;
-      if (isPastDate && c.is_daily) {
-        return isDayOfWeekScheduled(effectiveDate, c.days_of_week);
+      if (isPastDate) {
+        const hasLog = Boolean(logByChoreId[c.id]);
+        if (c.is_daily) {
+          return isDayOfWeekScheduled(effectiveDate, c.days_of_week) || hasLog;
+        } else {
+          // Non-daily / one-off chore: only show on past date if it was due on that specific date or completed on that date
+          return (c.due_date && String(c.due_date).slice(0, 10) === effectiveDate) || hasLog;
+        }
       }
       return true;
     })
@@ -217,8 +223,9 @@ choresRouter.post(
       const description = data.description !== undefined && data.description !== null ? String(data.description).trim() : null;
       const bonusPoints = Math.max(0, roundPoints(data.bonus_points ?? 0));
 
-      const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, bonus_points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description)
-           VALUES (?, ?, ?, ?, ?, false, ?, ?, ?, ?, false, ?, ?, ?, ?, ?, ?)`, [title,
+      const now = nowNaive();
+      const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, bonus_points, completed, is_daily, days_of_week, due_date, due_datetime, deleted, icon, image_url, is_extra, extra_id, duration_seconds, description, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, false, ?, ?, ?, ?, false, ?, ?, ?, ?, ?, ?, ?, ?)`, [title,
           person.id,
           person.name,
           points,
@@ -232,7 +239,9 @@ choresRouter.post(
           formFlagIsTrue(data.is_extra),
           data.extra_id ? String(data.extra_id).slice(0, 32) : null,
           durationSeconds,
-          description]);
+          description,
+          now,
+          now]);
 
       logActivity('chore_added', `Chore '${title}' was added for ${person.name} (${points} pts)`, person.name);
 
@@ -410,7 +419,8 @@ choresRouter.post('/add_daily_chore', formParser.none(), requireAdult, async (re
     }
     const person = await sqlOne('SELECT * FROM person WHERE name = ?', [assignedTo]) as any;
     const today = getFamilyToday();
-    const info = await sqlRun('INSERT INTO chore (title, assigned_to_id, assigned_to, points, is_daily, due_date, completed, deleted) VALUES (?, ?, ?, ?, true, ?, false, false)', [title, person ? person.id : null, assignedTo, points, today]);
+    const now = nowNaive();
+    const info = await sqlRun('INSERT INTO chore (title, assigned_to_id, assigned_to, points, is_daily, due_date, completed, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, true, ?, false, false, ?, ?)', [title, person ? person.id : null, assignedTo, points, today, now, now]);
 
     logActivity('daily_chore_added', `Daily chore '${title}' added for ${assignedTo}`, assignedTo);
     const progress = await calculateWeeklyProgress(assignedTo);
@@ -833,8 +843,9 @@ choresRouter.post(
     }
 
     const today = getFamilyToday();
-    const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, due_date, deleted, icon, is_extra, extra_id)
-         VALUES (?, ?, ?, ?, false, false, ?, false, ?, true, ?)`, [extra.title, person.id, person.name, extra.points, today, extra.icon || null, extra.id]);
+    const now = nowNaive();
+    const info = await sqlRun(`INSERT INTO chore (title, assigned_to_id, assigned_to, points, completed, is_daily, due_date, deleted, icon, is_extra, extra_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, false, false, ?, false, ?, true, ?, ?, ?)`, [extra.title, person.id, person.name, extra.points, today, extra.icon || null, extra.id, now, now]);
 
     logActivity('chore_added', `Extra chore '${extra.title}' claimed by ${person.name}`, person.name);
 
