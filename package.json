@@ -12,7 +12,7 @@
     "build:client": "npm --prefix client run build",
     "build:server": "npm --prefix server run build",
     "build": "npm run build:client && npm run build:server",
-    "verify": "node scripts/verify_ingress.js",
+    "verify": "node scripts/verify_ingress.js && node scripts/verify_bundle_budget.js && node scripts/verify_smoke.js && node scripts/verify_git_diff.js",
     "verify:deploy": "node scripts/verify_deploy.js",
     "start": "node scripts/start_app.js",
     "start:build": "node scripts/start_app.js --build",
