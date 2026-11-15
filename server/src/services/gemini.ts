@@ -33,7 +33,7 @@ export function getGeminiApiKey(): string {
 export function getGeminiModel(): string {
   const dbModel = AppSetting.get('gemini_model');
   if (dbModel && dbModel.trim()) return dbModel.trim();
-  return (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim();
+  return (process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite').trim();
 }
 
 export async function testGeminiConnection(
@@ -41,7 +41,7 @@ export async function testGeminiConnection(
   testModel?: string
 ): Promise<{ success: boolean; message: string; model: string }> {
   const key = (testKey || getGeminiApiKey()).trim();
-  const model = (testModel || getGeminiModel()).trim() || 'gemini-2.0-flash';
+  const model = (testModel || getGeminiModel()).trim() || 'gemini-3.1-flash-lite';
 
   if (!key) {
     return { success: false, message: 'No Gemini API key configured.', model };
@@ -96,9 +96,8 @@ export async function transcribeRecipeImage(
   mimeType: string,
   simulate = false
 ): Promise<ExtractedRecipe> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey || simulate) {
-    // If no Gemini key is configured or simulation requested, return the simulated extraction
+  if (simulate) {
+    // Return simulated extraction only when explicitly requested (e.g. test harnesses)
     return {
       title: 'Classic Cottage Pie with Mashed Potato Top',
       type: 'Dinner',
@@ -213,6 +212,11 @@ export async function transcribeRecipeImage(
         'Bake at 200°C for 25 minutes until golden brown and bubbling around the edges.',
       ],
     };
+  }
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured. Please add your key in Settings -> Connected Integrations -> Google Gemini AI.');
   }
 
   const model = getGeminiModel();

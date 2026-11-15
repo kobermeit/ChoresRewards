@@ -7,6 +7,8 @@ import { Modal } from '../../components/common/Modal';
 import { RecipeCard } from './components/RecipeCard';
 import { RecipeViewModal } from './components/RecipeViewModal';
 import { RecipeEditModal } from './components/RecipeEditModal';
+import { ImportingRecipeModal } from './components/ImportingRecipeModal';
+import { useNavigation } from '../../hooks/useSettings';
 
 export interface RecipeLibrarySectionProps {
   isStandalonePage?: boolean;
@@ -16,11 +18,17 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
   isStandalonePage = false,
 }) => {
   const { data, refresh, showToast, isChild } = useApp();
+  const { navigate: setActiveView } = useNavigation();
 
   const [activeRecipe, setActiveRecipe] = useState<RecipeItem | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<RecipeItem | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importInitialKeys, setImportInitialKeys] = useState<Set<string>>(new Set());
+  const [importJobId, setImportJobId] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,23 +78,29 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
   const handlePhotoUpload = async (file: File) => {
     if (!file) return;
     try {
+      const keys = new Set(allLibraryRecipes.map((r) => String(r.meal_key || r.title || '').toLowerCase().trim()));
+      setImportInitialKeys(keys);
+      setImportJobId(null);
+      setImportError(null);
+      setImportModalOpen(true);
+      setAddModalOpen(false);
       setIsUploading(true);
+
       const fd = new FormData();
       fd.append('image', file);
-      setAddModalOpen(false);
 
-      showToast('Photo uploaded! Transcribing recipe with Gemini AI in background...', { type: 'info' });
-
-      const res = await apiPost<{ success: boolean; status?: string; message?: string; error?: string }>(
+      const res = await apiPost<{ success: boolean; status?: string; job_id?: string; message?: string; error?: string }>(
         'recipes/transcribe_photo',
         fd
       );
 
       if (!res.success) {
-        showToast(res.error || 'Failed to start transcription', { type: 'error' });
+        setImportError(res.error || 'Failed to start transcription');
+      } else if (res.job_id) {
+        setImportJobId(res.job_id);
       }
     } catch (err: any) {
-      showToast(err?.message || 'Failed to upload recipe photo', { type: 'error' });
+      setImportError(err?.message || 'Failed to upload recipe photo');
     } finally {
       setIsUploading(false);
     }
@@ -111,6 +125,26 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to save recipe', { type: 'error' });
+    }
+  };
+
+  const handleDeleteRecipe = async (mealKey: string) => {
+    try {
+      const res = await apiPost<{ success: boolean; error?: string }>('recipes/delete', {
+        meal_key: mealKey,
+      });
+      if (res.success) {
+        showToast('Recipe deleted successfully');
+        setEditingRecipe(null);
+        if (activeRecipe?.meal_key === mealKey) {
+          setActiveRecipe(null);
+        }
+        await refresh();
+      } else {
+        showToast(res.error || 'Failed to delete recipe', { type: 'error' });
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete recipe', { type: 'error' });
     }
   };
 
@@ -395,7 +429,23 @@ export const RecipeLibrarySection: React.FC<RecipeLibrarySectionProps> = ({
         onClose={() => setEditingRecipe(null)}
         stores={stores}
         onSave={handleSaveRecipeEdits}
+        onDelete={handleDeleteRecipe}
         onTranscribePhoto={handlePhotoUpload}
+        onNavigateToSettings={() => setActiveView('settings')}
+      />
+
+      <ImportingRecipeModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        jobId={importJobId}
+        initialRecipeKeys={importInitialKeys}
+        errorMessage={importError}
+        onRecipeReady={(newRecipe) => {
+          showToast(`✨ Recipe "${newRecipe.title}" transcribed and ready!`, { type: 'success' });
+          setActiveRecipe(newRecipe);
+          refresh();
+        }}
+        onNavigateToSettings={() => setActiveView('settings')}
       />
     </PageContainer>
   );

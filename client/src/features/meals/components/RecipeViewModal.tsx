@@ -32,6 +32,16 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
     return dateObj.toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long' });
   }, [(recipe as any)?._dateIso]);
 
+  const createdDateLabel = useMemo(() => {
+    if (!recipe?.created_at) return null;
+    try {
+      const dt = new Date(recipe.created_at);
+      return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return null;
+    }
+  }, [recipe?.created_at]);
+
   return (
     <Modal
       open={Boolean(recipe)}
@@ -117,10 +127,35 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#e2e8f0' }}>
               <i className="fas fa-users" style={{ color: '#34d399' }} /> {recipe.servings || '4 servings'}
             </span>
-            {recipe.image_url && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: '#818cf8' }}>
-                <i className="fas fa-camera" /> Transcribed photo
+            {createdDateLabel && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.84rem', color: '#94a3b8' }}>
+                <i className="fas fa-calendar" style={{ color: '#a78bfa' }} /> Added {createdDateLabel}
               </span>
+            )}
+            {recipe.image_url && (
+              <a
+                href={resolveAssetUrl(recipe.image_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: '#93c5fd',
+                  textDecoration: 'none',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  padding: '3px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+                title="Open original uploaded recipe photo in a new tab"
+              >
+                <i className="fas fa-camera" /> View Original Photo{' '}
+                <i className="fas fa-arrow-up-right-from-square" style={{ fontSize: '0.68rem', marginLeft: 2 }} />
+              </a>
             )}
           </div>
         </div>

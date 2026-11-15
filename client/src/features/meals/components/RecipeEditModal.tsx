@@ -4,6 +4,7 @@ import { Modal } from '../../../components/common/Modal';
 import { Button, IconButton, Input, Textarea } from '../../../components/ui';
 import { ItemQuickAddBar, getCleanStoreName } from '../../../components/common/ItemQuickAddBar';
 import { RecipeItem, RecipeIngredient, ShoppingStore } from '../../../types';
+import { apiGet } from '../../../api';
 
 export interface RecipeEditModalProps {
   recipe: RecipeItem | null;
@@ -11,7 +12,9 @@ export interface RecipeEditModalProps {
   onClose: () => void;
   stores: ShoppingStore[];
   onSave: (updated: RecipeItem) => Promise<void>;
+  onDelete?: (mealKey: string) => Promise<void>;
   onTranscribePhoto?: (file: File) => void;
+  onNavigateToSettings?: () => void;
 }
 
 export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
@@ -20,7 +23,9 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   onClose,
   stores,
   onSave,
+  onDelete,
   onTranscribePhoto,
+  onNavigateToSettings,
 }) => {
   const { data } = useApp();
   const [title, setTitle] = useState('');
@@ -30,6 +35,8 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
   const [newIngStore, setNewIngStore] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
 
   const lastRecipeKeyRef = useRef<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +45,11 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
   // Initialize state only when the modal is opened or a different recipe is selected.
   // Never re-initialize during background data/store refetches so added items are never wiped.
   useEffect(() => {
+    if (open) {
+      apiGet<{ success: boolean; has_key: boolean }>('settings/gemini')
+        .then((res) => setHasGeminiKey(Boolean(res?.has_key)))
+        .catch(() => setHasGeminiKey(false));
+    }
     if (open && recipe) {
       const currentKey = `${recipe.meal_key || 'new'}_${recipe.id || 0}`;
       if (lastRecipeKeyRef.current !== currentKey) {
@@ -93,6 +105,21 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
     }
   };
 
+  const handleDelete = async () => {
+    if (!recipe?.meal_key || !onDelete) return;
+    const confirmName = title.trim() || recipe.title || 'this recipe';
+    if (!window.confirm(`Are you sure you want to delete the recipe "${confirmName}"? This cannot be undone.`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await onDelete(recipe.meal_key);
+      onClose();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!recipe) return null;
 
   return (
@@ -103,19 +130,35 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
       icon="fas fa-pencil-alt"
       maxWidth={680}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            icon="fas fa-check"
-            isLoading={saving}
-            disabled={!title.trim() || saving}
-            onClick={handleSave}
-          >
-            Save Recipe
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div>
+            {recipe.meal_key && onDelete && (
+              <Button
+                variant="danger"
+                size="sm"
+                icon="fas fa-trash-can"
+                disabled={saving || deleting}
+                isLoading={deleting}
+                onClick={handleDelete}
+              >
+                Delete Recipe
+              </Button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Button variant="ghost" onClick={onClose} disabled={saving || deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              icon="fas fa-check"
+              isLoading={saving}
+              disabled={!title.trim() || saving || deleting}
+              onClick={handleSave}
+            >
+              Save Recipe
+            </Button>
+          </div>
         </div>
       }
     >
@@ -156,7 +199,46 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Gemini AI Photo Banner for new recipes */}
-        {!recipe?.meal_key && onTranscribePhoto && (
+        {!recipe?.meal_key && onTranscribePhoto && hasGeminiKey === false && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 200, flex: 1 }}>
+              <i className="fas fa-triangle-exclamation" style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
+              <div style={{ fontSize: '0.84rem', color: '#fef3c7', lineHeight: 1.35 }}>
+                <span style={{ fontWeight: 700 }}>Gemini API key required for photo import</span>
+                <span style={{ display: 'block', fontSize: '0.76rem', color: '#fde68a' }}>
+                  Configure your free Gemini key in Connected Integrations to enable AI recipe photo OCR.
+                </span>
+              </div>
+            </div>
+            {onNavigateToSettings && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="fas fa-sliders"
+                onClick={() => {
+                  onClose();
+                  onNavigateToSettings();
+                }}
+              >
+                Configure Gemini
+              </Button>
+            )}
+          </div>
+        )}
+
+        {!recipe?.meal_key && onTranscribePhoto && hasGeminiKey !== false && (
           <div
             style={{
               display: 'flex',
@@ -236,19 +318,19 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
 
           <div
             style={{
-              maxHeight: 220,
+              maxHeight: 240,
               overflowY: 'auto',
               borderRadius: 'var(--input-radius, 10px)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               background: 'rgba(15, 23, 42, 0.4)',
-              padding: 8,
+              padding: '4px 6px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
+              gap: 4,
             }}
           >
             {ingredients.length === 0 ? (
-              <div style={{ padding: '16px 8px', textAlign: 'center', fontSize: '0.84rem', color: '#94a3b8' }}>
+              <div style={{ padding: '12px 8px', textAlign: 'center', fontSize: '0.84rem', color: '#94a3b8' }}>
                 No ingredients yet. Search staples or type a new item below!
               </div>
             ) : (
@@ -258,12 +340,12 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    padding: '6px 10px',
-                    borderRadius: 8,
+                    gap: 8,
+                    padding: '3px 8px',
+                    borderRadius: 6,
                     background: 'rgba(255, 255, 255, 0.04)',
                     border: '1px solid rgba(255, 255, 255, 0.06)',
-                    fontSize: '0.86rem',
+                    fontSize: '0.82rem',
                   }}
                 >
                   <input
@@ -274,12 +356,12 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                     placeholder="Qty"
                     title="Recipe quantity (e.g. 1, 80ml, 250g, 1 can)"
                     style={{
-                      width: 72,
-                      height: 30,
-                      padding: '2px 8px',
-                      fontSize: '0.84rem',
+                      width: 66,
+                      height: 26,
+                      padding: '1px 6px',
+                      fontSize: '0.82rem',
                       textAlign: 'center',
-                      borderRadius: 6,
+                      borderRadius: 5,
                       background: 'rgba(15, 23, 42, 0.6)',
                       border: '1px solid rgba(255, 255, 255, 0.14)',
                       color: '#93c5fd',
@@ -291,56 +373,56 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                     {ing.name}
                   </span>
                   {ing.prep && (
-                    <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>
                       ({ing.prep})
                     </span>
                   )}
                   {ing.in_pantry && (
                     <span
                       style={{
-                        fontSize: '0.72rem',
+                        fontSize: '0.70rem',
                         fontWeight: 600,
                         color: '#34d399',
                         background: 'rgba(16, 185, 129, 0.15)',
                         border: '1px solid rgba(16, 185, 129, 0.3)',
-                        padding: '2px 8px',
-                        borderRadius: 12,
+                        padding: '1px 6px',
+                        borderRadius: 10,
                         flexShrink: 0,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 3,
                       }}
                       title="Pantry staple (in stock)"
                     >
-                      <i className="fas fa-box" style={{ fontSize: '0.68rem' }} /> Pantry
+                      <i className="fas fa-box" style={{ fontSize: '0.64rem' }} /> Pantry
                     </span>
                   )}
                   {ing.uncataloged && !ing.in_pantry && (
                     <span
                       style={{
-                        fontSize: '0.72rem',
+                        fontSize: '0.70rem',
                         fontWeight: 600,
                         color: '#fbbf24',
                         background: 'rgba(245, 158, 11, 0.15)',
                         border: '1px solid rgba(245, 158, 11, 0.3)',
-                        padding: '2px 8px',
-                        borderRadius: 12,
+                        padding: '1px 6px',
+                        borderRadius: 10,
                         flexShrink: 0,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 3,
                       }}
                       title="New item (not currently in catalog)"
                     >
-                      <i className="fas fa-sparkles" style={{ fontSize: '0.68rem' }} /> New
+                      <i className="fas fa-sparkles" style={{ fontSize: '0.64rem' }} /> New
                     </span>
                   )}
                   <span
                     style={{
-                      fontSize: '0.76rem',
+                      fontSize: '0.72rem',
                       color: '#94a3b8',
                       background: 'rgba(255, 255, 255, 0.06)',
-                      padding: '3px 10px',
+                      padding: '2px 8px',
                       borderRadius: 4,
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       flexShrink: 0,
@@ -392,7 +474,7 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
 
         <Textarea
           label="Cooking Instructions / Method"
-          rows={4}
+          rows={10}
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
           placeholder={'Step 1: Chop garlic and onion...\nStep 2: Sauté in olive oil...'}

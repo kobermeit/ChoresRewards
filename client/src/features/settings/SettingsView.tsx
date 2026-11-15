@@ -15,6 +15,7 @@ import { ScreensaverSettingsTab } from './tabs/ScreensaverSettingsTab';
 import { QuizSettingsTab } from './tabs/QuizSettingsTab';
 import { BackupSettingsTab } from './tabs/BackupSettingsTab';
 import { PantrySettingsTab } from './tabs/PantrySettingsTab';
+import { GeminiSettingsTab } from './tabs/GeminiSettingsTab';
 
 export type SettingsTabId =
   | 'general'
@@ -27,6 +28,7 @@ export type SettingsTabId =
   | 'sounds'
   | 'discord'
   | 'calendar'
+  | 'gemini'
   | 'screensaver'
   | 'quiz'
   | 'backup';
@@ -72,6 +74,7 @@ export const SettingsView: React.FC = () => {
       items: [
         { id: 'calendar', label: 'Google Calendar', icon: 'fas fa-calendar-days', badge: data?.google_calendar?.enabled ? 'Connected' : 'Off' },
         { id: 'discord', label: 'Discord Webhook', icon: 'fab fa-discord', badge: null },
+        { id: 'gemini', label: 'Google Gemini AI', icon: 'fas fa-wand-magic-sparkles', badge: null },
       ],
     },
   ];
@@ -239,6 +242,7 @@ export const SettingsView: React.FC = () => {
           {tab === 'sounds' && <SoundsSettingsTab onNavigateToSeasonal={() => setTab('seasonal')} />}
           {tab === 'discord' && <NotificationsSettingsTab />}
           {tab === 'calendar' && <CalendarSettingsTab />}
+          {tab === 'gemini' && <GeminiSettingsTab />}
           {tab === 'screensaver' && <ScreensaverSettingsTab />}
           {tab === 'quiz' && <QuizSettingsTab />}
           {tab === 'backup' && <BackupSettingsTab />}

@@ -42,6 +42,8 @@ export interface RecipeItem {
   servings: string;
   prep_time: string;
   notion_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 /**
@@ -395,6 +397,8 @@ export async function getAllRecipes(): Promise<Record<string, RecipeItem>> {
       servings: r.servings || '',
       prep_time: r.prep_time || '',
       notion_id: r.notion_id || null,
+      created_at: r.created_at || null,
+      updated_at: r.updated_at || null,
     };
   }
 
@@ -1238,6 +1242,39 @@ householdRouter.post('/api/save_recipe', async (req: Request, res: Response) => 
   res.json({ success: true, recipe: saved, recipes: await getAllRecipes() });
 });
 
+interface TranscribeJob {
+  status: 'processing' | 'done' | 'failed';
+  error?: string;
+  recipe?: any;
+  created_at: number;
+}
+const transcribeJobs = new Map<string, TranscribeJob>();
+
+// Clean up stale transcribe jobs older than 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of transcribeJobs.entries()) {
+    if (now - job.created_at > 10 * 60 * 1000) {
+      transcribeJobs.delete(id);
+    }
+  }
+}, 60 * 1000).unref();
+
+householdRouter.get('/api/recipes/transcribe_status/:jobId', (req: Request, res: Response) => {
+  const jobId = String(req.params.jobId || '');
+  const job = transcribeJobs.get(jobId);
+  if (!job) {
+    res.json({ success: true, status: 'unknown' });
+    return;
+  }
+  res.json({
+    success: true,
+    status: job.status,
+    error: job.error,
+    recipe: job.recipe,
+  });
+});
+
 householdRouter.post(
   '/api/recipes/transcribe_photo',
   mealImageUpload.single('image'),
@@ -1248,14 +1285,14 @@ householdRouter.post(
     }
 
     const apiKey = getGeminiApiKey();
-    const isSimulate = req.query.simulate === 'true' || req.query.simulate === '1' || req.headers['x-simulate'] === 'true' || !apiKey;
+    const isSimulate = req.query.simulate === 'true' || req.query.simulate === '1' || req.headers['x-simulate'] === 'true';
     if (!apiKey && !isSimulate) {
       try {
         fs.unlinkSync(req.file.path);
       } catch {}
       res.status(400).json({
         success: false,
-        error: 'Gemini API key is not configured. Please add your key in Settings.',
+        error: 'Gemini API key is not configured. Please add your key in Settings -> Connected Integrations -> Google Gemini AI.',
       });
       return;
     }
@@ -1265,6 +1302,8 @@ householdRouter.post(
     const mimeType = req.file.mimetype || 'image/jpeg';
     const relativeImageUrl = `/static/uploads/meals/${filename}`;
     const jobId = `transcribe_${Date.now()}`;
+
+    transcribeJobs.set(jobId, { status: 'processing', created_at: Date.now() });
 
     // Respond immediately so user is never blocked in the UI
     res.json({
@@ -1334,7 +1373,7 @@ householdRouter.post(
 
         const instructionsText = (extracted.instructions || []).join('\n\n');
 
-        await upsertRecipe({
+        const savedRecipe = await upsertRecipe({
           meal_key: mealKey,
           title: extracted.title,
           image_url: relativeImageUrl,
@@ -1344,9 +1383,20 @@ householdRouter.post(
           prep_time: extracted.prep_time || '',
         });
 
+        transcribeJobs.set(jobId, {
+          status: 'done',
+          recipe: savedRecipe,
+          created_at: Date.now(),
+        });
+
         logActivity('recipe_transcribed', `Transcribed recipe "${extracted.title}" from photo with Gemini AI`);
       } catch (err: any) {
         console.error('[gemini] Background recipe transcription failed:', err?.message || err);
+        transcribeJobs.set(jobId, {
+          status: 'failed',
+          error: err?.message || 'Recipe photo transcription failed',
+          created_at: Date.now(),
+        });
         logActivity('error', `Recipe photo transcription failed: ${err?.message || err}`);
       }
     });
