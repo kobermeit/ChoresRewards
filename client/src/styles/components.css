@@ -4650,37 +4650,7 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   border-radius: 4px;
   line-height: 1;
 }
-.meal-kanban-card-del:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.15);
-}
-.meal-kanban-delete-corner {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(30, 41, 59, 0.92);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  opacity: 0.85;
-  transition: all 0.15s ease;
-  z-index: 5;
-}
-.meal-kanban-delete-corner:hover {
-  opacity: 1;
-  transform: scale(1.15);
-  background: #ef4444;
-  color: #ffffff;
-  border-color: #ef4444;
-}
+
 .meal-kanban-add-btn {
   background: rgba(255, 255, 255, 0.04);
   border: 1.5px dashed rgba(255, 255, 255, 0.18);
@@ -5318,34 +5288,7 @@ body.side-nav-body-collapsed { padding-left: 8px; }
   border-radius: var(--btn-radius, 10px) !important;
 }
 
-.meal-kanban-delete-corner {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(239, 68, 68, 0.95);
-  color: #ffffff;
-  border: 1.5px solid #1e293b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  cursor: pointer;
-  opacity: 0.85;
-  transition: all 0.15s ease;
-  z-index: 5;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
-  padding: 0;
-  line-height: 1;
-}
 
-.meal-kanban-delete-corner:hover {
-  opacity: 1;
-  background: #dc2626;
-  transform: scale(1.15);
-}
 
 /* Compact Person Header & Sleek Chore Cards in Columns */
 .chore-column-header-compact {

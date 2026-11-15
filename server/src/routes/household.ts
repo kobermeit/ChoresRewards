@@ -225,6 +225,33 @@ export function resolveShoppingQuantity(rawQty: string): string {
   return '1';
 }
 
+export function combineShoppingQuantities(existingQty: string, incomingQty: string): string {
+  const parsePart = (q: string) => {
+    const s = String(q || '').trim();
+    if (!s) return { count: 1, unit: '', isImplicit: true };
+    const m = s.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    if (m) {
+      return { count: parseFloat(m[1]) || 1, unit: m[2].trim().toLowerCase(), isImplicit: false };
+    }
+    return { count: 1, unit: s.toLowerCase(), isImplicit: false };
+  };
+
+  const ex = parsePart(existingQty);
+  const inc = parsePart(incomingQty);
+
+  const total = ex.count + inc.count;
+  const targetUnit = inc.unit || ex.unit;
+
+  if (!targetUnit) {
+    return String(total);
+  }
+
+  if (total > 1 && !targetUnit.endsWith('s') && !['g', 'kg', 'ml', 'l', 'oz', 'lb', 'ea'].includes(targetUnit)) {
+    return `${total} ${targetUnit}s`;
+  }
+  return `${total} ${targetUnit}`;
+}
+
 let pantryStaplesCache: string[] | null = null;
 
 export async function hydratePantryCache(): Promise<string[]> {
@@ -936,15 +963,19 @@ export async function addIngredientsToShoppingBatch(rawItems: any[]): Promise<nu
 
     const existingIdx = current.general.findIndex((g: any) => normalizeShoppingKey(g.name) === norm);
     if (existingIdx >= 0) {
+      const wasChecked = Boolean(current.general[existingIdx].checked);
       current.general[existingIdx].checked = false;
-      if (qty && !current.general[existingIdx].qty) {
-        current.general[existingIdx].qty = qty;
+      if (wasChecked) {
+        current.general[existingIdx].qty = qty || '1';
+      } else {
+        current.general[existingIdx].qty = combineShoppingQuantities(current.general[existingIdx].qty, qty);
       }
       if (finalStore && current.general[existingIdx].store !== finalStore) {
         current.general[existingIdx].store = finalStore;
       }
       const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
       delete current.checked[itemKey];
+      addedCount++;
     } else {
       current.general.push({
         id: `shop_${crypto.randomBytes(6).toString('hex')}`,
@@ -1611,8 +1642,13 @@ householdRouter.post('/api/add_general_shopping_item', async (req: Request, res:
 
   let deduplicated = false;
   if (existingIdx >= 0) {
+    const wasChecked = Boolean(current.general[existingIdx].checked);
     current.general[existingIdx].checked = false;
-    if (qty) current.general[existingIdx].qty = qty;
+    if (wasChecked) {
+      current.general[existingIdx].qty = qty || '1';
+    } else {
+      current.general[existingIdx].qty = combineShoppingQuantities(current.general[existingIdx].qty, qty);
+    }
     if (finalStore) current.general[existingIdx].store = finalStore;
     const itemKey = `general::${String(current.general[existingIdx].name).toLowerCase()}`;
     delete current.checked[itemKey];

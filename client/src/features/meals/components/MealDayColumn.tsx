@@ -172,19 +172,6 @@ export const MealDayColumn: React.FC<MealDayColumnProps> = memo(({
                       {card.audience ? card.audience : 'All family'}
                     </span>
                   </div>
-                  {!isChild && onDeleteCard && (
-                    <button
-                      type="button"
-                      className="meal-kanban-delete-corner"
-                      title={`Remove "${card.title}" from ${day.day_full}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteCard(day.date_iso, card.id);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
                 </div>
               </div>
             );

@@ -4,6 +4,7 @@ import { Button, IconButton, Badge, Select } from '../../../components/ui';
 import { ShoppingCatalogItem, ShoppingStore } from '../../../types';
 import { apiPost } from '../../../api';
 import { useApp } from '../../../context/AppContext';
+import { renderStoreIcon } from '../../meals/mealUtils';
 
 export interface ManageCatalogModalProps {
   open: boolean;
@@ -24,6 +25,22 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'staples' | 'non-staples'>('all');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sortField, setSortField] = useState<'name' | 'store' | 'staple' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+
+  const handleSort = (field: 'name' | 'store' | 'staple') => {
+    if (sortField !== field) {
+      setSortField(field);
+      setSortDirection('asc');
+    } else if (sortDirection === 'asc') {
+      setSortDirection('desc');
+    } else if (sortDirection === 'desc') {
+      setSortField(null);
+      setSortDirection(null);
+    } else {
+      setSortDirection('asc');
+    }
+  };
 
   const stores: ShoppingStore[] = useMemo(() => {
     return (data?.shopping?.stores || data?.shopping_list?.stores || []) as ShoppingStore[];
@@ -71,16 +88,37 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
     return list;
   }, [catalog, searchTerm, storeFilter, statusFilter]);
 
+  const sortedCatalog = useMemo(() => {
+    if (!sortField || !sortDirection) return filteredCatalog;
+    const factor = sortDirection === 'asc' ? 1 : -1;
+    return [...filteredCatalog].sort((a, b) => {
+      if (sortField === 'name') {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) * factor;
+      }
+      if (sortField === 'store') {
+        const sa = (a.default_store || 'aldi').toLowerCase();
+        const sb = (b.default_store || 'aldi').toLowerCase();
+        return sa.localeCompare(sb) * factor;
+      }
+      if (sortField === 'staple') {
+        const va = a.is_staple ? 1 : 0;
+        const vb = b.is_staple ? 1 : 0;
+        return (va - vb) * factor;
+      }
+      return 0;
+    });
+  }, [filteredCatalog, sortField, sortDirection]);
+
   const allFilteredSelected =
-    filteredCatalog.length > 0 &&
-    filteredCatalog.every((it) => selectedIds.has(it.id));
+    sortedCatalog.length > 0 &&
+    sortedCatalog.every((it) => selectedIds.has(it.id));
 
   const handleToggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
     } else {
       const next = new Set(selectedIds);
-      filteredCatalog.forEach((it) => next.add(it.id));
+      sortedCatalog.forEach((it) => next.add(it.id));
       setSelectedIds(next);
     }
   };
@@ -175,13 +213,13 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
       onClose={onClose}
       title="Manage Shopping Catalog & Staples"
       icon="fas fa-boxes-stacked"
-      maxWidth={720}
+      maxWidth={780}
       footer={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10 }}>
           <span style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.6)' }}>
             {selectedIds.size > 0
               ? `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} selected`
-              : `${filteredCatalog.length} item${filteredCatalog.length === 1 ? '' : 's'} (${catalog.length} total)`}
+              : `${sortedCatalog.length} item${sortedCatalog.length === 1 ? '' : 's'} (${catalog.length} total)`}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Button variant="ghost" onClick={onClose}>
@@ -229,17 +267,71 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
             />
           </div>
 
-          <div style={{ width: 140 }}>
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              options={[
-                { value: 'all', label: 'All Items' },
-                { value: 'staples', label: '⭐ Staples Only' },
-                { value: 'non-staples', label: 'Non-Staples' },
-              ]}
-              style={{ height: 36, fontSize: '0.82rem' }}
-            />
+          {/* Status Pill Toggle: All | ⭐ Staples | Non-Staples */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'rgba(0, 0, 0, 0.4)',
+              padding: '3px',
+              borderRadius: 'var(--radius-md, 8px)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              gap: '3px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              style={{
+                border: 'none',
+                background: statusFilter === 'all' ? 'var(--color-primary, #3b82f6)' : 'transparent',
+                color: statusFilter === 'all' ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                fontWeight: statusFilter === 'all' ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('staples')}
+              style={{
+                border: 'none',
+                background: statusFilter === 'staples' ? 'var(--color-primary, #3b82f6)' : 'transparent',
+                color: statusFilter === 'staples' ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                fontWeight: statusFilter === 'staples' ? 600 : 500,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>⭐</span> Staples
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('non-staples')}
+              style={{
+                border: 'none',
+                background: statusFilter === 'non-staples' ? 'var(--color-primary, #3b82f6)' : 'transparent',
+                color: statusFilter === 'non-staples' ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                fontWeight: statusFilter === 'non-staples' ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Non-Staples
+            </button>
           </div>
 
           <div style={{ width: 140 }}>
@@ -264,7 +356,7 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
           </Button>
         </div>
 
-        {/* Catalog Table */}
+        {/* Catalog Table with Sticky Sortable Headers */}
         <div
           style={{
             maxHeight: 400,
@@ -274,14 +366,147 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
             background: 'rgba(0,0,0,0.25)',
           }}
         >
-          {filteredCatalog.length === 0 ? (
+          {/* Sticky Table Header with 3-State Clickable Sorting */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 12px',
+              background: 'rgba(15, 23, 42, 0.95)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 2,
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'rgba(255, 255, 255, 0.55)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={handleToggleSelectAll}
+                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#3b82f6', flexShrink: 0 }}
+                title={allFilteredSelected ? 'Deselect All' : 'Select All'}
+              />
+              <button
+                type="button"
+                onClick={() => handleSort('name')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: sortField === 'name' ? '#60a5fa' : 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  letterSpacing: 'inherit',
+                  textTransform: 'inherit',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                title="Sort by item name (A-Z -> Z-A -> Default)"
+              >
+                <span>Item Name & History</span>
+                <i
+                  className={
+                    sortField === 'name'
+                      ? sortDirection === 'asc'
+                        ? 'fas fa-sort-up'
+                        : 'fas fa-sort-down'
+                      : 'fas fa-sort'
+                  }
+                  style={{ opacity: sortField === 'name' ? 1 : 0.4 }}
+                />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => handleSort('staple')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: sortField === 'staple' ? '#60a5fa' : 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  letterSpacing: 'inherit',
+                  textTransform: 'inherit',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  width: 90,
+                  justifyContent: 'center',
+                }}
+                title="Sort by pantry staple status"
+              >
+                <span>Staple</span>
+                <i
+                  className={
+                    sortField === 'staple'
+                      ? sortDirection === 'asc'
+                        ? 'fas fa-sort-up'
+                        : 'fas fa-sort-down'
+                      : 'fas fa-sort'
+                  }
+                  style={{ opacity: sortField === 'staple' ? 1 : 0.4 }}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSort('store')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: sortField === 'store' ? '#60a5fa' : 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  letterSpacing: 'inherit',
+                  textTransform: 'inherit',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  minWidth: 80,
+                  justifyContent: 'center',
+                }}
+                title="Sort by store"
+              >
+                <span>Store</span>
+                <i
+                  className={
+                    sortField === 'store'
+                      ? sortDirection === 'asc'
+                        ? 'fas fa-sort-up'
+                        : 'fas fa-sort-down'
+                      : 'fas fa-sort'
+                  }
+                  style={{ opacity: sortField === 'store' ? 1 : 0.4 }}
+                />
+              </button>
+
+              <span style={{ width: 28 }}></span>
+            </div>
+          </div>
+
+          {sortedCatalog.length === 0 ? (
             <div style={{ padding: 28, textAlign: 'center', opacity: 0.5, fontSize: '0.88rem' }}>
               {searchTerm || storeFilter !== 'all' || statusFilter !== 'all'
                 ? 'No items matched your filters.'
                 : 'Catalog is currently empty.'}
             </div>
           ) : (
-            filteredCatalog.map((item) => {
+            sortedCatalog.map((item) => {
               const isSelected = selectedIds.has(item.id);
               const storeInfo = getStoreDisplay(item.default_store);
               const lastBoughtLabel = formatLastDate(item.last_purchased_at);
@@ -388,8 +613,11 @@ export const ManageCatalogModal: React.FC<ManageCatalogModalProps> = ({
                       </Badge>
                     )}
 
-                    <Badge variant="neutral" size="sm">
-                      {storeInfo.icon} {storeInfo.name}
+                    <Badge variant="neutral" size="sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 90, justifyContent: 'center' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                        {renderStoreIcon(storeInfo.icon)}
+                      </span>
+                      <span>{storeInfo.name}</span>
                     </Badge>
 
                     <IconButton
