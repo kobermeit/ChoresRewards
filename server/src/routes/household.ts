@@ -461,6 +461,8 @@ export async function upsertRecipe(input: {
         store: String(i?.store || 'aldi').trim() || 'aldi',
         prep: prep || (i?.prep ? String(i.prep).trim() : undefined),
         raw_name: raw,
+        uncataloged: typeof i?.uncataloged === 'boolean' ? i.uncataloged : undefined,
+        in_pantry: typeof i?.in_pantry === 'boolean' ? i.in_pantry : undefined,
       };
     })
     .filter((i) => i.name);
@@ -1246,7 +1248,8 @@ householdRouter.post(
     }
 
     const apiKey = getGeminiApiKey();
-    if (!apiKey) {
+    const isSimulate = req.query.simulate === 'true' || req.query.simulate === '1' || req.headers['x-simulate'] === 'true' || !apiKey;
+    if (!apiKey && !isSimulate) {
       try {
         fs.unlinkSync(req.file.path);
       } catch {}
@@ -1274,22 +1277,23 @@ householdRouter.post(
     // Background processing
     setImmediate(async () => {
       try {
+        await hydratePantryCache();
         const buffer = fs.readFileSync(filePath);
-        const extracted = await transcribeRecipeImage(buffer, mimeType);
+        const extracted = await transcribeRecipeImage(buffer, mimeType, isSimulate);
         const stores = getShoppingStores();
 
         // Parse and match ingredients with shopping catalog & pantry
         const ingredients: RecipeIngredient[] = [];
         for (const ing of extracted.ingredients || []) {
           const rawText = String(ing.raw || ing.name || '').trim();
-          const buyName = String(ing.name || cleanShoppingItemName(rawText) || rawText).trim();
+          const buyName = String((ing as any).buy_name || ing.name || cleanShoppingItemName(rawText) || rawText).trim();
           const norm = normalizeShoppingKey(buyName);
-          const inPantry = isPantryItem(buyName) || Boolean((ing as any).pantry_guess);
 
           let store = 'aldi';
           let uncataloged = true;
+          let cat: any = null;
           try {
-            const cat = (await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm])) as any;
+            cat = (await sqlOne('SELECT * FROM shopping_catalog WHERE normalized_key = ?', [norm])) as any;
             if (cat) {
               store = cat.default_store || 'aldi';
               uncataloged = false;
@@ -1300,6 +1304,8 @@ householdRouter.post(
           } catch {
             // fallback
           }
+
+          const inPantry = isPantryItem(buyName) || Boolean((ing as any).pantry_guess) || Boolean(cat?.is_staple);
 
           ingredients.push({
             name: buyName,

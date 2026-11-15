@@ -295,6 +295,46 @@ export const RecipeEditModal: React.FC<RecipeEditModalProps> = ({
                       ({ing.prep})
                     </span>
                   )}
+                  {ing.in_pantry && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: '#34d399',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                      title="Pantry staple (in stock)"
+                    >
+                      <i className="fas fa-box" style={{ fontSize: '0.68rem' }} /> Pantry
+                    </span>
+                  )}
+                  {ing.uncataloged && !ing.in_pantry && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: '#fbbf24',
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                      title="New item (not currently in catalog)"
+                    >
+                      <i className="fas fa-sparkles" style={{ fontSize: '0.68rem' }} /> New
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: '0.76rem',

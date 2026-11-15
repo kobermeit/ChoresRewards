@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { Modal } from '../../../components/common/Modal';
 import { Button } from '../../../components/ui';
+import { FallbackImage } from '../../../components/common/FallbackImage';
+import { resolveAssetUrl } from '../../../api';
 import { RecipeItem } from '../../../types';
 
 export interface RecipeViewModalProps {
@@ -95,7 +97,7 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
           overflow: 'hidden',
         }}
       >
-        {/* Top metadata */}
+        {/* Top metadata & image preview */}
         <div
           style={{
             display: 'flex',
@@ -115,6 +117,11 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#e2e8f0' }}>
               <i className="fas fa-users" style={{ color: '#34d399' }} /> {recipe.servings || '4 servings'}
             </span>
+            {recipe.image_url && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: '#818cf8' }}>
+                <i className="fas fa-camera" /> Transcribed photo
+              </span>
+            )}
           </div>
         </div>
 
@@ -175,24 +182,57 @@ export const RecipeViewModal: React.FC<RecipeViewModalProps> = ({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        maxWidth: 190,
+                        flex: 1,
                       }}
                     >
                       {ing.name}
                     </span>
-                    {ing.qty ? (
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: '#93c5fd',
-                          fontSize: '0.82rem',
-                          flexShrink: 0,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {ing.qty}
-                      </span>
-                    ) : null}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {ing.in_pantry && (
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            color: '#34d399',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                          }}
+                          title="Pantry staple (in stock)"
+                        >
+                          Pantry
+                        </span>
+                      )}
+                      {ing.uncataloged && !ing.in_pantry && (
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            color: '#fbbf24',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                          }}
+                          title="New uncataloged item"
+                        >
+                          New
+                        </span>
+                      )}
+                      {ing.qty ? (
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: '#93c5fd',
+                            fontSize: '0.82rem',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {ing.qty}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ))
               )}
